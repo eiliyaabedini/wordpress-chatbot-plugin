@@ -1,0 +1,96 @@
+/* Chatbot Admin Styles */
+
+/* Conversation table */
+.chatbot-admin-status-active {
+    color: #46b450;
+    font-weight: bold;
+}
+
+.chatbot-admin-status-inactive {
+    color: #999;
+}
+
+/* Chat interface */
+.chatbot-admin-chat {
+    margin: 20px 0;
+    border: 1px solid #e5e5e5;
+    border-radius: 4px;
+    overflow: hidden;
+    background-color: #f9f9f9;
+}
+
+.chatbot-admin-messages {
+    padding: 15px;
+    max-height: 500px;
+    overflow-y: auto;
+    background-color: #f9f9f9;
+}
+
+.chatbot-admin-no-messages {
+    color: #888;
+    font-style: italic;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.chatbot-admin-message {
+    margin-bottom: 15px;
+    padding: 10px;
+    border-radius: 8px;
+    position: relative;
+    max-width: 80%;
+    clear: both;
+}
+
+.chatbot-admin-message-user {
+    background-color: #e2f0ff;
+    float: right;
+}
+
+.chatbot-admin-message-admin {
+    background-color: #f0f0f0;
+    float: left;
+}
+
+.chatbot-admin-message-meta {
+    margin-bottom: 5px;
+    font-size: 12px;
+    color: #666;
+}
+
+.chatbot-admin-message-sender {
+    font-weight: bold;
+}
+
+.chatbot-admin-message-time {
+    float: right;
+}
+
+.chatbot-admin-message-content {
+    word-wrap: break-word;
+}
+
+.chatbot-admin-reply {
+    padding: 15px;
+    background-color: #fff;
+    border-top: 1px solid #e5e5e5;
+}
+
+.chatbot-admin-reply-actions {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+}
+
+#chatbot-admin-status {
+    margin-left: 10px;
+    font-style: italic;
+    color: #666;
+}
+
+/* Clear floating messages */
+.chatbot-admin-messages::after {
+    content: "";
+    display: table;
+    clear: both;
+}

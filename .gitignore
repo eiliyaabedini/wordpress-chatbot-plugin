@@ -1,0 +1,20 @@
+# Ignore WordPress core files
+/*
+!.gitignore
+
+# Track only our plugin
+!wp-content/
+wp-content/*
+!wp-content/plugins/
+wp-content/plugins/*
+!wp-content/plugins/chatbot-plugin/
+
+# Track documentation files
+!CHAT-CONTEXT.md
+!CLAUDE.md
+!SUMMARY.md
+
+# Ignore environment specific files
+.ddev/
+wp-config*.php
+.DS_Store
