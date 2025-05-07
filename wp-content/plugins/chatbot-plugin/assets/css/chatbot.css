@@ -170,3 +170,49 @@
     color: #ccc;
     border-top-color: #555;
 }
+
+/* Typing indicator */
+.chatbot-typing-indicator {
+    background-color: #f0f0f0;
+    border-radius: 18px;
+    padding: 8px 12px;
+    max-width: 70%;
+    margin: 10px 0;
+    float: left;
+    display: inline-flex;
+    align-items: center;
+}
+
+.chatbot-container.dark .chatbot-typing-indicator {
+    background-color: #666;
+}
+
+.chatbot-typing-animation {
+    display: flex;
+}
+
+.chatbot-typing-dot {
+    width: 8px;
+    height: 8px;
+    margin: 0 2px;
+    background-color: #999;
+    border-radius: 50%;
+    animation: chatbot-typing-dot-animation 1.4s infinite ease-in-out both;
+}
+
+.chatbot-typing-dot:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.chatbot-typing-dot:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+@keyframes chatbot-typing-dot-animation {
+    0%, 80%, 100% {
+        transform: scale(0);
+    }
+    40% {
+        transform: scale(1);
+    }
+}

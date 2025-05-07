@@ -21,9 +21,33 @@
         
         // Function to add a new message to the chat
         function addMessage(message, senderType) {
+            // Remove typing indicator if it exists
+            $('.chatbot-typing-indicator').remove();
+            
             const messageElement = $('<div class="chatbot-message ' + senderType + '"></div>');
             messageElement.text(message);
             chatbotMessages.append(messageElement);
+            
+            // Scroll to bottom
+            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+        }
+        
+        // Function to show typing indicator
+        function showTypingIndicator() {
+            // Remove existing typing indicator if any
+            $('.chatbot-typing-indicator').remove();
+            
+            const typingIndicator = $(
+                '<div class="chatbot-typing-indicator">' +
+                    '<div class="chatbot-typing-animation">' +
+                        '<div class="chatbot-typing-dot"></div>' +
+                        '<div class="chatbot-typing-dot"></div>' +
+                        '<div class="chatbot-typing-dot"></div>' +
+                    '</div>' +
+                '</div>'
+            );
+            
+            chatbotMessages.append(typingIndicator);
             
             // Scroll to bottom
             chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
@@ -81,8 +105,9 @@
                 return;
             }
             
-            // Show sending status
+            // Show sending status and typing indicator
             $('.chatbot-status').text('Sending...');
+            showTypingIndicator();
             
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,

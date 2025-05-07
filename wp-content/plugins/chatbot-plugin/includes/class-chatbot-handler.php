@@ -95,8 +95,8 @@ class Chatbot_Handler {
         
         // If it's a user message, generate an automatic admin response
         if ($sender_type === 'user') {
-            // Generate a response
-            $response = $this->generate_response($message);
+            // Generate a response, passing the conversation ID for context
+            $response = $this->generate_response($message, $conversation_id);
             
             // Add admin response to the database
             $db->add_message($conversation_id, 'admin', $response);
@@ -134,11 +134,24 @@ class Chatbot_Handler {
     /**
      * Generate a response based on the input message
      * 
-     * In a real-world scenario, this might connect to an external API
-     * or use more sophisticated logic
+     * Uses OpenAI API if configured, otherwise falls back to simple response logic
+     * 
+     * @param string $message The user's message
+     * @param int $conversation_id The conversation ID
+     * @return string The generated response
      */
-    private function generate_response($message) {
-        // Convert message to lowercase for easier matching
+    private function generate_response($message, $conversation_id = null) {
+        // Check if OpenAI integration is available and configured
+        if (class_exists('Chatbot_OpenAI')) {
+            $openai = Chatbot_OpenAI::get_instance();
+            
+            if ($openai->is_configured()) {
+                // Use OpenAI to generate response based on conversation history
+                return $openai->generate_response($conversation_id, $message);
+            }
+        }
+        
+        // Fallback to simple response system if OpenAI is not available or configured
         $message_lower = strtolower($message);
         
         // Simple response system

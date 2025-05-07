@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Chatbot Plugin
- * Description: A WordPress plugin for integrating chatbot functionality.
- * Version: 1.0.0
+ * Description: A WordPress plugin for integrating AI-powered chatbot functionality.
+ * Version: 1.1.0
  * Author: Your Name
  * Author URI: https://example.com
  * Text Domain: chatbot-plugin
@@ -14,7 +14,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.0.0');
+define('CHATBOT_PLUGIN_VERSION', '1.1.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -22,6 +22,8 @@ define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-handler.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-openai.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
 
 // Plugin activation
 function activate_chatbot_plugin() {
