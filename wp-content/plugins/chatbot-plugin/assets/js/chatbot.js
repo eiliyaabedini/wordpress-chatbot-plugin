@@ -6,7 +6,9 @@
     'use strict';
     
     $(document).ready(function() {
+        const chatButton = $('#chatButton');
         const chatbotContainer = $('.chatbot-container');
+        const chatbotClose = $('#chatbot-close');
         const chatbotMessages = $('.chatbot-messages');
         const chatbotInput = $('.chatbot-input');
         const chatbotSendBtn = $('.chatbot-send-btn');
@@ -15,17 +17,53 @@
         const chatbotStartBtn = $('.chatbot-start-btn');
         const chatbotInputContainer = $('.chatbot-input-container');
         
+        // Toggle chat window
+        chatButton.on('click', function() {
+            chatbotContainer.toggleClass('active');
+            
+            if (chatbotContainer.hasClass('active')) {
+                // If conversation already exists, focus on input field, otherwise focus on name input
+                if (conversationId) {
+                    chatbotInput.focus();
+                } else {
+                    chatbotNameInput.focus();
+                }
+            }
+        });
+        
+        // Close chat window
+        chatbotClose.on('click', function() {
+            chatbotContainer.removeClass('active');
+        });
+        
         let conversationId = null;
         let visitorName = '';
         let pollInterval = null;
         
+        // Hide loading animation initially
+        $('#chatbot-loading').hide();
+        
         // Function to add a new message to the chat
         function addMessage(message, senderType) {
+            // Remove loading animation if it exists
+            $('#chatbot-loading').hide();
+            
             // Remove typing indicator if it exists
-            $('.chatbot-typing-indicator').remove();
+            $('.chatbot-typing-indicator').hide();
             
             const messageElement = $('<div class="chatbot-message ' + senderType + '"></div>');
-            messageElement.text(message);
+            
+            // Add sender label for AI and admin messages
+            if (senderType === 'ai' || senderType === 'admin') {
+                const senderLabel = $('<div class="chatbot-message-sender"></div>');
+                senderLabel.text(senderType === 'ai' ? 'AI Assistant' : 'Admin');
+                messageElement.append(senderLabel);
+            }
+            
+            // Add message text
+            const messageText = $('<div></div>').text(message);
+            messageElement.append(messageText);
+            
             chatbotMessages.append(messageElement);
             
             // Scroll to bottom
@@ -34,20 +72,11 @@
         
         // Function to show typing indicator
         function showTypingIndicator() {
-            // Remove existing typing indicator if any
-            $('.chatbot-typing-indicator').remove();
+            // Hide loading animation
+            $('#chatbot-loading').hide();
             
-            const typingIndicator = $(
-                '<div class="chatbot-typing-indicator">' +
-                    '<div class="chatbot-typing-animation">' +
-                        '<div class="chatbot-typing-dot"></div>' +
-                        '<div class="chatbot-typing-dot"></div>' +
-                        '<div class="chatbot-typing-dot"></div>' +
-                    '</div>' +
-                '</div>'
-            );
-            
-            chatbotMessages.append(typingIndicator);
+            // Show typing indicator
+            $('.chatbot-typing-indicator').show();
             
             // Scroll to bottom
             chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
@@ -62,6 +91,20 @@
             
             visitorName = name.trim();
             
+            // Hide welcome screen, show messages area and chat interface with loading animation
+            chatbotWelcomeScreen.hide();
+            chatbotMessages.show(); // Show messages area
+            chatbotInputContainer.show();
+            $('#chatbot-loading').show();
+            $('.chatbot-typing-indicator').hide();
+            
+            // Add status indicator
+            if (!$('.chatbot-status').length) {
+                chatbotContainer.append('<div class="chatbot-status">Connecting...</div>');
+            } else {
+                $('.chatbot-status').text('Connecting...');
+            }
+            
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,
                 type: 'POST',
@@ -74,25 +117,28 @@
                     if (response.success) {
                         conversationId = response.data.conversation_id;
                         
-                        // Hide welcome screen, show chat interface
-                        chatbotWelcomeScreen.hide();
-                        chatbotInputContainer.show();
+                        // Hide loading animation
+                        $('#chatbot-loading').hide();
                         
-                        // Add status indicator
-                        if (!$('.chatbot-status').length) {
-                            chatbotContainer.append('<div class="chatbot-status">Connected</div>');
-                        }
+                        // Update status indicator
+                        $('.chatbot-status').text('Connected');
                         
-                        // Add welcome message
+                        // Clear any existing messages and add welcome message from admin
+                        chatbotMessages.empty().show();
+                        
+                        // This is explicitly an admin message, not an AI response
                         addMessage('Hello ' + visitorName + '! How can I help you today?', 'admin');
                         
                         // Start polling for new messages
                         startPolling();
                     } else {
+                        $('.chatbot-status').text('Connection Error');
                         alert('Error starting conversation. Please try again.');
                     }
                 },
                 error: function() {
+                    $('#chatbot-loading').hide();
+                    $('.chatbot-status').text('Connection Error');
                     alert('Error connecting to server. Please try again.');
                 }
             });
@@ -105,7 +151,7 @@
                 return;
             }
             
-            // Show sending status and typing indicator
+            // Update status and show typing indicator
             $('.chatbot-status').text('Sending...');
             showTypingIndicator();
             
@@ -124,17 +170,27 @@
                         // Reset status
                         $('.chatbot-status').text('Connected');
                         
+                        // Keep the typing indicator visible since we're waiting for the AI response
+                        // The typing indicator will be hidden when the response is received
+                        
                         // Check if we need to add the message (it might already be added by polling)
                         if (!response.data.message_already_displayed) {
                             // The message might be already added by the user,
                             // but we're ensuring it's in the chat
                             addMessage(message, 'user');
+                            
+                            // Show typing indicator again after adding the user message
+                            showTypingIndicator();
                         }
                     } else {
+                        // Hide typing indicator and show error
+                        $('.chatbot-typing-indicator').hide();
                         $('.chatbot-status').text('Error sending message');
                     }
                 },
                 error: function() {
+                    // Hide typing indicator and show error
+                    $('.chatbot-typing-indicator').hide();
                     $('.chatbot-status').text('Connection error');
                 }
             });
@@ -163,12 +219,21 @@
                     },
                     success: function(response) {
                         if (response.success) {
+                            // Hide loading indicator and make sure messages area is visible
+                            $('#chatbot-loading').hide();
+                            chatbotMessages.show();
+                            
                             // Clear messages area and repopulate with all messages
                             chatbotMessages.empty();
                             
                             // Add all messages
                             response.data.messages.forEach(function(msg) {
-                                addMessage(msg.message, msg.sender_type);
+                                // Determine if the message is from AI or admin
+                                let senderType = msg.sender_type;
+                                if (senderType === 'bot') {
+                                    senderType = 'ai';
+                                }
+                                addMessage(msg.message, senderType);
                             });
                             
                             // Update status based on activity
@@ -234,9 +299,13 @@
             conversationId = storedConversationId;
             visitorName = storedVisitorName;
             
-            // Hide welcome screen, show chat interface
+            // Hide welcome screen, show messages and chat interface
             chatbotWelcomeScreen.hide();
+            chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
+            
+            // Show loading animation
+            $('#chatbot-loading').show();
             
             // Add status indicator
             if (!$('.chatbot-status').length) {
@@ -252,8 +321,14 @@
             if (conversationId) {
                 localStorage.setItem('chatbot_conversation_id', conversationId);
                 localStorage.setItem('chatbot_visitor_name', visitorName);
+                localStorage.setItem('chatbot_is_open', chatbotContainer.hasClass('active') ? 'true' : 'false');
             }
         });
+        
+        // Check if the chatbot was open in the previous session
+        if (localStorage.getItem('chatbot_is_open') === 'true') {
+            chatbotContainer.addClass('active');
+        }
     });
     
 })(jQuery);

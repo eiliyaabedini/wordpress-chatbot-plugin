@@ -98,8 +98,10 @@ class Chatbot_Handler {
             // Generate a response, passing the conversation ID for context
             $response = $this->generate_response($message, $conversation_id);
             
-            // Add admin response to the database
-            $db->add_message($conversation_id, 'admin', $response);
+            // Add AI response to the database
+            // Use 'ai' sender type for OpenAI responses to distinguish from human admin messages
+            $sender_type = class_exists('Chatbot_OpenAI') && Chatbot_OpenAI::get_instance()->is_configured() ? 'ai' : 'admin';
+            $db->add_message($conversation_id, $sender_type, $response);
         }
         
         wp_send_json_success(array(
