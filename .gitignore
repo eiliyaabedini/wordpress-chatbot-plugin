@@ -1,6 +1,7 @@
 # Ignore WordPress core files
 /*
 !.gitignore
+!README.md
 
 # Track only our plugin
 !wp-content/
