@@ -293,7 +293,7 @@ class Chatbot_OpenAI {
             $request_body = array(
                 'model' => $model,
                 'messages' => $messages,
-                'max_tokens' => $this->max_tokens,
+                'max_tokens' => (int) $this->max_tokens,
                 'temperature' => (float) $this->temperature,
             );
             
@@ -479,7 +479,7 @@ class Chatbot_OpenAI {
         $request_body = array(
             'model' => $model,
             'messages' => $test_message,
-            'max_tokens' => 10,
+            'max_tokens' => (int) 10,
             'temperature' => 0.1,
         );
         
