@@ -6,7 +6,70 @@
     'use strict';
     
     $(document).ready(function() {
-        // Only run on conversation view page
+        // Initialize WordPress media uploader
+        if ($('#chatbot_button_icon_upload_button').length > 0) {
+            $('#chatbot_button_icon_upload_button').on('click', function(e) {
+                e.preventDefault();
+                
+                // If wp.media is not available, show error
+                if (typeof wp === 'undefined' || !wp.media) {
+                    alert('The WordPress Media Library is not available. Please try refreshing the page.');
+                    return;
+                }
+
+                // Create the media frame
+                var frame = wp.media({
+                    title: 'Select or Upload an Icon',
+                    button: {
+                        text: 'Use this icon'
+                    },
+                    multiple: false
+                });
+
+                // When an image is selected in the media frame...
+                frame.on('select', function() {
+                    // Get the selected attachment
+                    var attachment = frame.state().get('selection').first().toJSON();
+                    
+                    // Update the URL field
+                    $('#chatbot_button_icon_url').val(attachment.url);
+                    
+                    // Update preview image
+                    $('#chatbot_button_icon_preview_placeholder').hide();
+                    $('#chatbot_button_icon_preview').attr('src', attachment.url).show();
+                });
+
+                // Open the media frame
+                frame.open();
+            });
+        }
+        
+        // Handle icon type toggle
+        if ($('#chatbot_button_icon_type').length > 0) {
+            $('#chatbot_button_icon_type').on('change', function() {
+                var iconType = $(this).val();
+                if (iconType === 'custom') {
+                    $('#chatbot_button_icon_wrapper').show();
+                    $('#chatbot_button_icon_upload_wrapper').hide();
+                } else if (iconType === 'upload') {
+                    $('#chatbot_button_icon_wrapper').hide();
+                    $('#chatbot_button_icon_upload_wrapper').show();
+                } else {
+                    $('#chatbot_button_icon_wrapper').hide();
+                    $('#chatbot_button_icon_upload_wrapper').hide();
+                }
+            }).trigger('change');
+        }
+        
+        // Handle sample SVG icon clicks
+        if ($('.svg-sample').length > 0) {
+            $('.svg-sample').on('click', function() {
+                var svgCode = $(this).find('div').html();
+                $('#chatbot_button_icon').val(svgCode);
+            });
+        }
+        
+        // Only run conversation-specific code on conversation view page
         if ($('#chatbot-admin-reply-text').length === 0) {
             return;
         }

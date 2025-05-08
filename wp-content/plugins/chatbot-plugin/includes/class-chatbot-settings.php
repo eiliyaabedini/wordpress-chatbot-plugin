@@ -50,8 +50,10 @@ class Chatbot_Settings {
         // Register general settings
         register_setting('chatbot_settings', 'chatbot_welcome_message');
         register_setting('chatbot_settings', 'chatbot_chat_greeting');
-        register_setting('chatbot_settings', 'chatbot_button_color');
-        register_setting('chatbot_settings', 'chatbot_header_color');
+        register_setting('chatbot_settings', 'chatbot_primary_color'); // Single color setting
+        register_setting('chatbot_settings', 'chatbot_button_icon');
+        register_setting('chatbot_settings', 'chatbot_button_icon_type');
+        register_setting('chatbot_settings', 'chatbot_button_icon_url');
         
         // Add general settings section
         add_settings_section(
@@ -79,17 +81,25 @@ class Chatbot_Settings {
         );
         
         add_settings_field(
-            'chatbot_button_color',
-            __('Button Color', 'chatbot-plugin'),
-            array($this, 'render_button_color_field'),
+            'chatbot_primary_color',
+            __('Primary Color', 'chatbot-plugin'),
+            array($this, 'render_primary_color_field'),
             'chatbot_settings',
             'chatbot_general_settings'
         );
         
         add_settings_field(
-            'chatbot_header_color',
-            __('Header Color', 'chatbot-plugin'),
-            array($this, 'render_header_color_field'),
+            'chatbot_button_icon_type',
+            __('Button Icon Type', 'chatbot-plugin'),
+            array($this, 'render_button_icon_type_field'),
+            'chatbot_settings',
+            'chatbot_general_settings'
+        );
+        
+        add_settings_field(
+            'chatbot_button_icon',
+            __('Custom Button Icon', 'chatbot-plugin'),
+            array($this, 'render_button_icon_field'),
             'chatbot_settings',
             'chatbot_general_settings'
         );
@@ -222,23 +232,175 @@ class Chatbot_Settings {
     }
     
     /**
-     * Render button color field
+     * Render primary color field
      */
-    public function render_button_color_field() {
-        $button_color = get_option('chatbot_button_color', '#4CAF50');
+    public function render_primary_color_field() {
+        $default_color = '#4a6cf7'; // Default blue
+        $primary_color = get_option('chatbot_primary_color', $default_color);
         
-        echo '<input type="color" name="chatbot_button_color" id="chatbot_button_color" value="' . esc_attr($button_color) . '" />';
-        echo '<p class="description">' . __('The color of the chat buttons.', 'chatbot-plugin') . '</p>';
+        // If empty or invalid, use default
+        if (empty($primary_color) || !preg_match('/^#[a-f0-9]{6}$/i', $primary_color)) {
+            $primary_color = $default_color;
+        }
+        
+        echo '<div class="color-picker-wrapper">';
+        echo '<input type="color" name="chatbot_primary_color" id="chatbot_primary_color" value="' . esc_attr($primary_color) . '" />';
+        echo '<input type="text" id="chatbot_primary_color_text" value="' . esc_attr($primary_color) . '" class="chatbot-color-text" />';
+        echo '<button type="button" class="button button-secondary" id="chatbot_reset_color">' . __('Reset to Default', 'chatbot-plugin') . '</button>';
+        echo '</div>';
+        
+        echo '<div class="color-preview" style="margin-top: 10px;">';
+        echo '<div style="display: inline-block; width: 50px; height: 50px; border-radius: 50%; background-color: ' . esc_attr($primary_color) . '; border: 1px solid #ddd;"></div>';
+        echo '<span style="margin-left: 10px; vertical-align: middle;">' . __('Preview', 'chatbot-plugin') . '</span>';
+        echo '</div>';
+        
+        echo '<p class="description">' . __('The primary color used throughout the chatbot (button, header, links, etc).', 'chatbot-plugin') . '</p>';
+        
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Sync color input with text input
+            $('#chatbot_primary_color').on('input', function() {
+                $('#chatbot_primary_color_text').val($(this).val());
+                $('.color-preview div').css('background-color', $(this).val());
+            });
+            
+            // Sync text input with color input (if valid)
+            $('#chatbot_primary_color_text').on('input', function() {
+                var color = $(this).val();
+                if (/^#[0-9A-F]{6}$/i.test(color)) {
+                    $('#chatbot_primary_color').val(color);
+                    $('.color-preview div').css('background-color', color);
+                }
+            });
+            
+            // Reset to default
+            $('#chatbot_reset_color').on('click', function() {
+                var defaultColor = '<?php echo $default_color; ?>';
+                $('#chatbot_primary_color').val(defaultColor);
+                $('#chatbot_primary_color_text').val(defaultColor);
+                $('.color-preview div').css('background-color', defaultColor);
+            });
+        });
+        </script>
+        
+        <style>
+        .color-picker-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .chatbot-color-text {
+            width: 80px;
+        }
+        </style>
+        <?php
     }
     
     /**
-     * Render header color field
+     * Render button icon type field
      */
-    public function render_header_color_field() {
-        $header_color = get_option('chatbot_header_color', '#2196F3');
+    public function render_button_icon_type_field() {
+        $button_icon_type = get_option('chatbot_button_icon_type', 'default');
         
-        echo '<input type="color" name="chatbot_header_color" id="chatbot_header_color" value="' . esc_attr($header_color) . '" />';
-        echo '<p class="description">' . __('The color of the chat header.', 'chatbot-plugin') . '</p>';
+        echo '<select name="chatbot_button_icon_type" id="chatbot_button_icon_type">';
+        echo '<option value="default" ' . selected($button_icon_type, 'default', false) . '>' . __('Default Chat Icon', 'chatbot-plugin') . '</option>';
+        echo '<option value="custom" ' . selected($button_icon_type, 'custom', false) . '>' . __('Custom SVG Icon', 'chatbot-plugin') . '</option>';
+        echo '<option value="upload" ' . selected($button_icon_type, 'upload', false) . '>' . __('Uploaded Image', 'chatbot-plugin') . '</option>';
+        echo '</select>';
+        echo '<p class="description">' . __('Select the type of icon to use for the chat button.', 'chatbot-plugin') . '</p>';
+        
+        // Add JavaScript to show/hide the appropriate field based on selection
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            function toggleIconFields() {
+                var iconType = $('#chatbot_button_icon_type').val();
+                if (iconType === 'custom') {
+                    $('#chatbot_button_icon_wrapper').show();
+                    $('#chatbot_button_icon_upload_wrapper').hide();
+                } else if (iconType === 'upload') {
+                    $('#chatbot_button_icon_wrapper').hide();
+                    $('#chatbot_button_icon_upload_wrapper').show();
+                } else {
+                    $('#chatbot_button_icon_wrapper').hide();
+                    $('#chatbot_button_icon_upload_wrapper').hide();
+                }
+            }
+            
+            $('#chatbot_button_icon_type').on('change', toggleIconFields);
+            toggleIconFields();
+        });
+        </script>
+        <?php
+    }
+    
+    /**
+     * Render button icon field
+     */
+    public function render_button_icon_field() {
+        $button_icon = get_option('chatbot_button_icon', '');
+        $button_icon_url = get_option('chatbot_button_icon_url', '');
+        
+        // Custom SVG icon input
+        echo '<div id="chatbot_button_icon_wrapper">';
+        echo '<textarea name="chatbot_button_icon" id="chatbot_button_icon" class="large-text code" rows="5">' . esc_textarea($button_icon) . '</textarea>';
+        
+        // Add sample SVG icons that can be used
+        $sample_icons = array(
+            'chat' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>',
+            'message-circle' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>',
+            'message-square' => '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>'
+        );
+        
+        echo '<div class="svg-samples" style="margin-top: 10px; display: flex; gap: 15px;">';
+        foreach ($sample_icons as $name => $svg) {
+            echo '<div class="svg-sample" style="cursor: pointer; border: 1px solid #ddd; border-radius: 5px; padding: 10px; background: white; display: flex; flex-direction: column; align-items: center; width: 80px;">';
+            echo '<div style="color: #4a6cf7;">' . $svg . '</div>';
+            echo '<span style="font-size: 11px; margin-top: 5px;">' . ucfirst($name) . '</span>';
+            echo '</div>';
+        }
+        echo '</div>';
+        
+        echo '<p class="description">' . __('Enter custom SVG code for the chat button icon.', 'chatbot-plugin') . '</p>';
+        echo '<p class="description">' . __('Click on a sample icon above or paste your own SVG code.', 'chatbot-plugin') . '</p>';
+        
+        // Add script to use sample icons
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            $('.svg-sample').on('click', function() {
+                var svgCode = $(this).find('div').html();
+                $('#chatbot_button_icon').val(svgCode);
+            });
+        });
+        </script>
+        <?php
+        echo '</div>';
+        
+        // Image upload input - simplified since we're handling in admin.js
+        echo '<div id="chatbot_button_icon_upload_wrapper">';
+        echo '<div class="image-upload-container">';
+        echo '<input type="text" name="chatbot_button_icon_url" id="chatbot_button_icon_url" class="regular-text" value="' . esc_attr($button_icon_url) . '" />';
+        echo '<button type="button" class="button button-secondary upload-button" id="chatbot_button_icon_upload_button">' . __('Upload Image', 'chatbot-plugin') . '</button>';
+        echo '</div>';
+        
+        // Image preview
+        echo '<div class="image-preview-container" style="margin-top: 10px;">';
+        if (!empty($button_icon_url)) {
+            echo '<img src="' . esc_url($button_icon_url) . '" alt="Button Icon Preview" style="max-width: 50px; max-height: 50px; border: 1px solid #ddd; border-radius: 5px; padding: 5px; background: white;" id="chatbot_button_icon_preview" />';
+        } else {
+            echo '<div id="chatbot_button_icon_preview_placeholder" style="width: 50px; height: 50px; border: 1px dashed #ddd; border-radius: 5px; display: flex; align-items: center; justify-content: center;">';
+            echo '<span style="color: #999;">No image</span>';
+            echo '</div>';
+            echo '<img src="" alt="Button Icon Preview" style="max-width: 50px; max-height: 50px; border: 1px solid #ddd; border-radius: 5px; padding: 5px; background: white; display: none;" id="chatbot_button_icon_preview" />';
+        }
+        echo '</div>';
+        
+        echo '<p class="description">' . __('Upload an image to use as the chat button icon. Recommended size: 24x24 pixels.', 'chatbot-plugin') . '</p>';
+        
+        // The JavaScript for this functionality is now in admin.js
+        echo '</div>';
     }
 }
 

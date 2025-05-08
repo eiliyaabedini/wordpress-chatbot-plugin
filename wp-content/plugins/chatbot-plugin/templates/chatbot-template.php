@@ -10,14 +10,111 @@ if (!defined('WPINC')) {
 
 // Get theme from shortcode attributes
 $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
+
+// Helper function to darken/lighten hex colors
+function adjustBrightness($hex, $steps) {
+    // Remove # if present
+    $hex = ltrim($hex, '#');
+    
+    // Parse the hex code
+    $r = hexdec(substr($hex, 0, 2));
+    $g = hexdec(substr($hex, 2, 2));
+    $b = hexdec(substr($hex, 4, 2));
+    
+    // Adjust the brightness
+    $r = max(0, min(255, $r + $steps));
+    $g = max(0, min(255, $g + $steps));
+    $b = max(0, min(255, $b + $steps));
+    
+    // Convert back to hex
+    return '#' . sprintf('%02x%02x%02x', $r, $g, $b);
+}
+
+// Default primary color if not set
+$default_primary_color = '#4a6cf7';
+$primary_color = get_option('chatbot_primary_color', $default_primary_color);
+
+// If empty, use the default color
+if (empty($primary_color)) {
+    $primary_color = $default_primary_color;
+}
+
+$primary_color_dark = adjustBrightness($primary_color, -20);
 ?>
+<style>
+/* Inject primary color as CSS variable to be used in the stylesheet */
+:root {
+    --chatbot-primary-color: <?php echo esc_attr($primary_color); ?>;
+    --chatbot-primary-color-light: <?php echo esc_attr($primary_color); ?>20; /* 20% opacity */
+    --chatbot-primary-color-dark: <?php echo esc_attr($primary_color_dark); ?>; /* Darker shade */
+}
+</style>
 
 <!-- Chatbot button -->
 <div class="chat-button" id="chatButton">
     <div class="chat-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
+        <?php 
+        // Get button icon type and render appropriate icon
+        $button_icon_type = get_option('chatbot_button_icon_type', 'default');
+        
+        if ($button_icon_type === 'custom') {
+            // Custom SVG icon
+            $custom_icon = get_option('chatbot_button_icon', '');
+            if (!empty($custom_icon)) {
+                echo wp_kses($custom_icon, array(
+                    'svg' => array(
+                        'xmlns' => true,
+                        'width' => true,
+                        'height' => true,
+                        'viewBox' => true,
+                        'fill' => true,
+                        'stroke' => true,
+                        'stroke-width' => true,
+                        'stroke-linecap' => true,
+                        'stroke-linejoin' => true,
+                        'class' => true,
+                    ),
+                    'path' => array(
+                        'd' => true,
+                        'fill' => true,
+                        'stroke' => true,
+                    ),
+                    'circle' => array(
+                        'cx' => true,
+                        'cy' => true,
+                        'r' => true,
+                        'fill' => true,
+                        'stroke' => true,
+                    ),
+                    'rect' => array(
+                        'x' => true,
+                        'y' => true,
+                        'width' => true,
+                        'height' => true,
+                        'fill' => true,
+                        'stroke' => true,
+                        'rx' => true,
+                        'ry' => true,
+                    ),
+                ));
+            } else {
+                // Fallback to default if empty
+                echo '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+            }
+        } else if ($button_icon_type === 'upload') {
+            // Uploaded image
+            $image_url = get_option('chatbot_button_icon_url', '');
+            if (!empty($image_url)) {
+                echo '<img src="' . esc_url($image_url) . '" alt="Chat" class="chat-icon-image" />';
+            } else {
+                // Fallback to default if empty
+                echo '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+            }
+        } else {
+            // Default chat icon
+            echo '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>';
+        }
+        ?>
     </div>
 </div>
 

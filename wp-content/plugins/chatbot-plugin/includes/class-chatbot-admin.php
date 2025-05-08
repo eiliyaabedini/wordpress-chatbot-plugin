@@ -303,8 +303,16 @@ class Chatbot_Admin {
      * @param string $hook The current admin page
      */
     public function enqueue_admin_scripts($hook) {
-        // Only load on our plugin pages
-        if (strpos($hook, 'chatbot-plugin') === false && strpos($hook, 'chatbot-conversations') === false) {
+        // Debug: Log the current hook for troubleshooting
+        error_log('Chatbot Plugin Admin Hook: ' . $hook);
+        
+        // Load on chatbot plugin pages or settings page
+        if (
+            strpos($hook, 'chatbot-plugin') === false && 
+            strpos($hook, 'chatbot-conversations') === false && 
+            strpos($hook, 'page_chatbot-settings') === false &&
+            $hook !== 'toplevel_page_chatbot-plugin'
+        ) {
             return;
         }
         
@@ -315,10 +323,21 @@ class Chatbot_Admin {
             CHATBOT_PLUGIN_VERSION
         );
         
+        // Explicitly enqueue WordPress media scripts and styles
+        wp_enqueue_media();
+        
+        // Enqueue jQuery
+        wp_enqueue_script('jquery');
+        
+        // Ensure thickbox is loaded for modals
+        wp_enqueue_script('thickbox');
+        wp_enqueue_style('thickbox');
+        
+        // Add custom admin script
         wp_enqueue_script(
             'chatbot-admin-script',
             CHATBOT_PLUGIN_URL . 'assets/js/chatbot-admin.js',
-            array('jquery'),
+            array('jquery', 'media-upload', 'thickbox'),
             CHATBOT_PLUGIN_VERSION,
             true
         );
