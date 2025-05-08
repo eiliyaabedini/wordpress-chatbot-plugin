@@ -174,6 +174,9 @@
             
             // Convert markdown to HTML using Showdown
             formattedMessage = converter.makeHtml(message);
+            
+            // Process the HTML to convert suggested questions into interactive buttons
+            formattedMessage = processQuestionSuggestions(formattedMessage);
             console.log('Successfully converted Markdown to HTML with Showdown');
         } catch (error) {
             console.error('Error using Showdown:', error);
@@ -193,6 +196,9 @@
                 .replace(/`(.*?)`/g, '<code>$1</code>');
                 
             formattedMessage = '<p>' + formattedMessage + '</p>';
+            
+            // Process suggested questions in the plain text version as well
+            formattedMessage = processQuestionSuggestions(formattedMessage);
             
             // Try to load Showdown again for future messages
             if (typeof chatbotAnalyticsVars !== 'undefined' && chatbotAnalyticsVars.pluginUrl) {
@@ -229,6 +235,109 @@
         
         $('#ai-chat-messages-container').append(messageElement);
         scrollChatToBottom();
+    }
+    
+    /**
+     * Process HTML content to convert suggested questions into interactive buttons
+     * 
+     * @param {string} htmlContent The HTML content to process
+     * @return {string} The processed HTML with question suggestions as buttons
+     */
+    function processQuestionSuggestions(htmlContent) {
+        // Make a copy of the original content to work with
+        let modifiedContent = htmlContent;
+        
+        // Pattern 1: Standard question pattern - sentences ending with question marks
+        const questionPattern = /([^.!?><]*?\?)/gi;
+        
+        // Pattern 2: Lines following suggestion keywords like "suggested questions", "example questions", etc.
+        const suggestionKeywords = [
+            'suggested question', 
+            'sample question', 
+            'example question', 
+            'you can ask', 
+            'try asking',
+            'questions:'
+        ];
+        
+        // Function to convert a question to a button
+        const convertToButton = (question) => {
+            // Clean up the question - remove any HTML tags and trim whitespace
+            let cleanQuestion = question.replace(/<[^>]*>/g, '').trim();
+            
+            // Skip if it's too short to be a real question (less than 10 chars) or doesn't end with ?
+            if (cleanQuestion.length < 10 || !cleanQuestion.endsWith('?')) {
+                return question;
+            }
+            
+            // Create the button
+            return `<button type="button" class="ai-chat-question-btn">${cleanQuestion}</button>`;
+        };
+        
+        // First look for sections that might contain suggested questions based on keywords
+        suggestionKeywords.forEach(keyword => {
+            // Create a pattern to find paragraphs containing the keyword
+            const keywordPattern = new RegExp(`(<p[^>]*>[^<]*${keyword}[^<]*<\/p>)([\\s\\S]*?)(<p|<div|<h|$)`, 'i');
+            const match = modifiedContent.match(keywordPattern);
+            
+            if (match) {
+                // Found a paragraph with our keyword - process the content that follows
+                const sectionStart = match.index + match[1].length;
+                const sectionContent = match[2];
+                
+                // Replace questions with buttons in this section
+                const processedSection = sectionContent.replace(questionPattern, (q) => convertToButton(q));
+                
+                // Update the content
+                modifiedContent = modifiedContent.substring(0, sectionStart) + 
+                                 processedSection + 
+                                 modifiedContent.substring(sectionStart + sectionContent.length);
+            }
+        });
+        
+        // Now look for specific patterns in the text
+        
+        // 1. Look for lists with questions (often used in summaries)
+        modifiedContent = modifiedContent.replace(/<li>([^.!?<>]*?\?)<\/li>/gi, (match, question) => {
+            return `<li>${convertToButton(question)}</li>`;
+        });
+        
+        // 2. Look for standalone questions at the end of messages (after a blank line or paragraph break)
+        modifiedContent = modifiedContent.replace(/(<\/p>[\s\r\n]*<p>|<br\s*\/*>[\s\r\n]*|<\/ul>[\s\r\n]*<p>)([^.!?<>]*?How|What|Why|When|Where|Which|Who|Can|Could|Should|Would|Will|Is|Are|Do|Does|Did|Has|Have|Had)([^.!?<>]*?\?)/gi, 
+            (match, prefix, questionStart, questionEnd) => {
+                return `${prefix}${convertToButton(questionStart + questionEnd)}`;
+            }
+        );
+        
+        // 3. Check specifically for "Suggested questions:" pattern
+        const suggestedQuestionsMatch = modifiedContent.match(/Suggested questions:([^<]*)<\/p>/i);
+        if (suggestedQuestionsMatch) {
+            const questionsText = suggestedQuestionsMatch[1];
+            
+            // Split by question marks and convert each to a button
+            let processedQuestions = questionsText;
+            const questions = questionsText.split('?');
+            
+            questions.forEach((q, i) => {
+                if (i < questions.length - 1) { // Skip the last item as it's empty or after the last question mark
+                    const question = q.trim() + '?';
+                    if (question.length > 10) { // Only convert questions of reasonable length
+                        processedQuestions = processedQuestions.replace(
+                            question, 
+                            `</p><p>${convertToButton(question)}</p><p>`
+                        );
+                    }
+                }
+            });
+            
+            // Replace the original content with our processed version
+            modifiedContent = modifiedContent.replace(
+                `Suggested questions:${questionsText}</p>`,
+                `Suggested questions:</p>${processedQuestions.replace(/^<\/p><p>/, '').replace(/<p>$/, '')}`
+            );
+        }
+        
+        return modifiedContent;
     }
     
     /**

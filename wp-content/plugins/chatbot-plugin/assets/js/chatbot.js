@@ -18,11 +18,24 @@
         const chatbotStartBtn = $('.chatbot-start-btn');
         const chatbotInputContainer = $('.chatbot-input-container');
         
+        // Detect if we're on mobile
+        let isMobile = window.innerWidth <= 768;
+        
+        // Update mobile detection on window resize
+        $(window).on('resize', function() {
+            isMobile = window.innerWidth <= 768;
+        });
+        
         // Toggle chat window
         chatButton.on('click', function() {
             chatbotContainer.toggleClass('active');
             
             if (chatbotContainer.hasClass('active')) {
+                // If on mobile, hide the chat button when chat is open
+                if (isMobile) {
+                    chatButton.addClass('hidden-mobile');
+                }
+                
                 // If conversation already exists, focus on input field, otherwise focus on name input
                 if (conversationId) {
                     chatbotInput.focus();
@@ -43,11 +56,19 @@
         // Close chat window
         chatbotClose.on('click', function() {
             chatbotContainer.removeClass('active');
+            // If on mobile, show the chat button again when chat is closed
+            if (isMobile) {
+                chatButton.removeClass('hidden-mobile');
+            }
         });
         
         // Close welcome screen
         $('#welcome-close').on('click', function() {
             chatbotContainer.removeClass('active');
+            // If on mobile, show the chat button again when welcome screen is closed
+            if (isMobile) {
+                chatButton.removeClass('hidden-mobile');
+            }
         });
         
         let conversationId = null;

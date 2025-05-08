@@ -314,8 +314,20 @@ class Chatbot_Plugin {
         // Enqueue scripts and styles
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
         
+        // Add viewport meta tag for proper mobile scaling
+        add_action('wp_head', array($this, 'add_viewport_meta'));
+        
         // Add shortcode
         add_shortcode('chatbot', array($this, 'chatbot_shortcode'));
+    }
+    
+    /**
+     * Add viewport meta tag for mobile devices
+     * This ensures proper scaling on mobile devices
+     */
+    public function add_viewport_meta() {
+        echo '<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">';
+        chatbot_log('INFO', 'add_viewport_meta', 'Added viewport meta tag for mobile optimization');
     }
     
     public function enqueue_scripts() {
