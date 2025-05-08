@@ -210,9 +210,8 @@
                     }
                 },
                 error: function() {
+                    // Just hide loading animation without showing error message
                     $('#chatbot-loading').hide();
-                    chatbotMessages.append('<div class="chatbot-system-message">Error connecting to server. Please try again.</div>');
-                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
             });
         }
@@ -238,6 +237,12 @@
                     nonce: chatbotPluginVars.nonce
                 },
                 success: function(response) {
+                    // Clear any error timer since connection succeeded
+                    if (window.fetchErrorTimer) {
+                        clearTimeout(window.fetchErrorTimer);
+                        window.fetchErrorTimer = null;
+                    }
+                    
                     if (response.success) {
                         // Check if we need to add the message (it might already be added by polling)
                         if (!response.data.message_already_displayed) {
@@ -270,10 +275,8 @@
                     }
                 },
                 error: function() {
-                    // Hide typing indicator and show error
+                    // Just hide typing indicator without showing error message
                     $('.chatbot-typing-indicator').hide();
-                    chatbotMessages.append('<div class="chatbot-system-message">Connection error. Please try again later.</div>');
-                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
             });
         }
@@ -337,8 +340,7 @@
                     }
                 },
                 error: function() {
-                    chatbotMessages.append('<div class="chatbot-system-message">Connection error. Please try again.</div>');
-                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                    // Silent error handling without showing any message
                 }
             });
         }
@@ -409,6 +411,12 @@
                     nonce: chatbotPluginVars.nonce
                 },
                 success: function(response) {
+                    // Clear any error timer since connection succeeded
+                    if (window.fetchErrorTimer) {
+                        clearTimeout(window.fetchErrorTimer);
+                        window.fetchErrorTimer = null;
+                    }
+                    
                     if (response.success) {
                         // Hide loading indicator and make sure messages area is visible
                         $('#chatbot-loading').hide();
@@ -494,20 +502,8 @@
                     }
                 },
                 error: function() {
-                    // Hide loading animation on error
+                    // Just hide loading animation without showing error message
                     $('#chatbot-loading').hide();
-                    
-                    // Only show error message if we can't fetch messages repeatedly
-                    if (!window.fetchErrorShown) {
-                        chatbotMessages.append('<div class="chatbot-system-message">Unable to retrieve messages. Will retry shortly.</div>');
-                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-                        window.fetchErrorShown = true;
-                        
-                        // Reset the error shown flag after 30 seconds
-                        setTimeout(function() {
-                            window.fetchErrorShown = false;
-                        }, 30000);
-                    }
                 }
             });
         }
