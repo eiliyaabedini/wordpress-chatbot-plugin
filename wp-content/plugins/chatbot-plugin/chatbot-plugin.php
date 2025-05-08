@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Chatbot Plugin
  * Description: A WordPress plugin for integrating AI-powered chatbot functionality.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Author: Your Name
  * Author URI: https://example.com
  * Text Domain: chatbot-plugin
@@ -14,7 +14,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.1.0');
+define('CHATBOT_PLUGIN_VERSION', '1.2.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -63,7 +63,10 @@ function create_chatbot_database_tables() {
         visitor_name varchar(100) NOT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+        status varchar(20) DEFAULT 'active' NOT NULL,
         is_active tinyint(1) DEFAULT 1 NOT NULL,
+        ended_at datetime DEFAULT NULL,
+        archived_at datetime DEFAULT NULL,
         PRIMARY KEY  (id)
     ) $charset_collate;";
     
@@ -88,6 +91,26 @@ function create_chatbot_database_tables() {
     dbDelta($sql_messages);
 }
 register_activation_hook(__FILE__, 'activate_chatbot_plugin');
+
+/**
+ * Update database tables when plugin is updated
+ */
+function update_chatbot_database_tables() {
+    global $wpdb;
+    
+    // Check if the database needs updating
+    $table_name = $wpdb->prefix . 'chatbot_conversations';
+    $check_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_name` LIKE 'status'");
+    
+    if (empty($check_column)) {
+        // Add new columns for archiving/status features
+        $wpdb->query("ALTER TABLE `$table_name` 
+                      ADD COLUMN `status` varchar(20) DEFAULT 'active' NOT NULL,
+                      ADD COLUMN `ended_at` datetime DEFAULT NULL,
+                      ADD COLUMN `archived_at` datetime DEFAULT NULL");
+    }
+}
+add_action('plugins_loaded', 'update_chatbot_database_tables');
 
 // Plugin deactivation
 function deactivate_chatbot_plugin() {

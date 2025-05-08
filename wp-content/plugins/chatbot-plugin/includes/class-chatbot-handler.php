@@ -31,6 +31,9 @@ class Chatbot_Handler {
         
         add_action('wp_ajax_chatbot_get_messages', array($this, 'get_messages'));
         add_action('wp_ajax_nopriv_chatbot_get_messages', array($this, 'get_messages'));
+        
+        add_action('wp_ajax_chatbot_end_conversation', array($this, 'end_conversation'));
+        add_action('wp_ajax_nopriv_chatbot_end_conversation', array($this, 'end_conversation'));
     }
     
     /**
@@ -88,8 +91,15 @@ class Chatbot_Handler {
             wp_send_json_error(array('message' => 'Missing required parameters.'));
         }
         
-        // Add the message to the database
+        // Check if the conversation is active
         $db = Chatbot_DB::get_instance();
+        $conversation = $db->get_conversation($conversation_id);
+        
+        if (!$conversation || $conversation->status !== 'active') {
+            wp_send_json_error(array('message' => 'Conversation is not active.'));
+        }
+        
+        // Add the message to the database
         $message_id = $db->add_message($conversation_id, $sender_type, $message);
         
         if (!$message_id) {
@@ -133,7 +143,46 @@ class Chatbot_Handler {
         $db = Chatbot_DB::get_instance();
         $messages = $db->get_messages($conversation_id);
         
-        wp_send_json_success(array('messages' => $messages));
+        // Get conversation status
+        $conversation = $db->get_conversation($conversation_id);
+        $conversation_status = $conversation ? $conversation->status : 'unknown';
+        
+        wp_send_json_success(array(
+            'messages' => $messages,
+            'conversation_status' => $conversation_status
+        ));
+    }
+    
+    /**
+     * End an active conversation
+     */
+    public function end_conversation() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot-plugin-nonce')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+        }
+        
+        // Get conversation ID
+        $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : 0;
+        
+        if (empty($conversation_id)) {
+            wp_send_json_error(array('message' => 'No conversation ID provided.'));
+        }
+        
+        // Update the conversation status
+        $db = Chatbot_DB::get_instance();
+        $result = $db->set_conversation_status($conversation_id, 'ended', true);
+        
+        if (!$result) {
+            wp_send_json_error(array('message' => 'Failed to end conversation.'));
+        }
+        
+        // Add a system message about the conversation ending
+        $db->add_message($conversation_id, 'system', 'This conversation has been ended by the user.');
+        
+        wp_send_json_success(array(
+            'message' => 'Conversation ended successfully.'
+        ));
     }
     
     /**

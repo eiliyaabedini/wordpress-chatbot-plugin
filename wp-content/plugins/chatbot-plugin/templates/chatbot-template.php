@@ -47,6 +47,9 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
     --chatbot-primary-color: <?php echo esc_attr($primary_color); ?>;
     --chatbot-primary-color-light: <?php echo esc_attr($primary_color); ?>20; /* 20% opacity */
     --chatbot-primary-color-dark: <?php echo esc_attr($primary_color_dark); ?>; /* Darker shade */
+    --chatbot-danger-color: #f44336;
+    --chatbot-danger-color-light: #f4433620; /* 20% opacity */
+    --chatbot-danger-color-dark: #d32f2f; /* Darker shade */
 }
 </style>
 
@@ -153,11 +156,16 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
     
     <div class="chatbot-input-container" style="display:none;">
         <input type="text" class="chatbot-input" placeholder="Type your message...">
-        <button class="chatbot-send-btn">
-            <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-        </button>
+        <div class="chatbot-buttons-container">
+            <button class="chatbot-send-btn">
+                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+            <button class="chatbot-end-btn" title="End this conversation">
+                End Chat
+            </button>
+        </div>
     </div>
 </div>

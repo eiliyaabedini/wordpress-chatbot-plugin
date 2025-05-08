@@ -12,6 +12,7 @@
         const chatbotMessages = $('.chatbot-messages');
         const chatbotInput = $('.chatbot-input');
         const chatbotSendBtn = $('.chatbot-send-btn');
+        const chatbotEndBtn = $('.chatbot-end-btn');
         const chatbotWelcomeScreen = $('.chatbot-welcome-screen');
         const chatbotNameInput = $('.chatbot-name-input');
         const chatbotStartBtn = $('.chatbot-start-btn');
@@ -86,6 +87,10 @@
             if (senderType === 'ai' || senderType === 'admin') {
                 const senderLabel = $('<div class="chatbot-message-sender"></div>');
                 senderLabel.text(senderType === 'ai' ? 'AI Assistant' : 'Admin');
+                messageElement.append(senderLabel);
+            } else if (senderType === 'system') {
+                const senderLabel = $('<div class="chatbot-message-sender"></div>');
+                senderLabel.text('System');
                 messageElement.append(senderLabel);
             }
             
@@ -221,6 +226,20 @@
                         $('.chatbot-typing-indicator').hide();
                         chatbotMessages.append('<div class="chatbot-system-message">Error sending message. Please try again.</div>');
                         chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                        
+                        // If conversation is not active, notify the user
+                        if (response.data && response.data.message === 'Conversation is not active.') {
+                            chatbotMessages.append('<div class="chatbot-system-message">This conversation has been ended. Please start a new conversation.</div>');
+                            chatbotInput.prop('disabled', true);
+                            chatbotSendBtn.prop('disabled', true);
+                            chatbotEndBtn.prop('disabled', true);
+                            
+                            // Show option to start a new chat
+                            chatbotMessages.append('<div class="chatbot-system-message"><button class="chatbot-new-chat-btn">Start New Chat</button></div>');
+                            
+                            // Add event listener for new chat button
+                            $('.chatbot-new-chat-btn').on('click', resetChat);
+                        }
                     }
                 },
                 error: function() {
@@ -230,6 +249,100 @@
                     chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
             });
+        }
+        
+        // Function to end the current conversation
+        function endConversation() {
+            if (!conversationId) {
+                console.error('No active conversation');
+                return;
+            }
+            
+            // Confirm before ending the chat
+            if (!confirm('Are you sure you want to end this conversation? You won\'t be able to continue it later.')) {
+                return;
+            }
+            
+            // Show end chat message
+            chatbotMessages.append('<div class="chatbot-system-message">Ending conversation...</div>');
+            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+            
+            $.ajax({
+                url: chatbotPluginVars.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'chatbot_end_conversation',
+                    conversation_id: conversationId,
+                    nonce: chatbotPluginVars.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Clear conversation data from localStorage
+                        localStorage.removeItem('chatbot_conversation_id');
+                        localStorage.removeItem('chatbot_visitor_name');
+                        
+                        // Show success message and disable input
+                        chatbotMessages.append('<div class="chatbot-system-message">This conversation has ended. Thank you for chatting with us!</div>');
+                        
+                        // Add button to start a new chat
+                        chatbotMessages.append('<div class="chatbot-system-message"><button class="chatbot-new-chat-btn">Start New Chat</button></div>');
+                        
+                        // Disable input and buttons
+                        chatbotInput.prop('disabled', true);
+                        chatbotSendBtn.prop('disabled', true);
+                        chatbotEndBtn.prop('disabled', true);
+                        
+                        // Add event listener for new chat button
+                        $('.chatbot-new-chat-btn').on('click', resetChat);
+                        
+                        // Scroll to bottom
+                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                        
+                        // Stop polling for new messages
+                        if (pollInterval) {
+                            clearInterval(pollInterval);
+                            pollInterval = null;
+                        }
+                    } else {
+                        chatbotMessages.append('<div class="chatbot-system-message">Error ending conversation. Please try again.</div>');
+                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                    }
+                },
+                error: function() {
+                    chatbotMessages.append('<div class="chatbot-system-message">Connection error. Please try again.</div>');
+                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                }
+            });
+        }
+        
+        // Function to reset chat and start a new conversation
+        function resetChat() {
+            // Reset conversation variables
+            conversationId = null;
+            visitorName = '';
+            
+            // Clear localStorage
+            localStorage.removeItem('chatbot_conversation_id');
+            localStorage.removeItem('chatbot_visitor_name');
+            
+            // Reset UI
+            chatbotWelcomeScreen.show();
+            $('.chatbot-header').hide();
+            chatbotMessages.hide().empty();
+            chatbotInputContainer.hide();
+            
+            // Reset input and buttons
+            chatbotInput.prop('disabled', false);
+            chatbotSendBtn.prop('disabled', false);
+            chatbotEndBtn.prop('disabled', false);
+            chatbotInput.val('');
+            chatbotNameInput.val('').focus();
+            
+            // Stop polling
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
         }
         
         // Function to poll for new messages
@@ -275,6 +388,50 @@
                         // Get the current message count to detect new messages
                         const currentMessageCount = $('.chatbot-message').length;
                         const hasNewMessages = response.data.messages.length > currentMessageCount;
+                        
+                        // Check if conversation is no longer active
+                        if (response.data.conversation_status !== 'active' && 
+                            chatbotInput.prop('disabled') === false) {
+                            
+                            // Disable input if conversation is not active
+                            chatbotInput.prop('disabled', true);
+                            chatbotSendBtn.prop('disabled', true);
+                            chatbotEndBtn.prop('disabled', true);
+                            
+                            // Show message about conversation status
+                            let statusMessage = '';
+                            if (response.data.conversation_status === 'ended') {
+                                statusMessage = 'This conversation has been ended.';
+                            } else if (response.data.conversation_status === 'archived') {
+                                statusMessage = 'This conversation has been archived.';
+                            } else {
+                                statusMessage = 'This conversation is no longer active.';
+                            }
+                            
+                            // Add status message to chat
+                            chatbotMessages.append('<div class="chatbot-system-message">' + statusMessage + '</div>');
+                            
+                            // Add button to start a new chat
+                            chatbotMessages.append('<div class="chatbot-system-message"><button class="chatbot-new-chat-btn">Start New Chat</button></div>');
+                            
+                            // Scroll to bottom
+                            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                            
+                            // Add event listener for new chat button
+                            $('.chatbot-new-chat-btn').on('click', resetChat);
+                            
+                            // Clear localStorage to prevent auto-resuming this conversation
+                            localStorage.removeItem('chatbot_conversation_id');
+                            localStorage.removeItem('chatbot_visitor_name');
+                            
+                            // Stop polling
+                            if (pollInterval) {
+                                clearInterval(pollInterval);
+                                pollInterval = null;
+                            }
+                            
+                            return;
+                        }
                         
                         // Only update when there are new messages or on first load
                         if (hasNewMessages || currentMessageCount === 0) {
@@ -349,6 +506,11 @@
                 chatbotInput.val('');
                 sendMessage(message);
             }
+        });
+        
+        // Handle end chat button click
+        chatbotEndBtn.on('click', function() {
+            endConversation();
         });
         
         // Handle enter key press in input
