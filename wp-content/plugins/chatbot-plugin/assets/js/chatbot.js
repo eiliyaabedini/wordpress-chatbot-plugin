@@ -25,7 +25,15 @@
                 // If conversation already exists, focus on input field, otherwise focus on name input
                 if (conversationId) {
                     chatbotInput.focus();
+                    chatbotWelcomeScreen.hide();
+                    $('.chatbot-header').show();
+                    chatbotMessages.show();
+                    chatbotInputContainer.show();
                 } else {
+                    // Show welcome screen and focus on name input
+                    chatbotWelcomeScreen.show();
+                    $('.chatbot-header').hide();
+                    chatbotMessages.hide();
                     chatbotNameInput.focus();
                 }
             }
@@ -33,6 +41,11 @@
         
         // Close chat window
         chatbotClose.on('click', function() {
+            chatbotContainer.removeClass('active');
+        });
+        
+        // Close welcome screen
+        $('#welcome-close').on('click', function() {
             chatbotContainer.removeClass('active');
         });
         
@@ -104,8 +117,9 @@
             
             visitorName = name.trim();
             
-            // Hide welcome screen, show messages area and chat interface with loading animation
+            // Hide welcome screen, show header, messages area and chat interface with loading animation
             chatbotWelcomeScreen.hide();
+            $('.chatbot-header').show();
             chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
             $('#chatbot-loading').show();
@@ -327,8 +341,9 @@
             conversationId = storedConversationId;
             visitorName = storedVisitorName;
             
-            // Hide welcome screen, show messages and chat interface
+            // Hide welcome screen, show header, messages and chat interface
             chatbotWelcomeScreen.hide();
+            $('.chatbot-header').show();
             chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
             

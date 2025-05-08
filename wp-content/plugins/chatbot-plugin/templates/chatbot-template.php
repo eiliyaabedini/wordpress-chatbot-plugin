@@ -23,7 +23,8 @@ $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
 
 <!-- Chatbot container -->
 <div class="chatbot-container <?php echo esc_attr($theme); ?>" id="chatbot-container">
-    <div class="chatbot-header">
+    <!-- Header only shown in chat mode, not in welcome screen -->
+    <div class="chatbot-header" style="display:none;">
         <span>Chat Support</span>
         <span class="chatbot-close" id="chatbot-close">✕</span>
     </div>
@@ -48,6 +49,7 @@ $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
     </div>
     
     <div class="chatbot-welcome-screen">
+        <span class="chatbot-close welcome-close" id="welcome-close" style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 22px; color: #4a6cf7;">✕</span>
         <h3>Welcome to our chat!</h3>
         <p>Please enter your name to start chatting with us.</p>
         <div class="chatbot-name-container">
