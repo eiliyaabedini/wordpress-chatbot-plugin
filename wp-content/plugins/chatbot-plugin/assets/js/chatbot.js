@@ -70,7 +70,7 @@
         }
         
         // Function to add a new message to the chat
-        function addMessage(message, senderType) {
+        function addMessage(message, senderType, preventScroll) {
             // Remove loading animation if it exists
             $('#chatbot-loading').hide();
             
@@ -92,8 +92,10 @@
             
             chatbotMessages.append(messageElement);
             
-            // Scroll to bottom
-            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+            // Only scroll to bottom if not prevented (new messages)
+            if (!preventScroll) {
+                chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+            }
         }
         
         // Function to show typing indicator
@@ -162,7 +164,7 @@
                         chatbotMessages.empty().show();
                         
                         // This is explicitly an admin message, not an AI response
-                        addMessage('Hello ' + visitorName + '! How can I help you today?', 'admin');
+                        addMessage('Hello ' + visitorName + '! How can I help you today?', 'admin', false);
                         
                         // Start polling for new messages
                         startPolling();
@@ -206,7 +208,7 @@
                         if (!response.data.message_already_displayed) {
                             // The message might be already added by the user,
                             // but we're ensuring it's in the chat
-                            addMessage(message, 'user');
+                            addMessage(message, 'user', false);
                             
                             // Show typing indicator again after adding the user message
                             showTypingIndicator();
@@ -269,23 +271,27 @@
                         
                         // Get the current message count to detect new messages
                         const currentMessageCount = $('.chatbot-message').length;
+                        const hasNewMessages = response.data.messages.length > currentMessageCount;
                         
-                        // Clear messages area and repopulate with all messages
-                        chatbotMessages.empty();
-                        
-                        // Add all messages
-                        response.data.messages.forEach(function(msg) {
-                            // Determine if the message is from AI or admin
-                            let senderType = msg.sender_type;
-                            if (senderType === 'bot') {
-                                senderType = 'ai';
+                        // Only update when there are new messages or on first load
+                        if (hasNewMessages || currentMessageCount === 0) {
+                            // Clear messages area and repopulate with all messages
+                            chatbotMessages.empty();
+                            
+                            // Add all messages
+                            response.data.messages.forEach(function(msg) {
+                                // Determine if the message is from AI or admin
+                                let senderType = msg.sender_type;
+                                if (senderType === 'bot') {
+                                    senderType = 'ai';
+                                }
+                                addMessage(msg.message, senderType, !hasNewMessages); // Pass flag to prevent scrolling
+                            });
+                            
+                            // If there are new messages, hide the typing indicator
+                            if (hasNewMessages) {
+                                $('.chatbot-typing-indicator').fadeOut(200);
                             }
-                            addMessage(msg.message, senderType);
-                        });
-                        
-                        // If there are new messages, hide the typing indicator
-                        if (response.data.messages.length > currentMessageCount) {
-                            $('.chatbot-typing-indicator').fadeOut(200);
                         }
                     }
                 },
@@ -328,7 +334,7 @@
             const message = chatbotInput.val().trim();
             
             if (message !== '') {
-                addMessage(message, 'user');
+                addMessage(message, 'user', false);
                 chatbotInput.val('');
                 sendMessage(message);
             }
@@ -340,7 +346,7 @@
                 const message = chatbotInput.val().trim();
                 
                 if (message !== '') {
-                    addMessage(message, 'user');
+                    addMessage(message, 'user', false);
                     chatbotInput.val('');
                     sendMessage(message);
                 }
