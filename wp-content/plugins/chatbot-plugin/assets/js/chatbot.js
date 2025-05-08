@@ -74,8 +74,11 @@
             // Remove loading animation if it exists
             $('#chatbot-loading').hide();
             
-            // Remove typing indicator if it exists
-            $('.chatbot-typing-indicator').hide();
+            // Only hide typing indicator for AI responses, keep it for user messages
+            if (senderType === 'ai' || senderType === 'admin') {
+                window.typingIndicatorShown = false;
+                $('#chatbot-typing-status').fadeOut(100);
+            }
             
             const messageElement = $('<div class="chatbot-message ' + senderType + '"></div>');
             
@@ -103,25 +106,21 @@
             // Hide loading animation
             $('#chatbot-loading').hide();
             
-            // First hide any existing typing indicator
-            $('.chatbot-typing-indicator').hide();
+            // Show simple typing status
+            $('#chatbot-typing-status').fadeIn(200);
             
-            // Add it at the end of the messages
-            const $typingIndicator = $('.chatbot-typing-indicator');
+            // Set flag to track typing state
+            window.typingIndicatorShown = true;
             
-            // Make sure it's detached from its current position first
-            $typingIndicator.detach();
-            
-            // Append it to the messages container
-            chatbotMessages.append($typingIndicator);
-            
-            // Show with fade-in animation
-            $typingIndicator.fadeIn(200);
-            
-            // Scroll to show the typing indicator
-            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-            
-            // We're using the typing indicator itself instead of a status message
+            // Set a safety timeout to hide the indicator if it gets stuck
+            setTimeout(function() {
+                // Only hide if there's been no response yet
+                if (window.typingIndicatorShown) {
+                    $('#chatbot-typing-status').fadeOut(200);
+                    chatbotMessages.append('<div class="chatbot-system-message">Our assistant is still thinking. Please wait a moment...</div>');
+                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                }
+            }, 15000); // Hide after 15 seconds if no response
         }
         
         // Function to start a new conversation
@@ -288,9 +287,17 @@
                                 addMessage(msg.message, senderType, !hasNewMessages); // Pass flag to prevent scrolling
                             });
                             
-                            // If there are new messages, hide the typing indicator
+                            // If there are new messages from the AI, hide the typing indicator
                             if (hasNewMessages) {
-                                $('.chatbot-typing-indicator').fadeOut(200);
+                                // Check if we received an AI message
+                                const hasNewAiMessage = response.data.messages.some(function(msg) {
+                                    return (msg.sender_type === 'bot' || msg.sender_type === 'ai');
+                                });
+                                
+                                if (hasNewAiMessage) {
+                                    window.typingIndicatorShown = false;
+                                    $('#chatbot-typing-status').fadeOut(200);
+                                }
                             }
                         }
                     }

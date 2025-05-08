@@ -37,15 +37,11 @@ $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
             <div class="chatbot-loading-spinner"></div>
             <div class="chatbot-loading-text">Initializing chat...</div>
         </div>
-        
-        <!-- Typing indicator (shown when AI is responding) -->
-        <div class="chatbot-typing-indicator" style="display:none;">
-            <div class="chatbot-typing-animation">
-                <div class="chatbot-typing-dot"></div>
-                <div class="chatbot-typing-dot"></div>
-                <div class="chatbot-typing-dot"></div>
-            </div>
-        </div>
+    </div>
+    
+    <!-- Simple text-based typing indicator at the bottom of chat -->
+    <div class="chatbot-simple-typing-indicator" id="chatbot-typing-status" style="display:none;">
+        AI Assistant is typing...
     </div>
     
     <div class="chatbot-welcome-screen">
