@@ -428,29 +428,44 @@ class Chatbot_DB {
      * Create a new chatbot configuration
      * 
      * @param string $name Configuration name
-     * @param string $system_prompt System prompt for the chatbot
+     * @param string $system_prompt System prompt for the chatbot (for backward compatibility)
+     * @param string $knowledge Knowledge base content for the chatbot
+     * @param string $persona Personality and tone information for the chatbot
      * @return int|false The configuration ID or false on failure
      */
-    public function add_configuration($name, $system_prompt) {
+    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '') {
         global $wpdb;
         
         $table = $wpdb->prefix . 'chatbot_configurations';
         
+        // If knowledge and persona are empty but system_prompt is provided, use system_prompt for both
+        if (empty($knowledge) && !empty($system_prompt)) {
+            $knowledge = $system_prompt;
+        }
+        
+        if (empty($persona) && !empty($system_prompt)) {
+            $persona = "You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.";
+        }
+        
         // Log the input parameters for debugging
         chatbot_log('DEBUG', 'add_configuration', 'Adding new chatbot configuration', array(
             'name' => $name,
-            'system_prompt_length' => strlen($system_prompt)
+            'system_prompt_length' => strlen($system_prompt),
+            'knowledge_length' => strlen($knowledge),
+            'persona_length' => strlen($persona)
         ));
         
         // Prepare data with sanitization
         $data = array(
             'name' => sanitize_text_field($name),
             'system_prompt' => sanitize_textarea_field($system_prompt),
+            'knowledge' => sanitize_textarea_field($knowledge),
+            'persona' => sanitize_textarea_field($persona),
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
         
-        $formats = array('%s', '%s', '%s', '%s');
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s');
         
         // Make sure the table exists
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") === $table;
@@ -504,23 +519,45 @@ class Chatbot_DB {
      * 
      * @param int $id Configuration ID
      * @param string $name Configuration name
-     * @param string $system_prompt System prompt for the chatbot
+     * @param string $system_prompt System prompt for the chatbot (for backward compatibility)
+     * @param string $knowledge Knowledge base content for the chatbot
+     * @param string $persona Personality and tone information for the chatbot
      * @return bool Whether the update was successful
      */
-    public function update_configuration($id, $name, $system_prompt) {
+    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '') {
         global $wpdb;
         
         $table = $wpdb->prefix . 'chatbot_configurations';
+        
+        // If knowledge and persona are empty but system_prompt is provided, use system_prompt for both
+        if (empty($knowledge) && !empty($system_prompt)) {
+            $knowledge = $system_prompt;
+        }
+        
+        if (empty($persona) && !empty($system_prompt)) {
+            $persona = "You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.";
+        }
+        
+        // Log the update operation
+        chatbot_log('DEBUG', 'update_configuration', 'Updating chatbot configuration', array(
+            'id' => $id,
+            'name' => $name,
+            'system_prompt_length' => strlen($system_prompt),
+            'knowledge_length' => strlen($knowledge),
+            'persona_length' => strlen($persona)
+        ));
         
         $result = $wpdb->update(
             $table,
             array(
                 'name' => sanitize_text_field($name),
                 'system_prompt' => sanitize_textarea_field($system_prompt),
+                'knowledge' => sanitize_textarea_field($knowledge),
+                'persona' => sanitize_textarea_field($persona),
                 'updated_at' => current_time('mysql')
             ),
             array('id' => $id),
-            array('%s', '%s', '%s'),
+            array('%s', '%s', '%s', '%s', '%s'),
             array('%d')
         );
         

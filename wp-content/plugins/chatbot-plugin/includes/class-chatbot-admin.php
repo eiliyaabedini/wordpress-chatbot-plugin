@@ -245,15 +245,25 @@ class Chatbot_Admin {
                             </tr>
                             <tr>
                                 <th scope="row">
-                                    <label for="chatbot_system_prompt"><?php _e('Knowledge and Persona', 'chatbot-plugin'); ?></label>
+                                    <label for="chatbot_knowledge"><?php _e('Knowledge Base', 'chatbot-plugin'); ?></label>
                                 </th>
                                 <td>
-                                    <textarea name="chatbot_system_prompt" id="chatbot_system_prompt" class="large-text code" rows="10" data-original-value="<?php echo esc_attr($system_prompt); ?>"><?php echo esc_textarea($system_prompt); ?></textarea>
-                                    <p class="description"><?php _e('Define the knowledge and personality for this chatbot.', 'chatbot-plugin'); ?></p>
+                                    <textarea name="chatbot_knowledge" id="chatbot_knowledge" class="large-text code" rows="10" data-original-value="<?php echo esc_attr($editing && isset($config->knowledge) ? $config->knowledge : $system_prompt); ?>"><?php echo esc_textarea($editing && isset($config->knowledge) ? $config->knowledge : $system_prompt); ?></textarea>
+                                    <p class="description"><?php _e('Define the domain-specific knowledge for this chatbot. This information is what the chatbot will use to answer questions.', 'chatbot-plugin'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="chatbot_persona"><?php _e('Persona', 'chatbot-plugin'); ?></label>
+                                </th>
+                                <td>
+                                    <textarea name="chatbot_persona" id="chatbot_persona" class="large-text code" rows="7" data-original-value="<?php echo esc_attr($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?>"><?php echo esc_textarea($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?></textarea>
+                                    <p class="description"><?php _e('Define the personality and tone for this chatbot. This controls how the AI responds to users.', 'chatbot-plugin'); ?></p>
+                                    <p class="description"><?php _e('Important: The AI will read from the Knowledge Base when generating responses.', 'chatbot-plugin'); ?></p>
                                     <button type="button" class="button" id="chatbot_improve_prompt" 
                                         data-nonce-test="<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>"
                                         data-nonce-improve="<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>">
-                                        <?php _e('Improve with AI', 'chatbot-plugin'); ?>
+                                        <?php _e('Improve Persona with AI', 'chatbot-plugin'); ?>
                                     </button>
                                     <span id="chatbot_improve_prompt_status"></span>
                                     <!-- Direct inline backup script -->
@@ -266,7 +276,7 @@ class Chatbot_Admin {
                                                 console.log('Found improve button in inline script');
                                                 improveButton.addEventListener('click', function() {
                                                     console.log('Improve button clicked in inline script');
-                                                    var textarea = document.getElementById('chatbot_system_prompt');
+                                                    var textarea = document.getElementById('chatbot_persona');
                                                     var status = document.getElementById('chatbot_improve_prompt_status');
                                                     
                                                     if (textarea && textarea.value.trim() !== '' && 
@@ -286,13 +296,19 @@ class Chatbot_Admin {
                                                                 nonce: improveButton.getAttribute('data-nonce-improve')
                                                             },
                                                             success: function(response) {
+                                                                console.log('Improve response:', response);
                                                                 if (response.success && response.data && response.data.improved_prompt) {
-                                                                    textarea.value = response.data.improved_prompt;
-                                                                    status.innerHTML = '<span style="color: green;">All Done, check it and if you need modify it!</span>';
+                                                                    if (response.data.improved_prompt.trim() === '') {
+                                                                        status.innerHTML = '<span style="color: red;">Error: OpenAI returned an empty response. Please try again.</span>';
+                                                                    } else {
+                                                                        textarea.value = response.data.improved_prompt;
+                                                                        status.innerHTML = '<span style="color: green;">All Done, check it and if you need modify it!</span>';
+                                                                    }
                                                                 } else {
                                                                     status.innerHTML = '<span style="color: red;">Error: ' + 
                                                                         (response.data && response.data.message ? response.data.message : 'Unknown error') + 
                                                                         '</span>';
+                                                                    console.error('API error details:', response);
                                                                 }
                                                             },
                                                             error: function(xhr, status, error) {
@@ -310,6 +326,9 @@ class Chatbot_Admin {
                                         });
                                     })();
                                     </script>
+                                    
+                                    <!-- Hidden system prompt field for backward compatibility -->
+                                    <input type="hidden" name="chatbot_system_prompt" id="chatbot_system_prompt" value="<?php echo esc_attr($system_prompt); ?>" />
                                 </td>
                             </tr>
                         </tbody>
@@ -1153,6 +1172,8 @@ class Chatbot_Admin {
         // Get form data
         $name = isset($_POST['chatbot_config_name']) ? sanitize_text_field($_POST['chatbot_config_name']) : '';
         $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
+        $knowledge = isset($_POST['chatbot_knowledge']) ? sanitize_textarea_field($_POST['chatbot_knowledge']) : '';
+        $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
         
         // Validate inputs
         if (empty($name)) {
@@ -1184,13 +1205,38 @@ class Chatbot_Admin {
             exit;
         }
         
-        // Set default system prompt if empty
-        if (empty($system_prompt)) {
-            $system_prompt = "You are a helpful AI assistant embedded on a WordPress website. Your goal is to provide accurate, helpful responses to user questions. Be concise but thorough, and always maintain a professional and friendly tone.";
+        // Set default knowledge if empty
+        if (empty($knowledge)) {
+            $knowledge = "This is a WordPress website. WordPress is a popular content management system used " .
+                         "to create websites, blogs, and online stores. The website may contain blog posts, " .
+                         "pages, products, or other content types common to WordPress sites.";
         }
         
+        // Set default persona if empty
+        if (empty($persona)) {
+            $persona = "You are a helpful, friendly, and professional assistant. You should respond in a " .
+                       "conversational tone while maintaining accuracy and being concise. Aim to be " . 
+                       "informative but not overly technical unless specifically asked for technical details. " .
+                       "Be patient and considerate in your responses. If you don't know something, admit it " .
+                       "rather than making up information.";
+        }
+        
+        // For backwards compatibility, update system prompt if it's empty or if we're using the new fields
+        if (empty($system_prompt) || (!empty($knowledge) && !empty($persona))) {
+            // Construct a system prompt that combines knowledge and persona
+            $system_prompt = $this->build_system_prompt($knowledge, $persona);
+        }
+        
+        // Log what we're attempting to add
+        chatbot_log('DEBUG', 'process_add_configuration', 'Adding configuration with separate fields', array(
+            'name' => $name,
+            'knowledge_length' => strlen($knowledge),
+            'persona_length' => strlen($persona),
+            'system_prompt_length' => strlen($system_prompt)
+        ));
+        
         // Add the configuration
-        $result = $db->add_configuration($name, $system_prompt);
+        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona);
         
         if ($result) {
             // Success
@@ -1218,6 +1264,33 @@ class Chatbot_Admin {
     }
     
     /**
+     * Build a system prompt that combines knowledge and persona
+     * 
+     * @param string $knowledge Knowledge content
+     * @param string $persona Persona content
+     * @return string Combined system prompt
+     */
+    private function build_system_prompt($knowledge, $persona) {
+        // First, add the persona
+        $system_prompt = $persona;
+        
+        // Add a separator if both persona and knowledge are provided
+        if (!empty($persona) && !empty($knowledge)) {
+            $system_prompt .= "\n\n### KNOWLEDGE BASE ###\n\n";
+        }
+        
+        // Add the knowledge if it exists
+        if (!empty($knowledge)) {
+            $system_prompt .= $knowledge;
+        }
+        
+        // Always add instruction to consult knowledge base when responding
+        $system_prompt .= "\n\nWhen responding to user questions, always consult the knowledge base provided above to ensure accurate information.";
+        
+        return $system_prompt;
+    }
+    
+    /**
      * Process updating a chatbot configuration via admin-post
      */
     public function process_update_configuration() {
@@ -1235,6 +1308,8 @@ class Chatbot_Admin {
         $id = isset($_POST['configuration_id']) ? intval($_POST['configuration_id']) : 0;
         $name = isset($_POST['chatbot_config_name']) ? sanitize_text_field($_POST['chatbot_config_name']) : '';
         $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
+        $knowledge = isset($_POST['chatbot_knowledge']) ? sanitize_textarea_field($_POST['chatbot_knowledge']) : '';
+        $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
         
         // Validate inputs
         if (empty($id) || empty($name)) {
@@ -1268,8 +1343,23 @@ class Chatbot_Admin {
             exit;
         }
         
+        // For backwards compatibility, update system prompt if it's empty or if we're using the new fields
+        if (empty($system_prompt) || (!empty($knowledge) && !empty($persona))) {
+            // Construct a system prompt that combines knowledge and persona
+            $system_prompt = $this->build_system_prompt($knowledge, $persona);
+        }
+        
+        // Log what we're attempting to update
+        chatbot_log('DEBUG', 'process_update_configuration', 'Updating configuration with separate fields', array(
+            'id' => $id,
+            'name' => $name,
+            'knowledge_length' => strlen($knowledge),
+            'persona_length' => strlen($persona),
+            'system_prompt_length' => strlen($system_prompt)
+        ));
+        
         // Update the configuration
-        $result = $db->update_configuration($id, $name, $system_prompt);
+        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona);
         
         if ($result) {
             // Success

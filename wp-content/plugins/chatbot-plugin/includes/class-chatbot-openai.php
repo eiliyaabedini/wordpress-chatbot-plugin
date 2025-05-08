@@ -518,15 +518,35 @@ class Chatbot_OpenAI {
         // Determine which system prompt to use
         $system_prompt = $this->get_default_system_prompt(); // Fallback default
         
-        // If a specific chatbot configuration is provided, use its system prompt
-        if (isset($config) && isset($config->system_prompt) && !empty($config->system_prompt)) {
-            $system_prompt = $config->system_prompt;
+        // If a specific chatbot configuration is provided
+        if (isset($config)) {
+            // Check if we have knowledge and persona fields (new structure)
+            if (isset($config->knowledge) && isset($config->persona) && !empty($config->knowledge) && !empty($config->persona)) {
+                // Build a system prompt that combines knowledge and persona
+                $system_prompt = $this->build_system_prompt($config->knowledge, $config->persona);
+                chatbot_log('INFO', 'get_conversation_history', 'Using combined knowledge and persona for system prompt');
+            }
+            // Fall back to system_prompt if available (backward compatibility)
+            elseif (isset($config->system_prompt) && !empty($config->system_prompt)) {
+                $system_prompt = $config->system_prompt;
+                chatbot_log('INFO', 'get_conversation_history', 'Using legacy system_prompt field');
+            }
         }
         // If no config provided, try to find the default configuration
         else {
             $default_config = $db->get_configuration_by_name('Default Configuration');
-            if ($default_config && !empty($default_config->system_prompt)) {
-                $system_prompt = $default_config->system_prompt;
+            if ($default_config) {
+                // Check for knowledge and persona fields first (new structure)
+                if (isset($default_config->knowledge) && isset($default_config->persona) && 
+                    !empty($default_config->knowledge) && !empty($default_config->persona)) {
+                    $system_prompt = $this->build_system_prompt($default_config->knowledge, $default_config->persona);
+                    chatbot_log('INFO', 'get_conversation_history', 'Using default config with knowledge and persona fields');
+                }
+                // Fall back to system_prompt if available (backward compatibility)
+                elseif (!empty($default_config->system_prompt)) {
+                    $system_prompt = $default_config->system_prompt;
+                    chatbot_log('INFO', 'get_conversation_history', 'Using default config with legacy system_prompt field');
+                }
             }
         }
         
@@ -567,6 +587,39 @@ class Chatbot_OpenAI {
                "Be friendly, helpful, and concise in your responses. If you don't know the answer " .
                "to a question, politely say so and suggest contacting the site administrator for more information. " .
                "Keep responses under 3-4 sentences when possible.";
+    }
+    
+    /**
+     * Build a system prompt that combines knowledge and persona
+     * 
+     * @param string $knowledge Knowledge content
+     * @param string $persona Persona content
+     * @return string Combined system prompt
+     */
+    private function build_system_prompt($knowledge, $persona) {
+        // First, add the persona
+        $system_prompt = $persona;
+        
+        // Add a separator if both persona and knowledge are provided
+        if (!empty($persona) && !empty($knowledge)) {
+            $system_prompt .= "\n\n### KNOWLEDGE BASE ###\n\n";
+        }
+        
+        // Add the knowledge if it exists
+        if (!empty($knowledge)) {
+            $system_prompt .= $knowledge;
+        }
+        
+        // Always add instruction to consult knowledge base when responding
+        $system_prompt .= "\n\nWhen responding to user questions, always consult the knowledge base provided above to ensure accurate information.";
+        
+        chatbot_log('DEBUG', 'build_system_prompt', 'Built combined system prompt', array(
+            'persona_length' => strlen($persona),
+            'knowledge_length' => strlen($knowledge),
+            'total_length' => strlen($system_prompt)
+        ));
+        
+        return $system_prompt;
     }
     
     /**
@@ -819,7 +872,7 @@ class Chatbot_OpenAI {
     }
     
     /**
-     * Improve a prompt using the OpenAI API
+     * Improve a persona using the OpenAI API
      */
     public function improve_prompt() {
         // Check nonce
@@ -836,7 +889,7 @@ class Chatbot_OpenAI {
         $this->refresh_settings();
         
         // Log model being used
-        error_log('Chatbot: Using model ' . $this->model . ' for improving prompt');
+        error_log('Chatbot: Using model ' . $this->model . ' for improving persona');
         
         // Check if API key is set
         if (empty($this->api_key)) {
@@ -844,37 +897,37 @@ class Chatbot_OpenAI {
             return;
         }
         
-        // Get the prompt to improve
-        $prompt = isset($_POST['prompt']) ? sanitize_textarea_field($_POST['prompt']) : '';
+        // Get the persona to improve
+        $persona = isset($_POST['prompt']) ? sanitize_textarea_field($_POST['prompt']) : '';
         
-        if (empty($prompt)) {
-            wp_send_json_error(array('message' => __('No prompt provided.', 'chatbot-plugin')));
+        if (empty($persona)) {
+            wp_send_json_error(array('message' => __('No persona provided.', 'chatbot-plugin')));
             return;
         }
         
-        // Generate an improved prompt using the OpenAI API
+        // Generate an improved persona using the OpenAI API
         $api_url = 'https://api.openai.com/v1/chat/completions';
         
         $messages = array(
             array(
                 'role' => 'system',
-                'content' => 'You are a helpful AI assistant that specializes in improving and refining system prompts for AI chatbots. Your goal is to enhance the provided prompt to be more specific, comprehensive, and effective for guiding a chatbot\'s behavior. Make the improved prompt professional, clear, and well-structured. Focus on making the prompt:
-1. More specific about the chatbot\'s role and expertise
-2. Clear about the tone and personality
-3. Specific about how to handle different types of questions
-4. Include guidelines for customer service best practices
-5. Well-structured with clear sections
-6. Maintain the core focus and domain knowledge from the original prompt
-Your output should be the complete improved prompt only, without explanations or meta-commentary.',
+                'content' => 'You are a helpful AI assistant that specializes in improving and refining personality and tone instructions for AI chatbots. Your goal is to enhance the provided persona description to be more specific, comprehensive, and effective for guiding a chatbot\'s tone and communication style. The chatbot will have a separate knowledge base, so focus only on improving the personality, tone, and communication style aspects. Make the improved persona professional, clear, and well-structured. Focus on:
+1. More specific details about the chatbot\'s personality traits
+2. Clear guidance on tone and communication style
+3. Specific instructions on how to handle different types of questions
+4. Guidelines for empathetic and helpful customer service
+5. Well-structured presentation with clear sections
+6. Instructions to reference a knowledge base for factual information
+Your output should be the complete improved persona only, without explanations or meta-commentary.',
             ),
             array(
                 'role' => 'user',
-                'content' => "Please improve this chatbot system prompt:\n\n" . $prompt,
+                'content' => "Please improve this chatbot persona description. Remember this only focuses on personality and tone, not knowledge:\n\n" . $persona,
             ),
         );
         
-        // Always use o4-mini for prompt improvement for better results and cost efficiency
-        $improve_model = 'o4-mini';
+        // Use GPT-4o for more reliable responses
+        $improve_model = 'gpt-4o';
         
         // Use the configured tokens and temperature from settings
         // but use higher token limits for prompts since they can be longer
@@ -893,8 +946,14 @@ Your output should be the complete improved prompt only, without explanations or
             // No need to specify temperature as it defaults to 1
         } else {
             $request_body['max_tokens'] = $token_limit;
-            $request_body['temperature'] = (float) $this->temperature;
+            // Use a lower temperature to reduce randomness and get more consistent responses
+            $request_body['temperature'] = 0.5;
         }
+        
+        // Force response not to be empty
+        $request_body['stop'] = null; // Ensure no premature stopping
+        // Add a system level request to ensure a response
+        $messages[0]['content'] .= "\n\nIMPORTANT: You MUST provide a detailed response. Do not return an empty response under any circumstances.";
         
         $response = wp_remote_post($api_url, array(
             'headers' => array(
@@ -934,12 +993,26 @@ Your output should be the complete improved prompt only, without explanations or
             error_log('Improved prompt success. Content length: ' . strlen($improved_prompt));
             error_log('First 100 chars: ' . substr($improved_prompt, 0, 100));
             
+            // Handle empty responses
+            if (empty(trim($improved_prompt))) {
+                error_log('WARNING: OpenAI returned empty response content');
+                wp_send_json_error(array(
+                    'message' => __('The API returned an empty response. Please try again.', 'chatbot-plugin'),
+                    'debug_info' => 'Empty content in valid response structure'
+                ));
+                return;
+            }
+            
             wp_send_json_success(array(
                 'improved_prompt' => $improved_prompt
             ));
         } else {
             // Log the full API response for debugging
             error_log('Error in improve_prompt. Response body: ' . wp_json_encode($response_body));
+            
+            // Dump the full API request and response for debugging
+            error_log('Full debug - Request: ' . json_encode($request_body));
+            error_log('Full debug - Response: ' . json_encode($response_body));
             
             // Create detailed error message
             $error_message = __('Error generating improved prompt.', 'chatbot-plugin');

@@ -99,12 +99,26 @@ function add_default_chatbot_configuration() {
     if (empty($configurations)) {
         // Create a default configuration
         $default_name = 'Default';
+        
+        // System prompt is kept for backward compatibility
         $default_prompt = "You are a helpful AI assistant embedded on a WordPress website. " . 
                           "Your goal is to provide accurate, helpful responses to user questions. " .
                           "Be concise but thorough, and always maintain a professional and friendly tone. " .
                           "If you don't know the answer to a question, acknowledge that rather than making up information.";
         
-        $db->add_configuration($default_name, $default_prompt);
+        // Define default knowledge
+        $default_knowledge = "This is a WordPress website. WordPress is a popular content management system used " .
+                             "to create websites, blogs, and online stores. The website may contain blog posts, " .
+                             "pages, products, or other content types common to WordPress sites.";
+        
+        // Define default persona
+        $default_persona = "You are a helpful, friendly, and professional assistant. You should respond in a " .
+                           "conversational tone while maintaining accuracy and being concise. Aim to be " . 
+                           "informative but not overly technical unless specifically asked for technical details. " .
+                           "Be patient and considerate in your responses. If you don't know something, admit it " .
+                           "rather than making up information.";
+        
+        $db->add_configuration($default_name, $default_prompt, $default_knowledge, $default_persona);
     }
 }
 
@@ -151,6 +165,8 @@ function create_chatbot_database_tables() {
         id bigint(20) NOT NULL AUTO_INCREMENT,
         name varchar(100) NOT NULL,
         system_prompt text NOT NULL,
+        knowledge text,
+        persona text,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id),
@@ -218,6 +234,47 @@ function update_chatbot_database_tables() {
         
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql_configurations);
+    }
+    
+    // Check for knowledge and persona columns in configurations table
+    if ($table_exists) {
+        // Check for knowledge column
+        $check_knowledge_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_configurations` LIKE 'knowledge'");
+        $check_persona_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_configurations` LIKE 'persona'");
+        
+        if (empty($check_knowledge_column) || empty($check_persona_column)) {
+            chatbot_log('INFO', 'update_tables', 'Adding knowledge and persona columns to configurations table');
+            
+            // First, make sure both columns don't exist before adding
+            if (empty($check_knowledge_column)) {
+                $wpdb->query("ALTER TABLE `$table_configurations` ADD COLUMN `knowledge` text DEFAULT NULL AFTER `system_prompt`");
+            }
+            
+            if (empty($check_persona_column)) {
+                $wpdb->query("ALTER TABLE `$table_configurations` ADD COLUMN `persona` text DEFAULT NULL AFTER `knowledge`");
+            }
+            
+            // Now migrate existing data from system_prompt to both fields
+            $configurations = $wpdb->get_results("SELECT id, system_prompt FROM `$table_configurations`");
+            
+            foreach ($configurations as $config) {
+                if (!empty($config->system_prompt)) {
+                    // For existing configs, copy system_prompt to both fields
+                    $wpdb->update(
+                        $table_configurations,
+                        array(
+                            'knowledge' => $config->system_prompt,
+                            'persona' => "You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise."
+                        ),
+                        array('id' => $config->id),
+                        array('%s', '%s'),
+                        array('%d')
+                    );
+                    
+                    chatbot_log('INFO', 'update_tables', "Migrated system_prompt to knowledge and persona fields for config id: {$config->id}");
+                }
+            }
+        }
     }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');
