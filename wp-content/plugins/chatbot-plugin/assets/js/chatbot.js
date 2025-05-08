@@ -149,12 +149,18 @@
             // Show connection status directly in chat
             chatbotMessages.append('<div class="chatbot-system-message">Connecting to AI assistant...</div>');
             
+            // Get config name from data attribute if available
+            const configName = $('.chatbot-container').attr('data-config-name') || 'Default';
+            
+            console.log('Starting conversation with config name:', configName);
+            
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'chatbot_start_conversation',
                     visitor_name: visitorName,
+                    config_name: configName,
                     nonce: chatbotPluginVars.nonce
                 },
                 success: function(response) {
@@ -280,6 +286,7 @@
                         // Clear conversation data from localStorage
                         localStorage.removeItem('chatbot_conversation_id');
                         localStorage.removeItem('chatbot_visitor_name');
+                        localStorage.removeItem('chatbot_config_name');
                         
                         // Show success message and disable input
                         chatbotMessages.append('<div class="chatbot-system-message">This conversation has ended. Thank you for chatting with us!</div>');
@@ -324,6 +331,7 @@
             // Clear localStorage
             localStorage.removeItem('chatbot_conversation_id');
             localStorage.removeItem('chatbot_visitor_name');
+            localStorage.removeItem('chatbot_config_name');
             
             // Reset UI
             chatbotWelcomeScreen.show();
@@ -423,6 +431,7 @@
                             // Clear localStorage to prevent auto-resuming this conversation
                             localStorage.removeItem('chatbot_conversation_id');
                             localStorage.removeItem('chatbot_visitor_name');
+                            localStorage.removeItem('chatbot_config_name');
                             
                             // Stop polling
                             if (pollInterval) {
@@ -531,8 +540,15 @@
         // Check if there's a stored conversation in localStorage
         const storedConversationId = localStorage.getItem('chatbot_conversation_id');
         const storedVisitorName = localStorage.getItem('chatbot_visitor_name');
+        const storedConfigName = localStorage.getItem('chatbot_config_name');
+        const currentConfigName = $('.chatbot-container').attr('data-config-name') || '';
         
-        if (storedConversationId && storedVisitorName) {
+        // Only restore if conversation exists and either there's no config name specified
+        // or the stored config name matches the current config name
+        const shouldRestore = storedConversationId && storedVisitorName && 
+                             (currentConfigName === '' || storedConfigName === currentConfigName);
+        
+        if (shouldRestore) {
             // Resume conversation
             conversationId = storedConversationId;
             visitorName = storedVisitorName;
@@ -561,6 +577,12 @@
                 localStorage.setItem('chatbot_conversation_id', conversationId);
                 localStorage.setItem('chatbot_visitor_name', visitorName);
                 localStorage.setItem('chatbot_is_open', chatbotContainer.hasClass('active') ? 'true' : 'false');
+                
+                // Store config name if available
+                const configName = $('.chatbot-container').attr('data-config-name') || '';
+                if (configName) {
+                    localStorage.setItem('chatbot_config_name', configName);
+                }
             }
         });
         

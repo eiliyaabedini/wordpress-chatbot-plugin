@@ -52,12 +52,57 @@ class Chatbot_Handler {
             wp_send_json_error(array('message' => 'No visitor name provided.'));
         }
         
-        // Create a new conversation
+        // Get chatbot config name if provided, default to "Default" if empty
+        $config_name = isset($_POST['config_name']) ? sanitize_text_field($_POST['config_name']) : 'Default';
+        
+        // Initialize database handler
         $db = Chatbot_DB::get_instance();
-        $conversation_id = $db->create_conversation($visitor_name);
+        
+        // If a specific chatbot configuration is requested, get its ID and name
+        $chatbot_config_id = null;
+        $chatbot_config = null;
+        
+        // Always try to get the requested configuration
+        $chatbot_config = $db->get_configuration_by_name($config_name);
+        
+        // If not found, fall back to Default Configuration
+        if (!$chatbot_config) {
+            chatbot_log('WARNING', 'start_conversation', "Chatbot configuration not found: $config_name, falling back to default");
+            $chatbot_config = $db->get_configuration_by_name('Default');
+        }
+        
+        // If we have a config, get its ID
+        if ($chatbot_config) {
+            $chatbot_config_id = $chatbot_config->id;
+            chatbot_log('INFO', 'start_conversation', "Using chatbot config: {$chatbot_config->name} (ID: $chatbot_config_id)");
+        } else {
+            // If no configuration found at all, log this issue
+            chatbot_log('ERROR', 'start_conversation', "No chatbot configurations found, including default");
+        }
+        
+        // Create a new conversation with the chatbot config information
+        $conversation_id = $db->create_conversation(
+            $visitor_name, 
+            $chatbot_config_id, 
+            $chatbot_config ? $chatbot_config->name : null
+        );
         
         if (!$conversation_id) {
             wp_send_json_error(array('message' => 'Error creating conversation.'));
+        }
+        
+        // Store configuration in session for easy access
+        if ($chatbot_config) {
+            // Make sure session is started
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
+            }
+            $_SESSION['chatbot_config_' . $conversation_id] = $chatbot_config;
+            chatbot_log('INFO', 'start_conversation', "Stored chatbot config in session: $conversation_id");
+            
+            // Also store the config name in the first message for backup recovery
+            $first_message = '<div class="chatbot-system-config-metadata" style="display:none;" data-config-name="' . esc_attr($config_name) . '"></div>';
+            $db->add_message($conversation_id, 'system', $first_message);
         }
         
         // Add initial welcome message from admin using customized greeting from settings
@@ -195,14 +240,46 @@ class Chatbot_Handler {
      * @return string The generated response
      */
     private function generate_response($message, $conversation_id = null) {
-        // Check if OpenAI integration is available and configured
+        // Check if OpenAI integration is available
         if (class_exists('Chatbot_OpenAI')) {
             $openai = Chatbot_OpenAI::get_instance();
             
-            if ($openai->is_configured()) {
-                // Use OpenAI to generate response based on conversation history
-                return $openai->generate_response($conversation_id, $message);
+            // Get the chatbot configuration if it exists in session
+            $chatbot_config = null;
+            
+            // Ensure session is started
+            if (session_status() === PHP_SESSION_NONE) {
+                session_start();
             }
+            
+            if (isset($_SESSION['chatbot_config_' . $conversation_id])) {
+                $chatbot_config = $_SESSION['chatbot_config_' . $conversation_id];
+                error_log('Found chatbot config in session for conversation: ' . $conversation_id);
+            } else {
+                // If no configuration in session, try to get from database based on conversation data
+                $db = Chatbot_DB::get_instance();
+                // Get the first message which might contain the config_name
+                $messages = $db->get_messages($conversation_id);
+                foreach ($messages as $msg) {
+                    if (strpos($msg->message, 'data-config-name=') !== false) {
+                        preg_match('/data-config-name="([^"]+)"/', $msg->message, $matches);
+                        if (!empty($matches[1])) {
+                            $config_name = $matches[1];
+                            $chatbot_config = $db->get_configuration_by_name($config_name);
+                            if ($chatbot_config) {
+                                // Store in session for future use
+                                $_SESSION['chatbot_config_' . $conversation_id] = $chatbot_config;
+                                error_log('Retrieved chatbot config from database for: ' . $config_name);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Use OpenAI to generate response based on conversation history
+            // Pass the custom system prompt if available
+            return $openai->generate_response($conversation_id, $message, $chatbot_config);
         }
         
         // Fallback to simple response system if OpenAI is not available or configured

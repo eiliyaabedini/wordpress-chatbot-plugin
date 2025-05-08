@@ -33,21 +33,45 @@ class Chatbot_Admin {
         
         // Handle admin actions
         add_action('admin_init', array($this, 'handle_admin_actions'));
+        
+        // Add admin-post handlers for form submissions
+        add_action('admin_post_chatbot_add_configuration', array($this, 'process_add_configuration'));
+        add_action('admin_post_chatbot_update_configuration', array($this, 'process_update_configuration'));
     }
     
     /**
      * Add admin menu pages
      */
     public function add_admin_menu() {
-        // Main plugin page
+        // Main plugin page - Changed label to 'Chat Bots'
         add_menu_page(
             __('Chatbot Plugin', 'chatbot-plugin'),
-            __('Chatbot', 'chatbot-plugin'),
+            __('Chat Bots', 'chatbot-plugin'),
             'manage_options',
             'chatbot-plugin',
             array($this, 'display_admin_page'),
             'dashicons-format-chat',
             100
+        );
+        
+        // First submenu - renamed to 'Overview'
+        add_submenu_page(
+            'chatbot-plugin',
+            __('Chatbot Overview', 'chatbot-plugin'),
+            __('Overview', 'chatbot-plugin'),
+            'manage_options',
+            'chatbot-plugin',
+            array($this, 'display_admin_page')
+        );
+        
+        // Chatbots management submenu
+        add_submenu_page(
+            'chatbot-plugin',
+            __('Chat Bots', 'chatbot-plugin'),
+            __('Chat Bots', 'chatbot-plugin'),
+            'manage_options',
+            'chatbot-configurations',
+            array($this, 'display_configurations_page')
         );
         
         // Conversations submenu
@@ -93,6 +117,281 @@ class Chatbot_Admin {
     }
     
     /**
+     * Display the chatbot configurations page
+     */
+    public function display_configurations_page() {
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        // Check for success messages from admin-post redirects
+        if (isset($_GET['success'])) {
+            $success_type = sanitize_text_field($_GET['success']);
+            
+            if ($success_type === 'add') {
+                add_settings_error('chatbot_plugin', 'add-success', __('Chatbot added successfully.', 'chatbot-plugin'), 'updated');
+            } elseif ($success_type === 'update') {
+                add_settings_error('chatbot_plugin', 'update-success', __('Chatbot updated successfully.', 'chatbot-plugin'), 'updated');
+            }
+        }
+        
+        // Check for error messages from admin-post redirects
+        if (isset($_GET['error'])) {
+            $error_type = sanitize_text_field($_GET['error']);
+            
+            if ($error_type === 'name_required') {
+                add_settings_error('chatbot_plugin', 'name-required', __('Chatbot name is required.', 'chatbot-plugin'), 'error');
+            } elseif ($error_type === 'name_exists') {
+                add_settings_error('chatbot_plugin', 'name-exists', __('A chatbot with this name already exists.', 'chatbot-plugin'), 'error');
+            } elseif ($error_type === 'db_error') {
+                add_settings_error('chatbot_plugin', 'db-error', __('Failed to add or update chatbot. Please try again.', 'chatbot-plugin'), 'error');
+            } elseif ($error_type === 'invalid_data') {
+                add_settings_error('chatbot_plugin', 'invalid-data', __('Invalid configuration data.', 'chatbot-plugin'), 'error');
+            }
+        }
+        
+        // Handle delete action
+        if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id']) && check_admin_referer('chatbot_delete_configuration')) {
+            $this->handle_delete_configuration(intval($_GET['id']));
+        }
+        
+        // Check if we're editing a configuration
+        $editing = isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id']);
+        $edit_id = $editing ? intval($_GET['id']) : 0;
+        
+        // Include database class
+        $db = Chatbot_DB::get_instance();
+        
+        // Get all configurations
+        $configurations = $db->get_configurations();
+        
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline">
+                <?php echo $editing ? __('Edit Chatbot', 'chatbot-plugin') : __('Chat Bots', 'chatbot-plugin'); ?>
+            </h1>
+            
+            <?php if (!$editing): ?>
+                <a href="<?php echo admin_url('admin.php?page=chatbot-configurations&action=add'); ?>" class="page-title-action">
+                    <?php _e('Add New', 'chatbot-plugin'); ?>
+                </a>
+            <?php endif; ?>
+            
+            <?php settings_errors('chatbot_plugin'); ?>
+            
+            <?php if ($editing || isset($_GET['action']) && $_GET['action'] === 'add'): ?>
+                <?php 
+                // Get the configuration if editing
+                $config = $editing ? $db->get_configuration($edit_id) : null;
+                
+                if ($editing && !$config) {
+                    echo '<div class="notice notice-error"><p>' . __('Configuration not found.', 'chatbot-plugin') . '</p></div>';
+                    echo '<p><a href="' . admin_url('admin.php?page=chatbot-configurations') . '">' . __('&larr; Back to Chat Bots', 'chatbot-plugin') . '</a></p>';
+                    echo '</div>'; // Close .wrap
+                    return;
+                }
+                
+                // Set defaults for new configuration
+                $name = $editing ? $config->name : '';
+                $system_prompt = $editing ? $config->system_prompt : '';
+                ?>
+                
+                <p>
+                    <a href="<?php echo admin_url('admin.php?page=chatbot-configurations'); ?>" class="button">
+                        <?php _e('&larr; Back to Chat Bots', 'chatbot-plugin'); ?>
+                    </a>
+                </p>
+                
+                <form method="post" id="chatbot-config-form" action="<?php echo admin_url('admin-post.php'); ?>">
+                    <input type="hidden" name="page" value="chatbot-configurations">
+                    <?php if ($editing): ?>
+                        <input type="hidden" name="action" value="chatbot_update_configuration">
+                        <input type="hidden" name="id" value="<?php echo esc_attr($edit_id); ?>">
+                        <?php wp_nonce_field('chatbot_update_configuration_nonce'); ?>
+                        <input type="hidden" name="configuration_id" value="<?php echo esc_attr($edit_id); ?>">
+                    <?php else: ?>
+                        <input type="hidden" name="action" value="chatbot_add_configuration">
+                        <?php wp_nonce_field('chatbot_add_configuration_nonce'); ?>
+                    <?php endif; ?>
+                    
+                    <table class="form-table" role="presentation">
+                        <tbody>
+                            <tr>
+                                <th scope="row">
+                                    <label for="chatbot_config_name"><?php _e('Name', 'chatbot-plugin'); ?></label>
+                                </th>
+                                <td>
+                                    <input type="text" name="chatbot_config_name" id="chatbot_config_name" class="regular-text" value="<?php echo esc_attr($name); ?>" required>
+                                    <p class="description"><?php _e('Enter a unique name for this chatbot. This will be used in the shortcode.', 'chatbot-plugin'); ?></p>
+                                    <p class="description"><?php _e('Example shortcode: [chatbot name="product"]', 'chatbot-plugin'); ?></p>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="chatbot_system_prompt"><?php _e('Knowledge and Persona', 'chatbot-plugin'); ?></label>
+                                </th>
+                                <td>
+                                    <textarea name="chatbot_system_prompt" id="chatbot_system_prompt" class="large-text code" rows="10"><?php echo esc_textarea($system_prompt); ?></textarea>
+                                    <p class="description"><?php _e('Define the knowledge and personality for this chatbot.', 'chatbot-plugin'); ?></p>
+                                    <button type="button" class="button" id="chatbot_improve_prompt"><?php _e('Improve with AI', 'chatbot-plugin'); ?></button>
+                                    <span id="chatbot_improve_prompt_status"></span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <p class="submit">
+                        <?php if ($editing): ?>
+                            <input type="submit" class="button button-primary" value="<?php esc_attr_e('Update Chatbot', 'chatbot-plugin'); ?>">
+                        <?php else: ?>
+                            <input type="submit" class="button button-primary" value="<?php esc_attr_e('Add Chatbot', 'chatbot-plugin'); ?>">
+                            <a href="<?php echo admin_url('admin.php?page=chatbot-configurations&action=add'); ?>" class="button">
+                                <?php _e('Reset Form', 'chatbot-plugin'); ?>
+                            </a>
+                        <?php endif; ?>
+                    </p>
+                </form>
+                
+                <script type="text/javascript">
+                jQuery(document).ready(function($) {
+                    $('#chatbot_improve_prompt').on('click', function() {
+                        var $button = $(this);
+                        var $status = $('#chatbot_improve_prompt_status');
+                        var promptText = $('#chatbot_system_prompt').val();
+                        
+                        if (promptText.trim() === '') {
+                            $status.html('<span style="color: red;"><?php _e('Please enter some text first.', 'chatbot-plugin'); ?></span>');
+                            return;
+                        }
+                        
+                        $button.prop('disabled', true);
+                        $status.html('<span><?php _e('Improving prompt...', 'chatbot-plugin'); ?></span>');
+                        
+                        // Redirect to OpenAI settings if API key is not configured
+                        var handleApiKeyMissing = function() {
+                            if (confirm('<?php _e('OpenAI API key is not configured. Would you like to configure it now?', 'chatbot-plugin'); ?>')) {
+                                window.location.href = '<?php echo admin_url('admin.php?page=chatbot-settings&tab=openai'); ?>';
+                            } else {
+                                $status.html('<span style="color: red;"><?php _e('API key is required. Please configure your OpenAI API key in the OpenAI settings tab.', 'chatbot-plugin'); ?></span>');
+                                $button.prop('disabled', false);
+                            }
+                        };
+                        
+                        // First, check if OpenAI API key is configured
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'chatbot_test_openai',
+                                validate_key_only: true,
+                                nonce: '<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>'
+                            },
+                            success: function(apiTestResponse) {
+                                if (apiTestResponse.success) {
+                                    // API key is configured, proceed with improving prompt
+                                    $.ajax({
+                                        url: ajaxurl,
+                                        type: 'POST',
+                                        data: {
+                                            action: 'chatbot_improve_prompt',
+                                            prompt: promptText,
+                                            nonce: '<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>'
+                                        },
+                                        success: function(response) {
+                                            if (response.success) {
+                                                $('#chatbot_system_prompt').val(response.data.improved_prompt);
+                                                $status.html('<span style="color: green;"><?php _e('Prompt improved!', 'chatbot-plugin'); ?></span>');
+                                            } else {
+                                                if (response.data.message.includes('API key is not set')) {
+                                                    handleApiKeyMissing();
+                                                } else {
+                                                    $status.html('<span style="color: red;">' + response.data.message + '</span>');
+                                                }
+                                            }
+                                        },
+                                        error: function() {
+                                            $status.html('<span style="color: red;"><?php _e('Error improving prompt.', 'chatbot-plugin'); ?></span>');
+                                        },
+                                        complete: function() {
+                                            $button.prop('disabled', false);
+                                        }
+                                    });
+                                } else {
+                                    // API key is not configured
+                                    handleApiKeyMissing();
+                                }
+                            },
+                            error: function() {
+                                handleApiKeyMissing();
+                            }
+                        });
+                    });
+                });
+                </script>
+                
+            <?php else: ?>
+                <!-- Display list of configurations -->
+                <?php if (empty($configurations)): ?>
+                    <div class="card">
+                        <h2><?php _e('No chatbots found', 'chatbot-plugin'); ?></h2>
+                        <p><?php _e('Create your first chatbot by clicking the "Add New" button above.', 'chatbot-plugin'); ?></p>
+                    </div>
+                <?php else: ?>
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th scope="col"><?php _e('Name', 'chatbot-plugin'); ?></th>
+                                <th scope="col"><?php _e('Shortcode', 'chatbot-plugin'); ?></th>
+                                <th scope="col"><?php _e('Conversations', 'chatbot-plugin'); ?></th>
+                                <th scope="col"><?php _e('Actions', 'chatbot-plugin'); ?></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($configurations as $config): ?>
+                                <tr>
+                                    <td><?php echo esc_html($config->name); ?></td>
+                                    <td><code>[chatbot name="<?php echo esc_attr($config->name); ?>"]</code></td>
+                                    <td>
+                                        <?php 
+                                        $conversation_count = $db->get_conversation_count_by_chatbot($config->id); 
+                                        ?>
+                                        <a href="<?php echo admin_url('admin.php?page=chatbot-conversations&chatbot=' . $config->id); ?>">
+                                            <?php echo number_format_i18n($conversation_count); ?> 
+                                            <?php echo _n('conversation', 'conversations', $conversation_count, 'chatbot-plugin'); ?>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <a href="<?php echo admin_url('admin.php?page=chatbot-configurations&action=edit&id=' . $config->id); ?>" class="button button-small">
+                                            <?php _e('Edit', 'chatbot-plugin'); ?>
+                                        </a>
+                                        
+                                        <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=chatbot-configurations&action=delete&id=' . $config->id), 'chatbot_delete_configuration'); ?>" class="button button-small" onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete this chatbot? This action cannot be undone.', 'chatbot-plugin'); ?>');">
+                                            <?php _e('Delete', 'chatbot-plugin'); ?>
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                <?php endif; ?>
+                
+                <div class="card" style="margin-top: 20px;">
+                    <h2><?php _e('Using Chatbots on Your Site', 'chatbot-plugin'); ?></h2>
+                    <p><?php _e('To add a chatbot to your site, use the shortcode format shown in the table above.', 'chatbot-plugin'); ?></p>
+                    <p><?php _e('For example:', 'chatbot-plugin'); ?></p>
+                    <ul style="list-style-type: disc; margin-left: 20px;">
+                        <li><code>[chatbot name="Default"]</code> - <?php _e('Use a specific chatbot by name', 'chatbot-plugin'); ?></li>
+                        <li><code>[chatbot]</code> - <?php _e('Uses the chatbot named "Default" if it exists', 'chatbot-plugin'); ?></li>
+                        <li><code>[chatbot theme="dark"]</code> - <?php _e('Apply a dark theme to the chatbot', 'chatbot-plugin'); ?></li>
+                    </ul>
+                </div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+    
+    /**
      * Display the conversations page
      */
     public function display_conversations_page() {
@@ -132,17 +431,21 @@ class Chatbot_Admin {
         // Handle bulk actions
         $this->process_bulk_actions();
         
-        // Get current status filter
+        // Get current filters
         $status_filter = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
+        $chatbot_filter = isset($_GET['chatbot']) ? intval($_GET['chatbot']) : null;
+        
+        // Get all chatbot configurations for the filter dropdown
+        $chatbot_configs = $db->get_configurations();
         
         // Pagination
         $per_page = 20;
         $current_page = isset($_GET['paged']) ? max(1, intval($_GET['paged'])) : 1;
         $offset = ($current_page - 1) * $per_page;
         
-        // Get conversations with filter
-        $conversations = $db->get_conversations_by_status($status_filter, $per_page, $offset);
-        $total_conversations = $db->get_conversation_count_by_status($status_filter);
+        // Get conversations with filters
+        $conversations = $db->get_conversations_by_status($status_filter, $per_page, $offset, $chatbot_filter);
+        $total_conversations = $db->get_conversation_count_by_status($status_filter, $chatbot_filter);
         $total_pages = ceil($total_conversations / $per_page);
         
         ?>
@@ -162,6 +465,17 @@ class Chatbot_Admin {
                             <option value="ended" <?php selected($status_filter, 'ended'); ?>><?php _e('Ended', 'chatbot-plugin'); ?></option>
                             <option value="archived" <?php selected($status_filter, 'archived'); ?>><?php _e('Archived', 'chatbot-plugin'); ?></option>
                         </select>
+                        
+                        <!-- Add chatbot filter dropdown -->
+                        <select name="chatbot">
+                            <option value=""><?php _e('All Chatbots', 'chatbot-plugin'); ?></option>
+                            <?php foreach ($chatbot_configs as $config): ?>
+                                <option value="<?php echo esc_attr($config->id); ?>" <?php selected($chatbot_filter, $config->id); ?>>
+                                    <?php echo esc_html($config->name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        
                         <input type="submit" class="button" value="<?php esc_attr_e('Filter', 'chatbot-plugin'); ?>">
                     </form>
                 </div>
@@ -240,9 +554,16 @@ class Chatbot_Admin {
                     __('Conversation with %s', 'chatbot-plugin'),
                     esc_html($conversation->visitor_name)
                 ); ?>
+                
                 <span class="chatbot-admin-status-badge chatbot-admin-status-<?php echo esc_attr($conversation->status); ?>">
                     <?php echo esc_html(ucfirst($conversation->status)); ?>
                 </span>
+                
+                <?php if (!empty($conversation->chatbot_config_name)): ?>
+                <span class="chatbot-admin-type-badge">
+                    <?php echo esc_html($conversation->chatbot_config_name); ?>
+                </span>
+                <?php endif; ?>
             </h1>
             
             <p>
@@ -349,6 +670,7 @@ class Chatbot_Admin {
                     </td>
                     <?php endif; ?>
                     <th><?php _e('Visitor', 'chatbot-plugin'); ?></th>
+                    <th><?php _e('Chatbot', 'chatbot-plugin'); ?></th>
                     <th><?php _e('Started', 'chatbot-plugin'); ?></th>
                     <th><?php _e('Last Message', 'chatbot-plugin'); ?></th>
                     <th><?php _e('Messages', 'chatbot-plugin'); ?></th>
@@ -366,6 +688,15 @@ class Chatbot_Admin {
                         </th>
                         <?php endif; ?>
                         <td><?php echo esc_html($conversation->visitor_name); ?></td>
+                        <td>
+                            <?php 
+                            if (!empty($conversation->chatbot_config_name)) {
+                                echo '<span class="chatbot-name-badge">' . esc_html($conversation->chatbot_config_name) . '</span>';
+                            } else {
+                                echo '<span class="chatbot-name-badge chatbot-name-default">Default</span>';
+                            }
+                            ?>
+                        </td>
                         <td>
                             <?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($conversation->created_at)); ?>
                         </td>
@@ -680,6 +1011,289 @@ class Chatbot_Admin {
             'message' => $message_obj,
             'formatted_time' => date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($message_obj->timestamp))
         ));
+    }
+    
+    /**
+     * Handle adding a new chatbot configuration
+     */
+    private function handle_add_configuration() {
+        $name = isset($_POST['chatbot_config_name']) ? sanitize_text_field($_POST['chatbot_config_name']) : '';
+        $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
+        
+        if (empty($name)) {
+            add_settings_error('chatbot_plugin', 'name-required', __('Chatbot name is required.', 'chatbot-plugin'), 'error');
+            return;
+        }
+        
+        // Log the attempt to add a configuration
+        chatbot_log('INFO', 'handle_add_configuration', 'Attempting to add new chatbot configuration', array(
+            'name' => $name,
+            'system_prompt_length' => strlen($system_prompt)
+        ));
+        
+        $db = Chatbot_DB::get_instance();
+        
+        // Check if name already exists
+        if ($db->configuration_name_exists($name)) {
+            add_settings_error('chatbot_plugin', 'name-exists', __('A chatbot with this name already exists.', 'chatbot-plugin'), 'error');
+            return;
+        }
+        
+        // Validate inputs further
+        if (empty($system_prompt)) {
+            // Set a default system prompt if none provided
+            $system_prompt = "You are a helpful AI assistant embedded on a WordPress website. Your goal is to provide accurate, helpful responses to user questions. Be concise but thorough, and always maintain a professional and friendly tone.";
+            chatbot_log('INFO', 'handle_add_configuration', 'Using default system prompt as none was provided');
+        }
+        
+        // Try to add the configuration
+        try {
+            $result = $db->add_configuration($name, $system_prompt);
+            
+            if ($result) {
+                // Successfully added configuration
+                chatbot_log('INFO', 'handle_add_configuration', 'Successfully added chatbot configuration', array('id' => $result));
+                add_settings_error('chatbot_plugin', 'add-success', __('Chatbot added successfully.', 'chatbot-plugin'), 'updated');
+                
+                // Add JavaScript redirect instead of PHP redirect to avoid header issues
+                echo '<script type="text/javascript">
+                    window.location.href = "' . admin_url('admin.php?page=chatbot-configurations') . '";
+                </script>';
+                return;
+            } else {
+                // Failed to add configuration
+                global $wpdb;
+                chatbot_log('ERROR', 'handle_add_configuration', 'Failed to add chatbot configuration', array(
+                    'db_error' => $wpdb->last_error,
+                    'db_last_query' => $wpdb->last_query
+                ));
+                add_settings_error('chatbot_plugin', 'add-error', sprintf(
+                    __('Failed to add chatbot: %s', 'chatbot-plugin'), 
+                    $wpdb->last_error ? $wpdb->last_error : 'Unknown database error'
+                ), 'error');
+            }
+        } catch (Exception $e) {
+            // Catch any exceptions
+            chatbot_log('ERROR', 'handle_add_configuration', 'Exception thrown while adding chatbot configuration', array(
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ));
+            add_settings_error('chatbot_plugin', 'add-error', sprintf(
+                __('Error adding chatbot: %s', 'chatbot-plugin'), 
+                $e->getMessage()
+            ), 'error');
+        }
+    }
+    
+    /**
+     * Handle updating a chatbot configuration
+     */
+    private function handle_update_configuration() {
+        $id = isset($_POST['configuration_id']) ? intval($_POST['configuration_id']) : 0;
+        $name = isset($_POST['chatbot_config_name']) ? sanitize_text_field($_POST['chatbot_config_name']) : '';
+        $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
+        
+        if (empty($id) || empty($name)) {
+            add_settings_error('chatbot_plugin', 'update-error', __('Invalid configuration data.', 'chatbot-plugin'), 'error');
+            return;
+        }
+        
+        $db = Chatbot_DB::get_instance();
+        
+        // Check if name already exists for a different configuration
+        if ($db->configuration_name_exists($name, $id)) {
+            add_settings_error('chatbot_plugin', 'name-exists', __('A chatbot with this name already exists.', 'chatbot-plugin'), 'error');
+            return;
+        }
+        
+        // Update the configuration
+        $result = $db->update_configuration($id, $name, $system_prompt);
+        
+        if ($result) {
+            add_settings_error('chatbot_plugin', 'update-success', __('Chatbot updated successfully.', 'chatbot-plugin'), 'updated');
+        } else {
+            add_settings_error('chatbot_plugin', 'update-error', __('Failed to update chatbot.', 'chatbot-plugin'), 'error');
+        }
+    }
+    
+    /**
+     * Handle deleting a chatbot configuration
+     */
+    private function handle_delete_configuration($id) {
+        if (empty($id)) {
+            add_settings_error('chatbot_plugin', 'delete-error', __('Invalid configuration ID.', 'chatbot-plugin'), 'error');
+            return;
+        }
+        
+        $db = Chatbot_DB::get_instance();
+        $result = $db->delete_configuration($id);
+        
+        if ($result) {
+            add_settings_error('chatbot_plugin', 'delete-success', __('Chatbot deleted successfully.', 'chatbot-plugin'), 'updated');
+        } else {
+            add_settings_error('chatbot_plugin', 'delete-error', __('Failed to delete chatbot.', 'chatbot-plugin'), 'error');
+        }
+    }
+    
+    /**
+     * Process adding a new chatbot configuration via admin-post
+     */
+    public function process_add_configuration() {
+        // Verify nonce
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'chatbot_add_configuration_nonce')) {
+            wp_die(__('Security check failed.', 'chatbot-plugin'));
+        }
+        
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to add configurations.', 'chatbot-plugin'));
+        }
+        
+        // Get form data
+        $name = isset($_POST['chatbot_config_name']) ? sanitize_text_field($_POST['chatbot_config_name']) : '';
+        $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
+        
+        // Validate inputs
+        if (empty($name)) {
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'action' => 'add',
+                    'error' => 'name_required'
+                ),
+                admin_url('admin.php')
+            );
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        $db = Chatbot_DB::get_instance();
+        
+        // Check if name already exists
+        if ($db->configuration_name_exists($name)) {
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'action' => 'add',
+                    'error' => 'name_exists'
+                ),
+                admin_url('admin.php')
+            );
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        // Set default system prompt if empty
+        if (empty($system_prompt)) {
+            $system_prompt = "You are a helpful AI assistant embedded on a WordPress website. Your goal is to provide accurate, helpful responses to user questions. Be concise but thorough, and always maintain a professional and friendly tone.";
+        }
+        
+        // Add the configuration
+        $result = $db->add_configuration($name, $system_prompt);
+        
+        if ($result) {
+            // Success
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'success' => 'add'
+                ),
+                admin_url('admin.php')
+            );
+        } else {
+            // Failure
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'action' => 'add',
+                    'error' => 'db_error'
+                ),
+                admin_url('admin.php')
+            );
+        }
+        
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+    
+    /**
+     * Process updating a chatbot configuration via admin-post
+     */
+    public function process_update_configuration() {
+        // Verify nonce
+        if (!isset($_POST['_wpnonce']) || !wp_verify_nonce($_POST['_wpnonce'], 'chatbot_update_configuration_nonce')) {
+            wp_die(__('Security check failed.', 'chatbot-plugin'));
+        }
+        
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have permission to update configurations.', 'chatbot-plugin'));
+        }
+        
+        // Get form data
+        $id = isset($_POST['configuration_id']) ? intval($_POST['configuration_id']) : 0;
+        $name = isset($_POST['chatbot_config_name']) ? sanitize_text_field($_POST['chatbot_config_name']) : '';
+        $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
+        
+        // Validate inputs
+        if (empty($id) || empty($name)) {
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'action' => 'edit',
+                    'id' => $id,
+                    'error' => 'invalid_data'
+                ),
+                admin_url('admin.php')
+            );
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        $db = Chatbot_DB::get_instance();
+        
+        // Check if name already exists for a different configuration
+        if ($db->configuration_name_exists($name, $id)) {
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'action' => 'edit',
+                    'id' => $id,
+                    'error' => 'name_exists'
+                ),
+                admin_url('admin.php')
+            );
+            wp_safe_redirect($redirect_url);
+            exit;
+        }
+        
+        // Update the configuration
+        $result = $db->update_configuration($id, $name, $system_prompt);
+        
+        if ($result) {
+            // Success
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'success' => 'update'
+                ),
+                admin_url('admin.php')
+            );
+        } else {
+            // Failure
+            $redirect_url = add_query_arg(
+                array(
+                    'page' => 'chatbot-configurations',
+                    'action' => 'edit',
+                    'id' => $id,
+                    'error' => 'db_error'
+                ),
+                admin_url('admin.php')
+            );
+        }
+        
+        wp_safe_redirect($redirect_url);
+        exit;
     }
 }
 
