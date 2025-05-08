@@ -111,14 +111,59 @@ class Chatbot_Admin {
             
             <?php settings_errors('chatbot_plugin'); ?>
             
-            <div class="card">
-                <h2><?php _e('Chatbot Plugin Settings', 'chatbot-plugin'); ?></h2>
-                <p><?php _e('Thank you for using Chatbot Plugin! To add the chatbot to your site, use the shortcode below:', 'chatbot-plugin'); ?></p>
-                <p><code>[chatbot]</code> <?php _e('or', 'chatbot-plugin'); ?> <code>[chatbot theme="dark"]</code></p>
-                <p><?php _e('You can place this shortcode in any post, page, or widget area where shortcodes are supported.', 'chatbot-plugin'); ?></p>
+            <div class="dashboard-layout three-column" style="padding: 0 10px;">
+                <div class="column-left">
+                    <div class="card">
+                        <h2><?php _e('Chatbot Plugin Settings', 'chatbot-plugin'); ?></h2>
+                        <p><?php _e('Thank you for using Chatbot Plugin! To add the chatbot to your site, use the shortcode below:', 'chatbot-plugin'); ?></p>
+                        <p><code>[chatbot]</code> <?php _e('or', 'chatbot-plugin'); ?> <code>[chatbot theme="dark"]</code></p>
+                        <p><?php _e('You can place this shortcode in any post, page, or widget area where shortcodes are supported.', 'chatbot-plugin'); ?></p>
+                    </div>
+                </div>
+                
+                <div class="column-center">
+                    <div class="card ai-chat-card">
+                        <h2><?php _e('AI Conversation Insights', 'chatbot-plugin'); ?></h2>
+                        <p class="ai-overview-description"><?php _e('Get AI-powered insights about your chatbot conversations. Analyze patterns, user behavior, and discover opportunities for improvement.', 'chatbot-plugin'); ?></p>
+                        
+                        <div class="ai-chat-interface">
+                            <div class="ai-chat-messages">
+                                <div id="ai-chat-messages-container">
+                                    <div class="ai-chat-welcome">
+                                        <div class="ai-chat-welcome-icon">
+                                            <span class="dashicons dashicons-chart-area"></span>
+                                        </div>
+                                        <h3><?php _e('AI Chat Analysis', 'chatbot-plugin'); ?></h3>
+                                        <p><?php _e('Your AI assistant can analyze your chatbot conversations and provide actionable insights. Start the analysis to begin.', 'chatbot-plugin'); ?></p>
+                                        <button id="generate-ai-overview" class="button button-primary">
+                                            <?php _e('Start Conversation Analysis', 'chatbot-plugin'); ?>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="ai-summary-loading" style="display: none;">
+                                    <span class="spinner is-active"></span>
+                                    <p><?php _e('Analyzing conversations...', 'chatbot-plugin'); ?></p>
+                                </div>
+                            </div>
+                            <div class="ai-chat-input-area">
+                                <input type="text" id="ai-chat-input" placeholder="<?php _e('Ask a question about your chat data...', 'chatbot-plugin'); ?>" disabled>
+                                <button id="ai-chat-send" class="button button-primary" disabled>
+                                    <span class="dashicons dashicons-arrow-right-alt2"></span>
+                                </button>
+                            </div>
+                            <p class="description" style="text-align: center; margin-top: 10px; font-style: italic;">
+                                <?php _e('Ask specific questions to get concise, actionable insights about your conversations.', 'chatbot-plugin'); ?>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="column-right">
+                    <?php do_action('chatbot_analytics_sidebar'); ?>
+                </div>
             </div>
             
-            <div class="card" style="margin-top: 20px;">
+            <div class="card" style="margin-top: 20px; max-width: 100%; overflow-x: auto;">
                 <h2><?php _e('Recent Conversations', 'chatbot-plugin'); ?></h2>
                 <?php $this->display_recent_conversations(); ?>
                 
@@ -128,6 +173,8 @@ class Chatbot_Admin {
                     </a>
                 </p>
             </div>
+            
+            <?php do_action('chatbot_after_overview_content'); ?>
         </div>
         <?php
     }

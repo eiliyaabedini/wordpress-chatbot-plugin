@@ -1,0 +1,246 @@
+/**
+ * Chatbot Analytics Dashboard Styles
+ * Simplified for overview integration
+ */
+
+/* Analytics Overview */
+.chatbot-analytics-overview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.chatbot-analytics-card {
+    background: #f8f9fa;
+    border-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    padding: 15px;
+    flex: 1;
+    min-width: 200px;
+    text-align: center;
+}
+
+.chatbot-analytics-card h3 {
+    margin-top: 0;
+    margin-bottom: 10px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid #eee;
+    color: #333;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.chatbot-analytics-card-content {
+    display: flex;
+    justify-content: space-around;
+}
+
+.chatbot-analytics-metric {
+    text-align: center;
+}
+
+.chatbot-analytics-value {
+    display: block;
+    font-size: 22px;
+    font-weight: 600;
+    color: #2271b1;
+    margin-bottom: 5px;
+}
+
+.chatbot-analytics-label {
+    font-size: 12px;
+    color: #666;
+}
+
+/* Insights */
+.chatbot-analytics-insights {
+    margin-top: 20px;
+}
+
+.chatbot-analytics-insights h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.chatbot-insight-card {
+    background: #f8f9fa;
+    border-left: 4px solid #2271b1;
+    border-radius: 3px;
+    padding: 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.chatbot-insight-card.priority-high {
+    border-left-color: #d63638;
+}
+
+.chatbot-insight-card.priority-medium {
+    border-left-color: #dba617;
+}
+
+.chatbot-insight-card.priority-low {
+    border-left-color: #2271b1;
+}
+
+.chatbot-insight-card.is-alert {
+    background-color: #fcf8e3;
+}
+
+.chatbot-insight-header {
+    margin-bottom: 8px;
+}
+
+.chatbot-insight-header h4 {
+    margin: 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.chatbot-insight-content p {
+    margin: 0;
+    color: #444;
+    font-size: 13px;
+}
+
+/* Loading */
+.chatbot-analytics-loading,
+.ai-summary-loading {
+    display: flex;
+    align-items: center;
+    padding: 15px;
+}
+
+.chatbot-analytics-loading p,
+.ai-summary-loading p {
+    margin-left: 10px;
+    font-size: 14px;
+    color: #666;
+}
+
+/* AI Summary Chat */
+.ai-summary-container {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 4px;
+    border-left: 4px solid #2271b1;
+}
+
+.ai-summary-container h3 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    border-bottom: 1px solid #e2e4e7;
+    padding-bottom: 10px;
+}
+
+.ai-chat-messages {
+    height: 350px;
+    overflow-y: auto;
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid #e2e4e7;
+    border-radius: 4px;
+    background: #fff;
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 100%;
+    word-wrap: break-word;
+    overflow-x: hidden;
+}
+
+.ai-chat-message {
+    margin-bottom: 15px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    max-width: 85%;
+    clear: both;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-sizing: border-box;
+}
+
+.ai-chat-message.user {
+    background-color: #e7f5fe;
+    border: 1px solid #c8e1fb;
+    float: right;
+    text-align: right;
+}
+
+.ai-chat-message.ai {
+    background-color: #f1f1f1;
+    border: 1px solid #e2e4e7;
+    float: left;
+}
+
+.ai-chat-message-header {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.ai-chat-message-content {
+    white-space: pre-line;
+}
+
+.ai-chat-message.system {
+    background-color: #f8f9fa;
+    border: 1px solid #e2e4e7;
+    float: none;
+    margin: 5px auto 10px;
+    padding: 5px 10px;
+    font-style: italic;
+    color: #666;
+    text-align: center;
+}
+
+.ai-chat-input-area {
+    display: flex;
+    margin-top: 10px;
+}
+
+#ai-chat-input {
+    flex: 1;
+    border: 1px solid #ddd;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-right: 8px;
+}
+
+.ai-chat-typing-indicator {
+    display: inline-block;
+    padding: 8px 16px;
+    background-color: #f1f1f1;
+    border-radius: 18px;
+    margin-bottom: 10px;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.5; }
+    50% { opacity: 1; }
+    100% { opacity: 0.5; }
+}
+
+/* Clear floats */
+.ai-chat-messages::after {
+    content: "";
+    display: table;
+    clear: both;
+}
+
+/* Responsive adjustments */
+@media (max-width: 782px) {
+    .chatbot-analytics-overview {
+        flex-direction: column;
+    }
+    
+    .chatbot-analytics-card {
+        width: 100%;
+    }
+}

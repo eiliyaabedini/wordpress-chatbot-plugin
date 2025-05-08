@@ -15,7 +15,7 @@ class Chatbot_OpenAI {
     private static $instance = null;
     private $api_key = '';
     private $model = 'gpt-3.5-turbo';
-    private $max_tokens = 150;
+    private $max_tokens = 1000;
     private $temperature = 0.7;
     private $system_prompt = '';
     
@@ -197,7 +197,7 @@ class Chatbot_OpenAI {
         register_setting('chatbot_openai_settings', 'chatbot_openai_max_tokens', array(
             'type' => 'integer',
             'sanitize_callback' => 'absint',
-            'default' => 150,
+            'default' => 1000,
         ));
         register_setting('chatbot_openai_settings', 'chatbot_openai_temperature', array(
             'type' => 'number',
@@ -211,7 +211,7 @@ class Chatbot_OpenAI {
         register_setting('chatbot_settings', 'chatbot_openai_max_tokens', array(
             'type' => 'integer',
             'sanitize_callback' => 'absint',
-            'default' => 150,
+            'default' => 1000,
         ));
         register_setting('chatbot_settings', 'chatbot_openai_temperature', array(
             'type' => 'number',
@@ -423,6 +423,95 @@ class Chatbot_OpenAI {
     }
     
     /**
+     * Generate a completion using OpenAI API without conversation context
+     * 
+     * @param string $system_prompt The system prompt
+     * @param string $user_prompt The user prompt
+     * @return string The generated completion
+     */
+    public function get_completion($system_prompt, $user_prompt) {
+        // Ensure we have the latest settings
+        $this->refresh_settings();
+        
+        // If no API key, return an error
+        if (empty($this->api_key)) {
+            chatbot_log('ERROR', 'get_completion', 'API key not configured');
+            return "Error: OpenAI API key not configured.";
+        }
+        
+        try {
+            // Prepare messages
+            $messages = array(
+                array(
+                    'role' => 'system',
+                    'content' => $system_prompt,
+                ),
+                array(
+                    'role' => 'user',
+                    'content' => $user_prompt,
+                ),
+            );
+            
+            // Prepare API request
+            $api_url = 'https://api.openai.com/v1/chat/completions';
+            
+            // Validate the model
+            $model = $this->validate_model($this->model);
+            
+            // Create base request body
+            $request_body = array(
+                'model' => $model,
+                'messages' => $messages,
+            );
+            
+            // Increase token limit for analytics purposes
+            $token_limit = max((int) $this->max_tokens, 4000);
+            
+            // O4 models use different parameters
+            if (strpos($model, 'o4') === 0) {
+                $request_body['max_completion_tokens'] = $token_limit;
+                // O4 models only support default temperature (1)
+            } else {
+                $request_body['max_tokens'] = $token_limit;
+                $request_body['temperature'] = (float) $this->temperature;
+            }
+            
+            $response = wp_remote_post($api_url, array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $this->api_key,
+                    'Content-Type' => 'application/json',
+                ),
+                'body' => json_encode($request_body),
+                'timeout' => 60, // Increase timeout for longer analyses
+                'data_format' => 'body',
+            ));
+            
+            if (is_wp_error($response)) {
+                chatbot_log('ERROR', 'get_completion', 'API Error: ' . $response->get_error_message());
+                return "Error: " . $response->get_error_message();
+            }
+            
+            $response_code = wp_remote_retrieve_response_code($response);
+            $response_body = json_decode(wp_remote_retrieve_body($response), true);
+            
+            if ($response_code !== 200) {
+                chatbot_log('ERROR', 'get_completion', 'API Error: ' . json_encode($response_body));
+                return "Error: API returned status code " . $response_code;
+            }
+            
+            if (isset($response_body['choices'][0]['message']['content'])) {
+                return $response_body['choices'][0]['message']['content'];
+            }
+            
+            return "Error: Unexpected API response format.";
+            
+        } catch (Exception $e) {
+            chatbot_log('ERROR', 'get_completion', 'Exception: ' . $e->getMessage());
+            return "Error: " . $e->getMessage();
+        }
+    }
+    
+    /**
      * Generate a response using OpenAI API based on conversation history
      * 
      * @param int $conversation_id The conversation ID
@@ -493,6 +582,9 @@ class Chatbot_OpenAI {
             }
             
             if (isset($response_body['choices'][0]['message']['content'])) {
+                // Trigger action for analytics to track API usage
+                do_action('chatbot_openai_api_request_complete', $model, $response_body, $conversation_id);
+                
                 return $response_body['choices'][0]['message']['content'];
             }
             

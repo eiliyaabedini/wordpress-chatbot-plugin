@@ -24,6 +24,7 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-openai.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 
 /**
  * Helper function for standardized logging
@@ -76,6 +77,9 @@ function activate_chatbot_plugin() {
     
     // Create database tables for chat
     create_chatbot_database_tables();
+    
+    // Create analytics tables
+    Chatbot_Analytics::create_tables();
     
     // Add a default configuration if none exists
     add_default_chatbot_configuration();
