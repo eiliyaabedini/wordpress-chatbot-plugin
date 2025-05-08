@@ -941,8 +941,22 @@ Your output should be the complete improved prompt only, without explanations or
             // Log the full API response for debugging
             error_log('Error in improve_prompt. Response body: ' . wp_json_encode($response_body));
             
+            // Create detailed error message
+            $error_message = __('Error generating improved prompt.', 'chatbot-plugin');
+            
+            // Add more specific details if available
+            if (isset($response_body['error']) && is_array($response_body['error'])) {
+                if (isset($response_body['error']['message'])) {
+                    $error_message .= ' API error: ' . $response_body['error']['message'];
+                }
+                if (isset($response_body['error']['type'])) {
+                    $error_message .= ' (Type: ' . $response_body['error']['type'] . ')';
+                }
+            }
+            
             wp_send_json_error(array(
-                'message' => __('Error generating improved prompt.', 'chatbot-plugin')
+                'message' => $error_message,
+                'debug_info' => wp_json_encode($response_body)
             ));
         }
     }

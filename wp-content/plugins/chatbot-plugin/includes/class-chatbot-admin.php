@@ -37,6 +37,22 @@ class Chatbot_Admin {
         // Add admin-post handlers for form submissions
         add_action('admin_post_chatbot_add_configuration', array($this, 'process_add_configuration'));
         add_action('admin_post_chatbot_update_configuration', array($this, 'process_update_configuration'));
+        
+        // Add admin notices
+        add_action('admin_notices', array($this, 'show_admin_notices'));
+    }
+    
+    /**
+     * Show admin notices
+     */
+    public function show_admin_notices() {
+        // Only show on chatbot configuration pages when needed
+        $screen = get_current_screen();
+        if (!$screen || strpos($screen->id, 'chatbot-configurations') === false) {
+            return;
+        }
+        
+        // Currently no notices to show
     }
     
     /**
@@ -240,6 +256,60 @@ class Chatbot_Admin {
                                         <?php _e('Improve with AI', 'chatbot-plugin'); ?>
                                     </button>
                                     <span id="chatbot_improve_prompt_status"></span>
+                                    <!-- Direct inline backup script -->
+                                    <script type="text/javascript">
+                                    (function() {
+                                        console.log('Inline script for improve button loaded');
+                                        document.addEventListener('DOMContentLoaded', function() {
+                                            var improveButton = document.getElementById('chatbot_improve_prompt');
+                                            if (improveButton) {
+                                                console.log('Found improve button in inline script');
+                                                improveButton.addEventListener('click', function() {
+                                                    console.log('Improve button clicked in inline script');
+                                                    var textarea = document.getElementById('chatbot_system_prompt');
+                                                    var status = document.getElementById('chatbot_improve_prompt_status');
+                                                    
+                                                    if (textarea && textarea.value.trim() !== '' && 
+                                                        typeof jQuery !== 'undefined' && typeof ajaxurl !== 'undefined') {
+                                                        
+                                                        // Disable the button to prevent multiple clicks
+                                                        improveButton.disabled = true;
+                                                        status.innerHTML = '<span>Thinking ...</span>';
+                                                        
+                                                        // Use jQuery AJAX for simplicity in the inline script
+                                                        jQuery.ajax({
+                                                            url: ajaxurl,
+                                                            type: 'POST',
+                                                            data: {
+                                                                action: 'chatbot_improve_prompt',
+                                                                prompt: textarea.value,
+                                                                nonce: improveButton.getAttribute('data-nonce-improve')
+                                                            },
+                                                            success: function(response) {
+                                                                if (response.success && response.data && response.data.improved_prompt) {
+                                                                    textarea.value = response.data.improved_prompt;
+                                                                    status.innerHTML = '<span style="color: green;">All Done, check it and if you need modify it!</span>';
+                                                                } else {
+                                                                    status.innerHTML = '<span style="color: red;">Error: ' + 
+                                                                        (response.data && response.data.message ? response.data.message : 'Unknown error') + 
+                                                                        '</span>';
+                                                                }
+                                                            },
+                                                            error: function(xhr, status, error) {
+                                                                console.error('AJAX error:', status, error);
+                                                                status.innerHTML = '<span style="color: red;">Communication error: ' + error + '</span>';
+                                                            },
+                                                            complete: function() {
+                                                                // Always re-enable the button when the request completes
+                                                                improveButton.disabled = false;
+                                                            }
+                                                        });
+                                                    }
+                                                });
+                                            }
+                                        });
+                                    })();
+                                    </script>
                                 </td>
                             </tr>
                         </tbody>

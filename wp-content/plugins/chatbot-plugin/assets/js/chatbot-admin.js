@@ -15,6 +15,108 @@
         console.error('jQuery not found! This will cause issues.');
     }
     
+    // Add a window-level event handler for the improve button as a fallback
+    window.addEventListener('load', function() {
+        console.log('Window loaded - adding fallback improve button handler');
+        var improveButton = document.getElementById('chatbot_improve_prompt');
+        if (improveButton) {
+            console.log('Found improve button via direct DOM method');
+            improveButton.addEventListener('click', function() {
+                console.log('Improve button clicked via fallback handler');
+                
+                // Let's use pure DOM methods to avoid jQuery issues
+                var nonceTest = improveButton.getAttribute('data-nonce-test');
+                var nonceImprove = improveButton.getAttribute('data-nonce-improve');
+                var statusElement = document.getElementById('chatbot_improve_prompt_status');
+                var promptTextArea = document.getElementById('chatbot_system_prompt');
+                
+                if (!promptTextArea || !statusElement) {
+                    console.error('Could not find prompt textarea or status element');
+                    return;
+                }
+                
+                var promptText = promptTextArea.value;
+                console.log('Prompt text:', promptText.substring(0, 100) + '...');
+                
+                if (!promptText.trim()) {
+                    if (statusElement) statusElement.innerHTML = '<span style="color: red;">Please enter some text first.</span>';
+                    return;
+                }
+                
+                // Disable button and update status
+                improveButton.disabled = true;
+                if (statusElement) statusElement.innerHTML = '<span>Improving prompt via fallback handler...</span>';
+                
+                // We'll use the standard XHR object for AJAX without jQuery
+                var xhr = new XMLHttpRequest();
+                // Make sure ajaxurl is defined
+                var ajaxUrl = typeof ajaxurl !== 'undefined' ? ajaxurl : '/wp-admin/admin-ajax.php';
+                xhr.open('POST', ajaxUrl, true);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState === 4) {
+                        if (xhr.status === 200) {
+                            try {
+                                var response = JSON.parse(xhr.responseText);
+                                console.log('Response:', response);
+                                
+                                if (response.success && response.data && response.data.improved_prompt) {
+                                    console.log('Setting improved prompt');
+                                    promptTextArea.value = response.data.improved_prompt;
+                                    
+                                    // Try dispatching events
+                                    try {
+                                        promptTextArea.dispatchEvent(new Event('input', { bubbles: true }));
+                                        promptTextArea.dispatchEvent(new Event('change', { bubbles: true }));
+                                    } catch(e) {
+                                        console.error('Error dispatching events:', e);
+                                    }
+                                    
+                                    if (statusElement) {
+                                        statusElement.innerHTML = '<span style="color: green;">Prompt improved via fallback!</span>';
+                                    }
+                                } else {
+                                    var errorMsg = 'Error improving prompt.';
+                                    if (response.data && response.data.message) {
+                                        errorMsg = response.data.message;
+                                        console.error('API Error:', response.data.message);
+                                        
+                                        // Log debug info if available
+                                        if (response.data.debug_info) {
+                                            console.error('Debug Info:', response.data.debug_info);
+                                        }
+                                    }
+                                    
+                                    if (statusElement) {
+                                        statusElement.innerHTML = '<span style="color: red;">' + errorMsg + '</span>';
+                                    }
+                                }
+                            } catch(e) {
+                                console.error('Error parsing response:', e, xhr.responseText);
+                                if (statusElement) {
+                                    statusElement.innerHTML = '<span style="color: red;">Error parsing response: ' + e.message + '</span>';
+                                }
+                            }
+                        } else {
+                            console.error('HTTP error:', xhr.status, xhr.statusText);
+                            if (statusElement) {
+                                statusElement.innerHTML = '<span style="color: red;">HTTP error: ' + xhr.status + ' ' + xhr.statusText + '</span>';
+                            }
+                        }
+                        
+                        // Re-enable button
+                        improveButton.disabled = false;
+                    }
+                };
+                
+                // Send the request
+                xhr.send('action=chatbot_improve_prompt&prompt=' + encodeURIComponent(promptText) + '&nonce=' + encodeURIComponent(nonceImprove));
+            });
+        } else {
+            console.log('Improve button not found on this page');
+        }
+    });
+    
     // Log any potential form validation scripts
     if (typeof jQuery !== 'undefined') {
         var formValidators = [];
@@ -253,9 +355,15 @@
                                         if (response.data && response.data.message && response.data.message.includes('API key is not set')) {
                                             handleApiKeyMissing();
                                         } else {
-                                            $status.html('<span style="color: red;">' + 
-                                                (response.data && response.data.message ? response.data.message : 'Unknown error') + 
-                                                '</span>');
+                                            var errorMsg = response.data && response.data.message ? response.data.message : 'Unknown error';
+                                            console.error('API Error:', errorMsg);
+                                            
+                                            // Log debug info if available
+                                            if (response.data && response.data.debug_info) {
+                                                console.error('Debug Info:', response.data.debug_info);
+                                            }
+                                            
+                                            $status.html('<span style="color: red;">' + errorMsg + '</span>');
                                         }
                                     }
                                 },
