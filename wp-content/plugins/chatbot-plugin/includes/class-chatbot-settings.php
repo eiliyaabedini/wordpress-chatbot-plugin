@@ -56,6 +56,19 @@ class Chatbot_Settings {
         register_setting('chatbot_settings', 'chatbot_button_icon_url');
         register_setting('chatbot_settings', 'chatbot_typing_indicator_text');
         
+        // Register notification settings
+        register_setting('chatbot_notification_settings', 'chatbot_notification_email');
+        register_setting('chatbot_notification_settings', 'chatbot_email_notify_events', array(
+            'type' => 'array',
+            'sanitize_callback' => array($this, 'sanitize_notify_events')
+        ));
+        register_setting('chatbot_notification_settings', 'chatbot_telegram_api_key');
+        register_setting('chatbot_notification_settings', 'chatbot_telegram_chat_id');
+        register_setting('chatbot_notification_settings', 'chatbot_telegram_notify_events', array(
+            'type' => 'array',
+            'sanitize_callback' => array($this, 'sanitize_notify_events')
+        ));
+        
         // Add general settings section
         add_settings_section(
             'chatbot_general_settings',
@@ -113,6 +126,40 @@ class Chatbot_Settings {
             'chatbot_general_settings'
         );
         
+        // Add notification settings section
+        add_settings_section(
+            'chatbot_notification_settings_section',
+            __('Notification Settings', 'chatbot-plugin'),
+            array($this, 'render_notification_section'),
+            'chatbot_notification_settings'
+        );
+        
+        // Add email notification fields
+        add_settings_field(
+            'chatbot_notification_email',
+            __('Notification Email', 'chatbot-plugin'),
+            array($this, 'render_notification_email_field'),
+            'chatbot_notification_settings',
+            'chatbot_notification_settings_section'
+        );
+        
+        add_settings_field(
+            'chatbot_email_notify_events',
+            __('Email Notifications', 'chatbot-plugin'),
+            array($this, 'render_email_notify_events_field'),
+            'chatbot_notification_settings',
+            'chatbot_notification_settings_section'
+        );
+        
+        // Add Telegram notification fields
+        add_settings_field(
+            'chatbot_telegram_settings',
+            __('Telegram Notifications', 'chatbot-plugin'),
+            array($this, 'render_telegram_settings_field'),
+            'chatbot_notification_settings',
+            'chatbot_notification_settings_section'
+        );
+        
         // We're not using this hook anymore
         // do_action('chatbot_settings_sections');
     }
@@ -141,6 +188,9 @@ class Chatbot_Settings {
                 </a>
                 <a href="?page=chatbot-settings&tab=openai" class="nav-tab <?php echo $active_tab === 'openai' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('OpenAI Integration', 'chatbot-plugin'); ?>
+                </a>
+                <a href="?page=chatbot-settings&tab=notifications" class="nav-tab <?php echo $active_tab === 'notifications' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Notifications', 'chatbot-plugin'); ?>
                 </a>
             </h2>
             
@@ -204,6 +254,12 @@ class Chatbot_Settings {
                 if ($active_tab === 'general') {
                     settings_fields('chatbot_settings');
                     do_settings_sections('chatbot_settings');
+                } elseif ($active_tab === 'notifications') {
+                    // Debug log for Notifications tab rendering
+                    error_log('Chatbot: Rendering Notifications settings tab');
+                    
+                    settings_fields('chatbot_notification_settings');
+                    do_settings_sections('chatbot_notification_settings');
                 } elseif ($active_tab === 'openai') {
                     // Debug log for OpenAI tab rendering
                     error_log('Chatbot: Rendering OpenAI settings tab');
@@ -277,6 +333,14 @@ class Chatbot_Settings {
                     <h3><?php _e('OpenAI API Documentation', 'chatbot-plugin'); ?></h3>
                     <p><?php _e('To use OpenAI integration, you need an API key from OpenAI. Visit <a href="https://platform.openai.com/signup" target="_blank">OpenAI</a> to create an account and get your API key.', 'chatbot-plugin'); ?></p>
                     <p><?php _e('For more detailed information about the OpenAI API and how it\'s used in this plugin, please refer to our <a href="' . esc_url(plugin_dir_url(dirname(__FILE__)) . 'docs/openai-api-documentation.md') . '" target="_blank">documentation</a>.', 'chatbot-plugin'); ?></p>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($active_tab === 'notifications'): ?>
+                <div class="card" style="max-width: 800px; margin-top: 20px;">
+                    <h3><?php _e('Notification Documentation', 'chatbot-plugin'); ?></h3>
+                    <p><?php _e('Configure email and Telegram notifications to keep you informed about new chat conversations and receive daily summaries.', 'chatbot-plugin'); ?></p>
+                    <p><?php _e('For Telegram notifications, you need to create a Telegram bot and obtain the API key. Visit <a href="https://core.telegram.org/bots#how-do-i-create-a-bot" target="_blank">Telegram Bot Documentation</a> for more information.', 'chatbot-plugin'); ?></p>
                 </div>
             <?php endif; ?>
         </div>
@@ -494,6 +558,154 @@ class Chatbot_Settings {
         
         // The JavaScript for this functionality is now in admin.js
         echo '</div>';
+    }
+    
+    /**
+     * Sanitize notification events array
+     */
+    public function sanitize_notify_events($events) {
+        if (!is_array($events)) {
+            return array();
+        }
+        
+        $valid_events = array('new_conversation', 'daily_summary');
+        return array_filter($events, function($event) use ($valid_events) {
+            return in_array($event, $valid_events);
+        });
+    }
+
+    /**
+     * Render notification section
+     */
+    public function render_notification_section() {
+        echo '<p>' . __('Configure notification settings for the chatbot. You can receive notifications via email or Telegram when new conversations start or receive daily summaries.', 'chatbot-plugin') . '</p>';
+    }
+
+    /**
+     * Render notification email field
+     */
+    public function render_notification_email_field() {
+        $admin_email = get_option('admin_email');
+        $notification_email = get_option('chatbot_notification_email', $admin_email);
+        
+        echo '<input type="email" name="chatbot_notification_email" id="chatbot_notification_email" class="regular-text" value="' . esc_attr($notification_email) . '" />';
+        echo '<p class="description">' . __('Email address where notifications will be sent. Defaults to admin email.', 'chatbot-plugin') . '</p>';
+    }
+
+    /**
+     * Render email notification events field
+     */
+    public function render_email_notify_events_field() {
+        $email_notify_events = get_option('chatbot_email_notify_events', array());
+        
+        $events = array(
+            'new_conversation' => __('New Conversations', 'chatbot-plugin'),
+            'daily_summary' => __('Daily Summary', 'chatbot-plugin')
+        );
+        
+        echo '<fieldset>';
+        foreach ($events as $event_key => $event_label) {
+            $checked = in_array($event_key, $email_notify_events) ? 'checked' : '';
+            echo '<label for="chatbot_email_notify_events_' . esc_attr($event_key) . '">';
+            echo '<input type="checkbox" name="chatbot_email_notify_events[]" id="chatbot_email_notify_events_' . esc_attr($event_key) . '" value="' . esc_attr($event_key) . '" ' . $checked . ' />';
+            echo esc_html($event_label);
+            echo '</label><br>';
+        }
+        echo '</fieldset>';
+        echo '<p class="description">' . __('Select which events should trigger email notifications.', 'chatbot-plugin') . '</p>';
+    }
+
+    /**
+     * Render Telegram settings field
+     */
+    public function render_telegram_settings_field() {
+        $telegram_api_key = get_option('chatbot_telegram_api_key', '');
+        $telegram_chat_id = get_option('chatbot_telegram_chat_id', '');
+        $telegram_notify_events = get_option('chatbot_telegram_notify_events', array());
+        
+        // API Key
+        echo '<div class="telegram-settings">';
+        echo '<label for="chatbot_telegram_api_key">' . __('Bot API Key', 'chatbot-plugin') . '</label><br>';
+        echo '<input type="text" name="chatbot_telegram_api_key" id="chatbot_telegram_api_key" class="regular-text" value="' . esc_attr($telegram_api_key) . '" />';
+        echo '<p class="description">' . __('Enter your Telegram Bot API Key. Create a bot through BotFather to get this key.', 'chatbot-plugin') . '</p>';
+        echo '</div>';
+        
+        // Chat ID
+        echo '<div class="telegram-settings" style="margin-top: 15px;">';
+        echo '<label for="chatbot_telegram_chat_id">' . __('Chat ID', 'chatbot-plugin') . '</label><br>';
+        echo '<input type="text" name="chatbot_telegram_chat_id" id="chatbot_telegram_chat_id" class="regular-text" value="' . esc_attr($telegram_chat_id) . '" />';
+        echo '<p class="description">' . __('Enter the Chat ID where notifications should be sent. This can be your personal chat ID or a group chat ID.', 'chatbot-plugin') . '</p>';
+        echo '</div>';
+        
+        // Notification Events
+        echo '<div class="telegram-settings" style="margin-top: 15px;">';
+        echo '<label>' . __('Notification Events', 'chatbot-plugin') . '</label><br>';
+        
+        $events = array(
+            'new_conversation' => __('New Conversations', 'chatbot-plugin'),
+            'daily_summary' => __('Daily Summary', 'chatbot-plugin')
+        );
+        
+        echo '<fieldset>';
+        foreach ($events as $event_key => $event_label) {
+            $checked = in_array($event_key, $telegram_notify_events) ? 'checked' : '';
+            echo '<label for="chatbot_telegram_notify_events_' . esc_attr($event_key) . '">';
+            echo '<input type="checkbox" name="chatbot_telegram_notify_events[]" id="chatbot_telegram_notify_events_' . esc_attr($event_key) . '" value="' . esc_attr($event_key) . '" ' . $checked . ' />';
+            echo esc_html($event_label);
+            echo '</label><br>';
+        }
+        echo '</fieldset>';
+        echo '<p class="description">' . __('Select which events should trigger Telegram notifications.', 'chatbot-plugin') . '</p>';
+        echo '</div>';
+        
+        // Test Button - We'll add functionality for this in the JavaScript
+        if (!empty($telegram_api_key) && !empty($telegram_chat_id)) {
+            echo '<div class="telegram-settings" style="margin-top: 15px;">';
+            echo '<button type="button" id="chatbot_test_telegram" class="button">' . __('Test Telegram Connection', 'chatbot-plugin') . '</button>';
+            echo '<span id="telegram_test_result" style="margin-left: 10px;"></span>';
+            echo '</div>';
+            
+            // Add JavaScript for the test button
+            ?>
+            <script type="text/javascript">
+            jQuery(document).ready(function($) {
+                $('#chatbot_test_telegram').on('click', function() {
+                    var button = $(this);
+                    var resultSpan = $('#telegram_test_result');
+                    
+                    // Disable button and show loading
+                    button.prop('disabled', true);
+                    resultSpan.text('<?php _e("Testing...", "chatbot-plugin"); ?>');
+                    
+                    // Send AJAX request to test Telegram connection
+                    $.ajax({
+                        url: ajaxurl,
+                        type: 'POST',
+                        data: {
+                            action: 'chatbot_test_telegram',
+                            api_key: $('#chatbot_telegram_api_key').val(),
+                            chat_id: $('#chatbot_telegram_chat_id').val(),
+                            nonce: '<?php echo wp_create_nonce("chatbot_test_telegram"); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                resultSpan.html('<span style="color: green;"><?php _e("Success! Test message sent.", "chatbot-plugin"); ?></span>');
+                            } else {
+                                resultSpan.html('<span style="color: red;"><?php _e("Error: ", "chatbot-plugin"); ?>' + response.data + '</span>');
+                            }
+                        },
+                        error: function() {
+                            resultSpan.html('<span style="color: red;"><?php _e("Error: Could not complete the test.", "chatbot-plugin"); ?></span>');
+                        },
+                        complete: function() {
+                            button.prop('disabled', false);
+                        }
+                    });
+                });
+            });
+            </script>
+            <?php
+        }
     }
 }
 

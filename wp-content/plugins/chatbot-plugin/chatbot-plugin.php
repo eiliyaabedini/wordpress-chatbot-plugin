@@ -25,6 +25,7 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-openai.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
 
 /**
  * Helper function for standardized logging

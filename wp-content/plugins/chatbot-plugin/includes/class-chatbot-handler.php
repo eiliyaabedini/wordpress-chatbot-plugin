@@ -112,6 +112,15 @@ class Chatbot_Handler {
         $welcome_message = sprintf($welcome_format, $visitor_name);
         $db->add_message($conversation_id, 'admin', $welcome_message);
         
+        // Trigger conversation created hook for notifications
+        do_action('chatbot_conversation_created', $conversation_id, array(
+            'visitor_name' => $visitor_name,
+            'first_message' => $welcome_message
+        ));
+        
+        chatbot_log('INFO', 'start_conversation', 'Conversation created and notifications triggered', 
+            array('conversation_id' => $conversation_id, 'visitor_name' => $visitor_name));
+        
         wp_send_json_success(array(
             'conversation_id' => $conversation_id,
             'message' => 'Conversation started.'
