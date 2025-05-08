@@ -384,9 +384,9 @@
             }
         });
         
-        // Pattern 2: Look for specific chart format for simple charts
-        // Format: ```chart:type|title|labels|data```
-        const simpleChartPattern = /<pre><code>chart:(bar|line|pie|doughnut)\|(.*?)\|(.*?)\|(.*?)<\/code><\/pre>/gi;
+        // Pattern 2: Look for specific chart format for simple charts - support space after chart: prefix
+        // Format: ```chart: type|title|labels|data``` or ```chart:type|title|labels|data```
+        const simpleChartPattern = /<pre><code>chart:\s*(bar|line|pie|doughnut)\|(.*?)\|(.*?)\|(.*?)<\/code><\/pre>/gi;
         
         modifiedContent = modifiedContent.replace(simpleChartPattern, (match, chartType, title, labelsStr, dataStr) => {
             // Generate a unique ID for this chart
@@ -439,6 +439,61 @@
             }
         });
         
+        // Pattern 3: Support plain text chart format without code blocks
+        // This is more likely how the AI outputs them in plain text conversation
+        const plainTextChartPattern = /chart:\s*(bar|line|pie|doughnut)\|(.*?)\|(.*?)\|(.*?)(?=[\n\r]|$)/gi;
+        
+        modifiedContent = modifiedContent.replace(plainTextChartPattern, (match, chartType, title, labelsStr, dataStr) => {
+            // Generate a unique ID for this chart
+            const chartId = 'ai-chat-chart-' + (++chartCounter);
+            
+            try {
+                // Parse the labels and data
+                const labels = labelsStr.split(',').map(label => label.trim());
+                const data = dataStr.split(',').map(value => parseFloat(value.trim()));
+                
+                // Create the chart configuration
+                const chartConfig = {
+                    type: chartType,
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: title.trim(),
+                            data: data,
+                            backgroundColor: [
+                                'rgba(75, 192, 192, 0.5)',
+                                'rgba(54, 162, 235, 0.5)',
+                                'rgba(255, 206, 86, 0.5)',
+                                'rgba(255, 99, 132, 0.5)',
+                                'rgba(153, 102, 255, 0.5)',
+                                'rgba(255, 159, 64, 0.5)'
+                            ],
+                            borderColor: [
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(153, 102, 255, 1)',
+                                'rgba(255, 159, 64, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    }
+                };
+                
+                // Create canvas element
+                const canvasHtml = `<div class="ai-chat-chart-container"><canvas id="${chartId}" width="400" height="240"></canvas></div>`;
+                
+                // Schedule chart rendering after the DOM is updated
+                setTimeout(() => renderChart(chartId, JSON.stringify(chartConfig)), 100);
+                
+                return canvasHtml;
+            } catch (e) {
+                console.error('Error creating simple chart from plain text:', e);
+                return match; // Keep original content if there's an error
+            }
+        });
+        
         return modifiedContent;
     }
     
@@ -462,8 +517,22 @@
             try {
                 chartData = JSON.parse(chartDataJson);
             } catch (e) {
-                console.error('Invalid chart JSON:', e);
-                return;
+                console.error('Invalid chart JSON:', e, chartDataJson);
+                // Try to sanitize and fix common issues with the JSON
+                try {
+                    // Sometimes the AI might generate invalid JSON with unquoted property names
+                    // or missing commas. This is a simple attempt to fix that.
+                    const fixedJson = chartDataJson
+                        .replace(/([{,])\s*(\w+)\s*:/g, '$1"$2":') // Quote unquoted property names
+                        .replace(/(["\w\d\]])\s*([{\[])/g, '$1,$2') // Add missing commas
+                        .replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
+                    
+                    chartData = JSON.parse(fixedJson);
+                    console.log('JSON fixed and parsed successfully');
+                } catch (fixError) {
+                    console.error('Could not fix the JSON:', fixError);
+                    return;
+                }
             }
             
             // Check if Chart.js is available
@@ -475,6 +544,22 @@
                 ctx.font = '14px Arial';
                 ctx.fillStyle = 'red';
                 ctx.fillText('Error: Chart.js library not loaded', 10, 50);
+                
+                // Try to load Chart.js dynamically
+                const script = document.createElement('script');
+                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
+                script.onload = function() {
+                    // Retry rendering after Chart.js is loaded
+                    setTimeout(() => {
+                        try {
+                            new Chart(canvas, chartData);
+                            console.log('Chart rendered after dynamic loading:', canvasId);
+                        } catch (retryError) {
+                            console.error('Error rendering chart after dynamic loading:', retryError);
+                        }
+                    }, 500);
+                };
+                document.head.appendChild(script);
                 return;
             }
             

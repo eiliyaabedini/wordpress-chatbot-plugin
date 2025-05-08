@@ -375,34 +375,34 @@ METHOD 1: Simple chart syntax (recommended for basic charts):
 METHOD 2: Full Chart.js configuration (for advanced customization):
 ```chart:
 {
-  "type": "bar",
-  "data": {
-    "labels": ["Label 1", "Label 2", "Label 3"],
-    "datasets": [{
-      "label": "Dataset Label",
-      "data": [10, 20, 30],
-      "backgroundColor": [
-        "rgba(75, 192, 192, 0.5)",
-        "rgba(54, 162, 235, 0.5)",
-        "rgba(255, 206, 86, 0.5)"
+  \"type\": \"bar\",
+  \"data\": {
+    \"labels\": [\"Label 1\", \"Label 2\", \"Label 3\"],
+    \"datasets\": [{
+      \"label\": \"Dataset Label\",
+      \"data\": [10, 20, 30],
+      \"backgroundColor\": [
+        \"rgba(75, 192, 192, 0.5)\",
+        \"rgba(54, 162, 235, 0.5)\",
+        \"rgba(255, 206, 86, 0.5)\"
       ],
-      "borderColor": [
-        "rgba(75, 192, 192, 1)",
-        "rgba(54, 162, 235, 1)",
-        "rgba(255, 206, 86, 1)"
+      \"borderColor\": [
+        \"rgba(75, 192, 192, 1)\",
+        \"rgba(54, 162, 235, 1)\",
+        \"rgba(255, 206, 86, 1)\"
       ],
-      "borderWidth": 1
+      \"borderWidth\": 1
     }]
   },
-  "options": {
-    "responsive": true,
-    "plugins": {
-      "title": {
-        "display": true,
-        "text": "Chart Title"
+  \"options\": {
+    \"responsive\": true,
+    \"plugins\": {
+      \"title\": {
+        \"display\": true,
+        \"text\": \"Chart Title\"
       },
-      "legend": {
-        "position": "top"
+      \"legend\": {
+        \"position\": \"top\"
       }
     }
   }
@@ -620,48 +620,48 @@ METHOD 1: Simple chart syntax (recommended for basic charts):
 METHOD 2: Full Chart.js configuration (for advanced customization):
 ```chart:
 {
-  "type": "bar",
-  "data": {
-    "labels": ["Label 1", "Label 2", "Label 3"],
-    "datasets": [{
-      "label": "Dataset Label",
-      "data": [10, 20, 30],
-      "backgroundColor": [
-        "rgba(75, 192, 192, 0.5)",
-        "rgba(54, 162, 235, 0.5)",
-        "rgba(255, 206, 86, 0.5)"
+  \"type\": \"bar\",
+  \"data\": {
+    \"labels\": [\"Label 1\", \"Label 2\", \"Label 3\"],
+    \"datasets\": [{
+      \"label\": \"Dataset Label\",
+      \"data\": [10, 20, 30],
+      \"backgroundColor\": [
+        \"rgba(75, 192, 192, 0.5)\",
+        \"rgba(54, 162, 235, 0.5)\",
+        \"rgba(255, 206, 86, 0.5)\"
       ],
-      "borderColor": [
-        "rgba(75, 192, 192, 1)",
-        "rgba(54, 162, 235, 1)",
-        "rgba(255, 206, 86, 1)"
+      \"borderColor\": [
+        \"rgba(75, 192, 192, 1)\",
+        \"rgba(54, 162, 235, 1)\",
+        \"rgba(255, 206, 86, 1)\"
       ],
-      "borderWidth": 1
+      \"borderWidth\": 1
     }]
   },
-  "options": {
-    "responsive": true,
-    "plugins": {
-      "title": {
-        "display": true,
-        "text": "Chart Title"
+  \"options\": {
+    \"responsive\": true,
+    \"plugins\": {
+      \"title\": {
+        \"display\": true,
+        \"text\": \"Chart Title\"
       },
-      "legend": {
-        "position": "top"
+      \"legend\": {
+        \"position\": \"top\"
       }
     },
-    "scales": {
-      "y": {
-        "beginAtZero": true,
-        "title": {
-          "display": true,
-          "text": "Y-Axis Label"
+    \"scales\": {
+      \"y\": {
+        \"beginAtZero\": true,
+        \"title\": {
+          \"display\": true,
+          \"text\": \"Y-Axis Label\"
         }
       },
-      "x": {
-        "title": {
-          "display": true,
-          "text": "X-Axis Label"
+      \"x\": {
+        \"title\": {
+          \"display\": true,
+          \"text\": \"X-Axis Label\"
         }
       }
     }
