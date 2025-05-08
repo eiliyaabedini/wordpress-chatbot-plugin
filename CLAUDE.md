@@ -75,3 +75,43 @@ Then download from the `wp-content/plugins` directory.
 ## Development Guidelines
 
 - Always use Claude 3.7 Sonnet model dont go on 3.5
+- Always use git commit history to read commit messages and learn about project history
+- Implement proper logging throughout the codebase 
+
+## Logging Standards
+
+1. **Comprehensive Logging**: Implement detailed logging for all critical operations, user actions, and error states. This is MANDATORY for all new code and updates to existing code.
+
+2. **When to Use Logging**:
+   - At the start and end of important functions
+   - When handling user input/requests
+   - During API calls and responses
+   - For all database operations
+   - When errors or exceptions occur
+   - During plugin initialization and deactivation
+   - For any state changes or important events
+
+3. **Log Structure**:
+   - All logs should use the prefix 'Chatbot:' for easy filtering
+   - Include context information (function name, operation being performed)
+   - For errors, include the specific error message and relevant variables
+   - Include values of key variables (sanitized if containing sensitive data)
+
+4. **Logging Levels**:
+   - Use `error_log()` for standard logging (WordPress default)
+   - For errors: `error_log('Chatbot: ERROR - [function/context] - [error description]');`
+   - For info: `error_log('Chatbot: INFO - [function/context] - [information]');`
+   - For debug: `error_log('Chatbot: DEBUG - [function/context] - [debug information]');`
+
+5. **Debugging Process**:
+   - When debugging issues, ALWAYS check logs first
+   - If logs are insufficient, add additional temporary logging to relevant code sections
+   - Include browser console logging for front-end issues
+   - Log both input and output values of problematic functions
+
+6. **Sensitive Data**:
+   - Never log API keys, passwords, or personal information
+   - For sensitive fields, log only presence/absence (e.g., "API key exists: Yes/No")
+   - Truncate potentially large values in logs (e.g., system prompts)
+
+By maintaining comprehensive logging, we create a reliable audit trail for troubleshooting issues, understanding system behavior, and improving the plugin over time.
