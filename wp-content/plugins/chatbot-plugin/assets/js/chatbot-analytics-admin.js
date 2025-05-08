@@ -1,6 +1,6 @@
 /**
  * Chatbot Analytics Dashboard JavaScript
- * Enhanced version with interactive chat interface
+ * Enhanced version with interactive chat interface and quick question buttons
  */
 
 (function($) {
@@ -17,6 +17,11 @@
             generateAISummary();
         });
         
+        // Set up event delegation for question suggestion buttons
+        $(document).on('click', '.ai-chat-question-btn', function() {
+            sendPredefinedQuestion($(this).text());
+        });
+        
         // Refresh analytics data periodically (every 5 minutes)
         setInterval(function() {
             refreshAnalyticsSummary();
@@ -27,6 +32,25 @@
     let conversationContext = null;
     let chatHistory = [];
     let isGeneratingResponse = false;
+    
+    /**
+     * Send a predefined question when a suggestion button is clicked
+     * 
+     * @param {string} questionText The text of the predefined question
+     */
+    window.sendPredefinedQuestion = function(questionText) {
+        // Ensure input field exists and isn't disabled
+        const $chatInput = $('#ai-chat-input');
+        if ($chatInput.length === 0 || $chatInput.prop('disabled') || isGeneratingResponse) {
+            return;
+        }
+        
+        // Set the question in the input field
+        $chatInput.val(questionText);
+        
+        // Send the question
+        sendChatMessage();
+    };
 
     /**
      * Generate AI Summary of conversations and initialize chat
@@ -73,9 +97,9 @@
                         content: response.data.summary
                     });
                     
-                    // Add a helpful prompt for the user
+                    // Add a helpful prompt for the user explaining new features
                     setTimeout(function() {
-                        addSystemMessage('You can now ask detailed follow-up questions about the conversation data. The AI can provide in-depth responses with up to 4000 tokens.');
+                        addSystemMessage('Here\'s your conversation summary. Ask follow-up questions or simply click any of the suggested buttons below for instant insights.');
                     }, 500);
                     
                     // Enable input after summary is received
@@ -113,15 +137,29 @@
     
     /**
      * Add message from AI to the chat
+     * 
+     * Safely handles HTML button elements for suggested questions
      */
     function addAIMessage(sender, message) {
+        // Create element structure
         const messageElement = $(`
             <div class="ai-chat-message ai">
                 <div class="ai-chat-message-header">${sender}</div>
-                <div class="ai-chat-message-content">${message.replace(/\n/g, '<br>')}</div>
+                <div class="ai-chat-message-content"></div>
             </div>
         `);
         
+        // Process the message content - this allows HTML buttons to work
+        // We set the HTML directly for the content div to preserve the button functionality
+        const contentDiv = messageElement.find('.ai-chat-message-content');
+        
+        // Replace regular line breaks with <br> tags to maintain formatting
+        let formattedMessage = message.replace(/\n/g, '<br>');
+        
+        // Set the HTML content safely
+        contentDiv.html(formattedMessage);
+        
+        // Add the element to the chat container
         $('#ai-chat-messages-container').append(messageElement);
         scrollChatToBottom();
     }

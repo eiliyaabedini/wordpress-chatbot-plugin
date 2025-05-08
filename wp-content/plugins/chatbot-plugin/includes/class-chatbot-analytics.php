@@ -351,56 +351,48 @@ class Chatbot_Analytics {
         // Get the OpenAI instance
         $openai = Chatbot_OpenAI::get_instance();
         
-        // Prepare enhanced system prompt for the analysis
-        $system_prompt = "You are an analytics expert reviewing chat conversations from a website's chatbot. Your task is to analyze the provided conversation data and create an insightful, data-driven summary that highlights key patterns, common questions, user needs, and actionable insights.
+        // Prepare enhanced system prompt for the analysis - more concise with suggested questions
+        $system_prompt = "You are an analytics expert reviewing chat conversations from a website's chatbot. Your task is to analyze the provided conversation data and create a CONCISE but insightful data-driven summary that highlights only the most important key patterns, common questions, user needs, and actionable insights.
 
 As an analytics expert, you should:
-1. Apply statistical thinking to identify significant patterns and trends
-2. Segment users based on their behavior and questions
-3. Identify opportunities for business growth and conversion
-4. Recommend specific improvements based on conversation analysis
-5. Provide actionable insights that can measurably improve chatbot performance
+1. Apply statistical thinking to identify only the most significant patterns and trends
+2. Keep your analysis extremely concise - just 2-3 lines per section
+3. Identify only the top opportunities for business growth and conversion
+4. Recommend only the most impactful specific improvements 
+5. VERY IMPORTANT: For each section, include 1-2 suggested follow-up questions that the admin can ask to learn more
 
-Your analysis should be comprehensive but well-organized with clear sections. Format your response with clear headings and bullet points for readability. Use specific examples from the conversations to support your insights. After your summary, emphasize that the user can ask follow-up questions to explore specific aspects of the data in more detail.";
+Your analysis should be extremely concise and well-organized with clear sections. Format your response with clear headings and bullet points. For each section, provide just 2-3 lines of key insights followed by suggested questions. At the end, include a section called 'SUGGESTED QUESTIONS' with 4-5 clickable question buttons formatted with HTML that can be clicked to ask those specific follow-up questions.";
         
-        // Prepare user prompt with conversation data and detailed request
-        $user_prompt = "Please analyze the following chatbot conversations and provide a comprehensive data-driven summary:\n\n";
+        // Prepare user prompt with conversation data and detailed request - more concise with suggested questions
+        $user_prompt = "Please analyze the following chatbot conversations and provide a VERY CONCISE data-driven summary:\n\n";
         $user_prompt .= "CONVERSATION DATA: " . json_encode($conversation_data, JSON_PRETTY_PRINT) . "\n\n";
-        $user_prompt .= "In your analysis, please include:
+        $user_prompt .= "In your analysis, please include these sections, but keep each section to just 2-3 key bullet points with the most important insights:
 
 1. CONVERSATION OVERVIEW
-   - Total number of conversations and messages
-   - Timeframe of conversations
-   - Average conversation length
-   - Common conversation entry points
+   - Key stats like total conversations, messages, timeframe, and average length
+   - Include 1-2 suggested follow-up questions about this section
 
 2. USER BEHAVIOR PATTERNS
-   - Most common topics or questions (with frequency if possible)
-   - Typical user needs and conversation flows
-   - User sentiment analysis (positive, negative, neutral)
-   - Key points where users tend to get stuck or confused
+   - Only the most common topics/questions and user needs
+   - Include 1-2 suggested follow-up questions about this section
 
 3. CONTENT EFFECTIVENESS
-   - Most effective responses (ones that led to positive outcomes)
-   - Areas where the chatbot struggled to provide adequate answers
-   - Topics that would benefit from additional knowledge base content
-   - Repetitive questions that could be addressed proactively
+   - Only the most important strengths and weaknesses of the chatbot responses
+   - Include 1-2 suggested follow-up questions about this section
 
 4. ACTIONABLE RECOMMENDATIONS
-   - Specific improvements for chatbot responses
-   - Suggested new features or capabilities
-   - Content gaps that should be addressed
-   - Changes to conversation flow that could improve user experience
+   - Only the 2-3 most important recommendations that would have the biggest impact
+   - Include 1-2 suggested follow-up questions about this section
 
 5. BUSINESS OPPORTUNITIES
-   - Potential product or service ideas based on user needs
-   - Cross-selling or upselling opportunities identified
-   - User feedback that relates to business offerings
-   - Competitive advantages revealed through conversations
+   - Only the top 2-3 business opportunities identified
+   - Include 1-2 suggested follow-up questions about this section
 
-Format your response in clear sections with descriptive headers. Use bullet points for readability. Be specific and reference actual conversation content where relevant to support your insights.
+6. SUGGESTED QUESTIONS
+   - Create 4-5 HTML buttons with the most valuable follow-up questions
+   - Format them like this: <button class='ai-chat-question-btn' onclick='sendPredefinedQuestion(this.textContent)'>Your question here?</button>
 
-End your response by noting that I can ask follow-up questions to explore specific aspects of the data in more detail.";
+Keep your entire response under 750 words. Format with clear headings and simple bullet points. Use concise language and be specific. The HTML buttons should work when clicked to send the question text to the chatbot.";
         
         try {
             // Generate summary using OpenAI's completion endpoint with higher token limit
@@ -552,6 +544,8 @@ When answering questions:
 4. Use bullet points for lists rather than paragraphs
 5. Focus on actionable insights over general observations
 6. Skip unnecessary preambles and conclusions
+7. End your response with 2-3 relevant follow-up question suggestions formatted as HTML buttons:
+   <button class='ai-chat-question-btn' onclick='sendPredefinedQuestion(this.textContent)'>Suggested follow-up question?</button>
 
 You should maintain the same analytical context throughout the conversation, referencing previous questions and building upon your earlier analysis. Remember, shorter responses are better - users prefer brief, direct answers over lengthy explanations.";
         

@@ -134,7 +134,8 @@ class Chatbot_Admin {
                                             <span class="dashicons dashicons-chart-area"></span>
                                         </div>
                                         <h3><?php _e('AI Chat Analysis', 'chatbot-plugin'); ?></h3>
-                                        <p><?php _e('Your AI assistant can analyze your chatbot conversations and provide actionable insights. Start the analysis to begin.', 'chatbot-plugin'); ?></p>
+                                        <p><?php _e('Your AI assistant can analyze your chatbot conversations and provide concise, actionable insights with suggested follow-up questions.', 'chatbot-plugin'); ?></p>
+                                        <p><em><?php _e('The new improved interface provides a summary with clickable question buttons for quick insights.', 'chatbot-plugin'); ?></em></p>
                                         <button id="generate-ai-overview" class="button button-primary">
                                             <?php _e('Start Conversation Analysis', 'chatbot-plugin'); ?>
                                         </button>
@@ -152,7 +153,7 @@ class Chatbot_Admin {
                                 </button>
                             </div>
                             <p class="description" style="text-align: center; margin-top: 10px; font-style: italic;">
-                                <?php _e('Ask specific questions to get concise, actionable insights about your conversations.', 'chatbot-plugin'); ?>
+                                <?php _e('Type your own question or click on a suggested question button for quick insights.', 'chatbot-plugin'); ?>
                             </p>
                         </div>
                     </div>
