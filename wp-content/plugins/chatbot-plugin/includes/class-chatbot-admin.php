@@ -232,9 +232,13 @@ class Chatbot_Admin {
                                     <label for="chatbot_system_prompt"><?php _e('Knowledge and Persona', 'chatbot-plugin'); ?></label>
                                 </th>
                                 <td>
-                                    <textarea name="chatbot_system_prompt" id="chatbot_system_prompt" class="large-text code" rows="10"><?php echo esc_textarea($system_prompt); ?></textarea>
+                                    <textarea name="chatbot_system_prompt" id="chatbot_system_prompt" class="large-text code" rows="10" data-original-value="<?php echo esc_attr($system_prompt); ?>"><?php echo esc_textarea($system_prompt); ?></textarea>
                                     <p class="description"><?php _e('Define the knowledge and personality for this chatbot.', 'chatbot-plugin'); ?></p>
-                                    <button type="button" class="button" id="chatbot_improve_prompt"><?php _e('Improve with AI', 'chatbot-plugin'); ?></button>
+                                    <button type="button" class="button" id="chatbot_improve_prompt" 
+                                        data-nonce-test="<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>"
+                                        data-nonce-improve="<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>">
+                                        <?php _e('Improve with AI', 'chatbot-plugin'); ?>
+                                    </button>
                                     <span id="chatbot_improve_prompt_status"></span>
                                 </td>
                             </tr>
@@ -253,82 +257,9 @@ class Chatbot_Admin {
                     </p>
                 </form>
                 
-                <script type="text/javascript">
-                jQuery(document).ready(function($) {
-                    $('#chatbot_improve_prompt').on('click', function() {
-                        var $button = $(this);
-                        var $status = $('#chatbot_improve_prompt_status');
-                        var promptText = $('#chatbot_system_prompt').val();
-                        
-                        if (promptText.trim() === '') {
-                            $status.html('<span style="color: red;"><?php _e('Please enter some text first.', 'chatbot-plugin'); ?></span>');
-                            return;
-                        }
-                        
-                        $button.prop('disabled', true);
-                        $status.html('<span><?php _e('Improving prompt...', 'chatbot-plugin'); ?></span>');
-                        
-                        // Redirect to OpenAI settings if API key is not configured
-                        var handleApiKeyMissing = function() {
-                            if (confirm('<?php _e('OpenAI API key is not configured. Would you like to configure it now?', 'chatbot-plugin'); ?>')) {
-                                window.location.href = '<?php echo admin_url('admin.php?page=chatbot-settings&tab=openai'); ?>';
-                            } else {
-                                $status.html('<span style="color: red;"><?php _e('API key is required. Please configure your OpenAI API key in the OpenAI settings tab.', 'chatbot-plugin'); ?></span>');
-                                $button.prop('disabled', false);
-                            }
-                        };
-                        
-                        // First, check if OpenAI API key is configured
-                        $.ajax({
-                            url: ajaxurl,
-                            type: 'POST',
-                            data: {
-                                action: 'chatbot_test_openai',
-                                validate_key_only: true,
-                                nonce: '<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>'
-                            },
-                            success: function(apiTestResponse) {
-                                if (apiTestResponse.success) {
-                                    // API key is configured, proceed with improving prompt
-                                    $.ajax({
-                                        url: ajaxurl,
-                                        type: 'POST',
-                                        data: {
-                                            action: 'chatbot_improve_prompt',
-                                            prompt: promptText,
-                                            nonce: '<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>'
-                                        },
-                                        success: function(response) {
-                                            if (response.success) {
-                                                $('#chatbot_system_prompt').val(response.data.improved_prompt);
-                                                $status.html('<span style="color: green;"><?php _e('Prompt improved!', 'chatbot-plugin'); ?></span>');
-                                            } else {
-                                                if (response.data.message.includes('API key is not set')) {
-                                                    handleApiKeyMissing();
-                                                } else {
-                                                    $status.html('<span style="color: red;">' + response.data.message + '</span>');
-                                                }
-                                            }
-                                        },
-                                        error: function() {
-                                            $status.html('<span style="color: red;"><?php _e('Error improving prompt.', 'chatbot-plugin'); ?></span>');
-                                        },
-                                        complete: function() {
-                                            $button.prop('disabled', false);
-                                        }
-                                    });
-                                } else {
-                                    // API key is not configured
-                                    handleApiKeyMissing();
-                                }
-                            },
-                            error: function() {
-                                handleApiKeyMissing();
-                            }
-                        });
-                    });
-                });
-                </script>
+                <!-- JavaScript functionality moved to chatbot-admin.js for easier debugging -->
+                <!-- Previous inline script replaced with data attributes in the button above -->
+                <!-- This provides cleaner separation of concerns and better debugging -->
                 
             <?php else: ?>
                 <!-- Display list of configurations -->

@@ -12,22 +12,24 @@ if (!defined('WPINC')) {
 $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
 
 // Helper function to darken/lighten hex colors
-function adjustBrightness($hex, $steps) {
-    // Remove # if present
-    $hex = ltrim($hex, '#');
-    
-    // Parse the hex code
-    $r = hexdec(substr($hex, 0, 2));
-    $g = hexdec(substr($hex, 2, 2));
-    $b = hexdec(substr($hex, 4, 2));
-    
-    // Adjust the brightness
-    $r = max(0, min(255, $r + $steps));
-    $g = max(0, min(255, $g + $steps));
-    $b = max(0, min(255, $b + $steps));
-    
-    // Convert back to hex
-    return '#' . sprintf('%02x%02x%02x', $r, $g, $b);
+if (!function_exists('adjustBrightness')) {
+    function adjustBrightness($hex, $steps) {
+        // Remove # if present
+        $hex = ltrim($hex, '#');
+        
+        // Parse the hex code
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        
+        // Adjust the brightness
+        $r = max(0, min(255, $r + $steps));
+        $g = max(0, min(255, $g + $steps));
+        $b = max(0, min(255, $b + $steps));
+        
+        // Convert back to hex
+        return '#' . sprintf('%02x%02x%02x', $r, $g, $b);
+    }
 }
 
 // Default primary color if not set
@@ -122,7 +124,7 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
 </div>
 
 <!-- Chatbot container -->
-<div class="chatbot-container <?php echo esc_attr($theme); ?>" id="chatbot-container">
+<div class="chatbot-container <?php echo esc_attr($theme); ?>" id="chatbot-container" <?php if (isset($atts['name']) && !empty($atts['name'])): ?>data-config-name="<?php echo esc_attr($atts['name']); ?>"<?php endif; ?>>
     <!-- Header only shown in chat mode, not in welcome screen -->
     <div class="chatbot-header" style="display:none;">
         <span>Chat Support</span>
@@ -141,7 +143,7 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
     
     <!-- Simple text-based typing indicator at the bottom of chat -->
     <div class="chatbot-simple-typing-indicator" id="chatbot-typing-status" style="display:none;">
-        AI Assistant is typing...
+        <?php echo esc_html(get_option('chatbot_typing_indicator_text', 'AI Assistant is typing...')); ?>
     </div>
     
     <div class="chatbot-welcome-screen">

@@ -54,6 +54,7 @@ class Chatbot_Settings {
         register_setting('chatbot_settings', 'chatbot_button_icon');
         register_setting('chatbot_settings', 'chatbot_button_icon_type');
         register_setting('chatbot_settings', 'chatbot_button_icon_url');
+        register_setting('chatbot_settings', 'chatbot_typing_indicator_text');
         
         // Add general settings section
         add_settings_section(
@@ -76,6 +77,14 @@ class Chatbot_Settings {
             'chatbot_chat_greeting',
             __('Chat Greeting', 'chatbot-plugin'),
             array($this, 'render_chat_greeting_field'),
+            'chatbot_settings',
+            'chatbot_general_settings'
+        );
+        
+        add_settings_field(
+            'chatbot_typing_indicator_text',
+            __('Typing Indicator Text', 'chatbot-plugin'),
+            array($this, 'render_typing_indicator_text_field'),
             'chatbot_settings',
             'chatbot_general_settings'
         );
@@ -119,6 +128,9 @@ class Chatbot_Settings {
         // Get active tab
         $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'general';
         
+        // Debug logging for settings page access
+        error_log('Chatbot: Displaying settings page, active tab: ' . $active_tab);
+        
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
@@ -132,59 +144,128 @@ class Chatbot_Settings {
                 </a>
             </h2>
             
+            <?php 
+            // We still need the sync functionality without showing the debug panel
+            if ($active_tab === 'openai' && isset($_GET['action']) && $_GET['action'] === 'sync_settings') {
+                // Try to force sync settings
+                if (class_exists('Chatbot_OpenAI')) {
+                    $openai = Chatbot_OpenAI::get_instance();
+                    if (method_exists($openai, 'sync_settings_between_groups')) {
+                        // Silently sync settings
+                        $openai->sync_settings_between_groups();
+                        
+                        // Force refresh to see changes
+                        echo '<script>
+                            setTimeout(function() {
+                                window.location.href = "' . admin_url('admin.php?page=chatbot-settings&tab=openai') . '";
+                            }, 500);
+                        </script>';
+                    }
+                }
+            }
+            
+            // Admin-only debugging can be shown with a special URL parameter
+            if ($active_tab === 'openai' && current_user_can('manage_options') && isset($_GET['debug']) && $_GET['debug'] === 'openai'): 
+            ?>
+                <!-- Hidden diagnostic panel, only visible with ?debug=openai parameter -->
+                <div class="card" style="margin-bottom: 20px; background-color: #f8f8f8; border-left: 4px solid blue; padding: 10px 15px;">
+                    <h3>OpenAI Settings Diagnostic</h3>
+                    <?php
+                    // Direct database query to find OpenAI options
+                    global $wpdb;
+                    $openai_options = $wpdb->get_results(
+                        "SELECT option_name, option_value FROM {$wpdb->options} 
+                        WHERE option_name LIKE 'chatbot_openai_%'"
+                    );
+                    
+                    if (empty($openai_options)) {
+                        echo '<p>No OpenAI settings found in database.</p>';
+                    } else {
+                        echo '<p>Current OpenAI settings found in database:</p>';
+                        echo '<ul>';
+                        foreach ($openai_options as $option) {
+                            $display_value = $option->option_name === 'chatbot_openai_api_key' 
+                                ? (empty($option->option_value) ? 'Empty' : 'Set (hidden for security)')
+                                : esc_html($option->option_value);
+                            
+                            echo '<li><strong>' . esc_html($option->option_name) . ':</strong> ' . $display_value . '</li>';
+                        }
+                        echo '</ul>';
+                    }
+                    
+                    // Add an action to manually force a refresh
+                    echo '<p><a href="' . admin_url('admin.php?page=chatbot-settings&tab=openai&action=sync_settings&debug=openai') . '" class="button button-small">Force Settings Sync</a></p>';
+                    ?>
+                </div>
+            <?php endif; ?>
+            
             <form method="post" action="options.php">
                 <?php
                 if ($active_tab === 'general') {
                     settings_fields('chatbot_settings');
                     do_settings_sections('chatbot_settings');
                 } elseif ($active_tab === 'openai') {
-                    settings_fields('chatbot_settings');
-                    do_settings_sections('chatbot_openai_settings');
+                    // Debug log for OpenAI tab rendering
+                    error_log('Chatbot: Rendering OpenAI settings tab');
                     
-                    // Add a 'Test Connection' button for OpenAI
-                    echo '<p>';
-                    echo '<button type="button" id="chatbot-test-openai" class="button button-secondary">';
-                    echo __('Test OpenAI Connection', 'chatbot-plugin');
-                    echo '</button>';
-                    echo '<span id="chatbot-test-openai-result" style="margin-left: 10px;"></span>';
-                    echo '</p>';
+                    // Debug current OpenAI settings values
+                    $api_key = get_option('chatbot_openai_api_key', '');
+                    $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
+                    $max_tokens = get_option('chatbot_openai_max_tokens', 150);
+                    $temperature = get_option('chatbot_openai_temperature', 0.7);
                     
-                    // Add JavaScript for the test button
+                    error_log('Chatbot: OpenAI API Key exists: ' . (!empty($api_key) ? 'Yes' : 'No'));
+                    error_log('Chatbot: OpenAI Model: ' . $model);
+                    error_log('Chatbot: OpenAI Max Tokens: ' . $max_tokens);
+                    error_log('Chatbot: OpenAI Temperature: ' . $temperature);
+                    
+                    // Add diagnostic JavaScript to check registered settings
                     ?>
                     <script type="text/javascript">
+                    console.group('Chatbot Debug: OpenAI Settings');
+                    console.log('Tab active: OpenAI Integration');
+                    console.log('Settings group used: chatbot_openai_settings');
+                    
+                    // Helper function to inspect DOM elements
+                    function inspectFields() {
+                        console.log('API Key field exists:', $('#chatbot_openai_api_key').length > 0);
+                        console.log('Model field exists:', $('#chatbot_openai_model').length > 0);
+                        console.log('Max tokens field exists:', $('#chatbot_openai_max_tokens').length > 0);
+                        console.log('Temperature field exists:', $('#chatbot_openai_temperature').length > 0);
+                        console.log('System prompt field exists:', $('#chatbot_openai_system_prompt').length > 0);
+                        
+                        // Check for any visible fields at all
+                        console.log('Input fields in form:', $('form input, form textarea, form select').length);
+                        
+                        // Check form action
+                        console.log('Form action:', $('form').attr('action'));
+                    }
+                    
+                    // Log all available wp options for debugging
                     jQuery(document).ready(function($) {
-                        $('#chatbot-test-openai').on('click', function() {
-                            var $button = $(this);
-                            var $result = $('#chatbot-test-openai-result');
-                            
-                            $button.prop('disabled', true);
-                            $result.html('<?php _e('Testing connection...', 'chatbot-plugin'); ?>');
-                            
-                            $.ajax({
-                                url: ajaxurl,
-                                type: 'POST',
-                                data: {
-                                    action: 'chatbot_test_openai',
-                                    nonce: '<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>'
-                                },
-                                success: function(response) {
-                                    if (response.success) {
-                                        $result.html('<span style="color: green;">' + response.data.message + '</span>');
-                                    } else {
-                                        $result.html('<span style="color: red;">' + response.data.message + '</span>');
-                                    }
-                                },
-                                error: function() {
-                                    $result.html('<span style="color: red;"><?php _e('Connection error', 'chatbot-plugin'); ?></span>');
-                                },
-                                complete: function() {
-                                    $button.prop('disabled', false);
+                        // Inspect DOM after short delay to ensure it's rendered
+                        setTimeout(inspectFields, 500);
+                        
+                        $.ajax({
+                            url: ajaxurl,
+                            type: 'POST',
+                            data: {
+                                action: 'chatbot_debug_get_options',
+                                nonce: '<?php echo wp_create_nonce('chatbot_debug_nonce'); ?>'
+                            },
+                            success: function(response) {
+                                if (response.success && response.data) {
+                                    console.log('OpenAI settings from database:', response.data);
                                 }
-                            });
+                            }
                         });
                     });
+                    console.groupEnd();
                     </script>
                     <?php
+                    
+                    settings_fields('chatbot_openai_settings');
+                    do_settings_sections('chatbot_openai_settings');
                 }
                 
                 submit_button();
@@ -333,6 +414,18 @@ class Chatbot_Settings {
         });
         </script>
         <?php
+    }
+    
+    /**
+     * Render typing indicator text field
+     */
+    public function render_typing_indicator_text_field() {
+        $default_text = 'AI Assistant is typing...';
+        $typing_indicator_text = get_option('chatbot_typing_indicator_text', $default_text);
+        
+        echo '<input type="text" name="chatbot_typing_indicator_text" id="chatbot_typing_indicator_text" class="regular-text" value="' . esc_attr($typing_indicator_text) . '" />';
+        echo '<p class="description">' . __('The text to display when the AI is generating a response.', 'chatbot-plugin') . '</p>';
+        echo '<p class="description"><strong>' . __('Default:', 'chatbot-plugin') . '</strong> ' . esc_html($default_text) . '</p>';
     }
     
     /**

@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Chatbot Plugin
  * Description: A WordPress plugin for integrating AI-powered chatbot functionality.
- * Version: 1.2.0
+ * Version: 1.2.1
  * Author: Your Name
  * Author URI: https://example.com
  * Text Domain: chatbot-plugin
@@ -14,7 +14,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.2.0');
+define('CHATBOT_PLUGIN_VERSION', '1.2.1');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -25,26 +25,87 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-openai.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
 
+/**
+ * Helper function for standardized logging
+ * 
+ * @param string $level Log level (INFO, DEBUG, ERROR)
+ * @param string $context Context information (function name, class, etc.)
+ * @param string $message Log message
+ * @param mixed $data Optional data to include in log
+ */
+function chatbot_log($level, $context, $message, $data = null) {
+    $log_prefix = 'Chatbot: ' . $level . ' - ' . $context . ' - ';
+    
+    if ($data !== null) {
+        if (is_array($data) || is_object($data)) {
+            // For arrays and objects, convert to string representation
+            $data_string = print_r($data, true);
+            // Truncate if too long
+            if (strlen($data_string) > 500) {
+                $data_string = substr($data_string, 0, 500) . '... (truncated)';
+            }
+            error_log($log_prefix . $message . ' Data: ' . $data_string);
+        } else {
+            // For simple values
+            error_log($log_prefix . $message . ' Data: ' . $data);
+        }
+    } else {
+        error_log($log_prefix . $message);
+    }
+}
+
 // Plugin activation
 function activate_chatbot_plugin() {
+    chatbot_log('INFO', 'activation', 'Plugin activation started');
+    
     // Create necessary folders if they don't exist
     if (!file_exists(CHATBOT_PLUGIN_PATH . 'assets/css')) {
         wp_mkdir_p(CHATBOT_PLUGIN_PATH . 'assets/css');
+        chatbot_log('INFO', 'activation', 'Created assets/css directory');
     }
     
     if (!file_exists(CHATBOT_PLUGIN_PATH . 'assets/js')) {
         wp_mkdir_p(CHATBOT_PLUGIN_PATH . 'assets/js');
+        chatbot_log('INFO', 'activation', 'Created assets/js directory');
     }
     
     if (!file_exists(CHATBOT_PLUGIN_PATH . 'templates')) {
         wp_mkdir_p(CHATBOT_PLUGIN_PATH . 'templates');
+        chatbot_log('INFO', 'activation', 'Created templates directory');
     }
     
     // Create database tables for chat
     create_chatbot_database_tables();
     
+    // Add a default configuration if none exists
+    add_default_chatbot_configuration();
+    
     // Flush rewrite rules
     flush_rewrite_rules();
+    
+    chatbot_log('INFO', 'activation', 'Plugin activation completed successfully');
+}
+
+/**
+ * Add a default chatbot configuration if none exists
+ */
+function add_default_chatbot_configuration() {
+    require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
+    $db = Chatbot_DB::get_instance();
+    
+    // Check if any configurations exist
+    $configurations = $db->get_configurations();
+    
+    if (empty($configurations)) {
+        // Create a default configuration
+        $default_name = 'Default';
+        $default_prompt = "You are a helpful AI assistant embedded on a WordPress website. " . 
+                          "Your goal is to provide accurate, helpful responses to user questions. " .
+                          "Be concise but thorough, and always maintain a professional and friendly tone. " .
+                          "If you don't know the answer to a question, acknowledge that rather than making up information.";
+        
+        $db->add_configuration($default_name, $default_prompt);
+    }
 }
 
 /**
@@ -83,12 +144,26 @@ function create_chatbot_database_tables() {
         KEY conversation_id (conversation_id)
     ) $charset_collate;";
     
+    // Table for chatbot configurations
+    $table_configurations = $wpdb->prefix . 'chatbot_configurations';
+    
+    $sql_configurations = "CREATE TABLE $table_configurations (
+        id bigint(20) NOT NULL AUTO_INCREMENT,
+        name varchar(100) NOT NULL,
+        system_prompt text NOT NULL,
+        created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+        PRIMARY KEY  (id),
+        UNIQUE KEY name (name)
+    ) $charset_collate;";
+    
     // Include WordPress database upgrade functions
     require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
     
     // Create the tables
     dbDelta($sql_conversations);
     dbDelta($sql_messages);
+    dbDelta($sql_configurations);
 }
 register_activation_hook(__FILE__, 'activate_chatbot_plugin');
 
@@ -98,16 +173,51 @@ register_activation_hook(__FILE__, 'activate_chatbot_plugin');
 function update_chatbot_database_tables() {
     global $wpdb;
     
-    // Check if the database needs updating
+    // Check if the conversations table needs updating
     $table_name = $wpdb->prefix . 'chatbot_conversations';
-    $check_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_name` LIKE 'status'");
     
-    if (empty($check_column)) {
+    // Check for status column
+    $check_status_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_name` LIKE 'status'");
+    if (empty($check_status_column)) {
         // Add new columns for archiving/status features
         $wpdb->query("ALTER TABLE `$table_name` 
                       ADD COLUMN `status` varchar(20) DEFAULT 'active' NOT NULL,
                       ADD COLUMN `ended_at` datetime DEFAULT NULL,
                       ADD COLUMN `archived_at` datetime DEFAULT NULL");
+        
+        chatbot_log('INFO', 'update_tables', 'Added status columns to conversations table');
+    }
+    
+    // Check for chatbot_config_id column
+    $check_config_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_name` LIKE 'chatbot_config_id'");
+    if (empty($check_config_column)) {
+        // Add new column for chatbot configuration
+        $wpdb->query("ALTER TABLE `$table_name` 
+                      ADD COLUMN `chatbot_config_id` bigint(20) DEFAULT NULL,
+                      ADD COLUMN `chatbot_config_name` varchar(100) DEFAULT NULL");
+        
+        chatbot_log('INFO', 'update_tables', 'Added chatbot configuration columns to conversations table');
+    }
+    
+    // Check if the configurations table exists
+    $table_configurations = $wpdb->prefix . 'chatbot_configurations';
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_configurations'") === $table_configurations;
+    
+    if (!$table_exists) {
+        $charset_collate = $wpdb->get_charset_collate();
+        
+        $sql_configurations = "CREATE TABLE $table_configurations (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            name varchar(100) NOT NULL,
+            system_prompt text NOT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY name (name)
+        ) $charset_collate;";
+        
+        require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+        dbDelta($sql_configurations);
     }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');
@@ -163,8 +273,9 @@ class Chatbot_Plugin {
             true
         );
         
-        // Define default greeting to ensure consistency across the plugin
+        // Define default values to ensure consistency across the plugin
         $default_greeting = 'Hello %s! How can I help you today?';
+        $default_typing_indicator = 'AI Assistant is typing...';
         
         wp_localize_script(
             'chatbot-plugin-script',
@@ -172,7 +283,8 @@ class Chatbot_Plugin {
             array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('chatbot-plugin-nonce'),
-                'chatGreeting' => get_option('chatbot_chat_greeting', $default_greeting)
+                'chatGreeting' => get_option('chatbot_chat_greeting', $default_greeting),
+                'typingIndicatorText' => get_option('chatbot_typing_indicator_text', $default_typing_indicator)
             )
         );
     }
@@ -181,10 +293,38 @@ class Chatbot_Plugin {
         $atts = shortcode_atts(
             array(
                 'theme' => 'light',
+                'name' => '',
             ),
             $atts,
             'chatbot'
         );
+        
+        $db = Chatbot_DB::get_instance();
+        
+        // If a specific chatbot name is requested, load its configuration
+        if (!empty($atts['name'])) {
+            $chatbot_config = $db->get_configuration_by_name($atts['name']);
+            
+            // If the requested chatbot doesn't exist, fallback to default
+            if (!$chatbot_config) {
+                // Log for debugging
+                error_log('Chatbot configuration not found: ' . $atts['name']);
+                
+                // Try to get the default configuration
+                $chatbot_config = $db->get_configuration_by_name('Default');
+            }
+        } else {
+            // If no name specified, use the default configuration
+            $chatbot_config = $db->get_configuration_by_name('Default');
+        }
+        
+        // If we have a valid configuration, add it to the attributes
+        if ($chatbot_config) {
+            $atts['config'] = $chatbot_config;
+        } else {
+            // If no configuration found at all, log this issue
+            error_log('No chatbot configurations found, including default.');
+        }
         
         ob_start();
         include CHATBOT_PLUGIN_PATH . 'templates/chatbot-template.php';
