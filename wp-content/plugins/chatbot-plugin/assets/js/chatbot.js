@@ -101,11 +101,25 @@
             // Hide loading animation
             $('#chatbot-loading').hide();
             
-            // Show typing indicator
-            $('.chatbot-typing-indicator').show();
+            // First hide any existing typing indicator
+            $('.chatbot-typing-indicator').hide();
             
-            // Scroll to bottom
+            // Add it at the end of the messages
+            const $typingIndicator = $('.chatbot-typing-indicator');
+            
+            // Make sure it's detached from its current position first
+            $typingIndicator.detach();
+            
+            // Append it to the messages container
+            chatbotMessages.append($typingIndicator);
+            
+            // Show with fade-in animation
+            $typingIndicator.fadeIn(200);
+            
+            // Scroll to show the typing indicator
             chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+            
+            // We're using the typing indicator itself instead of a status message
         }
         
         // Function to start a new conversation
@@ -126,12 +140,8 @@
             setLoadingTimeout(); // Set timeout to hide loading indicator
             $('.chatbot-typing-indicator').hide();
             
-            // Add status indicator
-            if (!$('.chatbot-status').length) {
-                chatbotContainer.append('<div class="chatbot-status">Connecting...</div>');
-            } else {
-                $('.chatbot-status').text('Connecting...');
-            }
+            // Show connection status directly in chat
+            chatbotMessages.append('<div class="chatbot-system-message">Connecting to AI assistant...</div>');
             
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,
@@ -148,9 +158,6 @@
                         // Hide loading animation
                         $('#chatbot-loading').hide();
                         
-                        // Update status indicator
-                        $('.chatbot-status').text('Connected');
-                        
                         // Clear any existing messages and add welcome message from admin
                         chatbotMessages.empty().show();
                         
@@ -160,14 +167,15 @@
                         // Start polling for new messages
                         startPolling();
                     } else {
-                        $('.chatbot-status').text('Connection Error');
-                        alert('Error starting conversation. Please try again.');
+                        chatbotMessages.append('<div class="chatbot-system-message">Error starting conversation. Please try again.</div>');
+                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                        $('#chatbot-loading').hide();
                     }
                 },
                 error: function() {
                     $('#chatbot-loading').hide();
-                    $('.chatbot-status').text('Connection Error');
-                    alert('Error connecting to server. Please try again.');
+                    chatbotMessages.append('<div class="chatbot-system-message">Error connecting to server. Please try again.</div>');
+                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
             });
         }
@@ -179,8 +187,7 @@
                 return;
             }
             
-            // Update status and show typing indicator
-            $('.chatbot-status').text('Sending...');
+            // Show typing indicator for AI response
             showTypingIndicator();
             
             $.ajax({
@@ -195,12 +202,6 @@
                 },
                 success: function(response) {
                     if (response.success) {
-                        // Reset status
-                        $('.chatbot-status').text('Connected');
-                        
-                        // Keep the typing indicator visible since we're waiting for the AI response
-                        // The typing indicator will be hidden when the response is received
-                        
                         // Check if we need to add the message (it might already be added by polling)
                         if (!response.data.message_already_displayed) {
                             // The message might be already added by the user,
@@ -213,13 +214,15 @@
                     } else {
                         // Hide typing indicator and show error
                         $('.chatbot-typing-indicator').hide();
-                        $('.chatbot-status').text('Error sending message');
+                        chatbotMessages.append('<div class="chatbot-system-message">Error sending message. Please try again.</div>');
+                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                     }
                 },
                 error: function() {
                     // Hide typing indicator and show error
                     $('.chatbot-typing-indicator').hide();
-                    $('.chatbot-status').text('Connection error');
+                    chatbotMessages.append('<div class="chatbot-system-message">Connection error. Please try again later.</div>');
+                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
             });
         }
@@ -264,6 +267,9 @@
                         $('#chatbot-loading').hide();
                         chatbotMessages.show();
                         
+                        // Get the current message count to detect new messages
+                        const currentMessageCount = $('.chatbot-message').length;
+                        
                         // Clear messages area and repopulate with all messages
                         chatbotMessages.empty();
                         
@@ -277,16 +283,27 @@
                             addMessage(msg.message, senderType);
                         });
                         
-                        // Update status based on activity
-                        if (response.data.messages.length > 0) {
-                            $('.chatbot-status').text('Connected');
+                        // If there are new messages, hide the typing indicator
+                        if (response.data.messages.length > currentMessageCount) {
+                            $('.chatbot-typing-indicator').fadeOut(200);
                         }
                     }
                 },
                 error: function() {
                     // Hide loading animation on error
                     $('#chatbot-loading').hide();
-                    $('.chatbot-status').text('Connection error');
+                    
+                    // Only show error message if we can't fetch messages repeatedly
+                    if (!window.fetchErrorShown) {
+                        chatbotMessages.append('<div class="chatbot-system-message">Unable to retrieve messages. Will retry shortly.</div>');
+                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                        window.fetchErrorShown = true;
+                        
+                        // Reset the error shown flag after 30 seconds
+                        setTimeout(function() {
+                            window.fetchErrorShown = false;
+                        }, 30000);
+                    }
                 }
             });
         }
@@ -351,10 +368,9 @@
             $('#chatbot-loading').show();
             setLoadingTimeout();
             
-            // Add status indicator
-            if (!$('.chatbot-status').length) {
-                chatbotContainer.append('<div class="chatbot-status">Reconnecting...</div>');
-            }
+            // Show reconnection message
+            chatbotMessages.append('<div class="chatbot-system-message">Reconnecting to previous session...</div>');
+            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
             
             // Start polling for new messages
             startPolling();
