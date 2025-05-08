@@ -43,6 +43,19 @@
         // Hide loading animation initially
         $('#chatbot-loading').hide();
         
+        // Loading timeout to ensure it doesn't stay visible forever
+        function setLoadingTimeout() {
+            // Hide loading indicator after 10 seconds in case of issues
+            setTimeout(function() {
+                $('#chatbot-loading').hide();
+                
+                // Update status if it shows "connecting" or similar
+                if ($('.chatbot-status').text().indexOf('onnect') > -1) {
+                    $('.chatbot-status').text('Connected');
+                }
+            }, 10000);
+        }
+        
         // Function to add a new message to the chat
         function addMessage(message, senderType) {
             // Remove loading animation if it exists
@@ -96,6 +109,7 @@
             chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
             $('#chatbot-loading').show();
+            setLoadingTimeout(); // Set timeout to hide loading indicator
             $('.chatbot-typing-indicator').hide();
             
             // Add status indicator
@@ -203,50 +217,64 @@
                 clearInterval(pollInterval);
             }
             
+            // Immediately fetch messages instead of waiting for the first interval
+            fetchMessages();
+            
             // Set up polling interval (every 5 seconds)
             pollInterval = setInterval(function() {
                 if (!conversationId) {
                     return;
                 }
                 
-                $.ajax({
-                    url: chatbotPluginVars.ajaxUrl,
-                    type: 'POST',
-                    data: {
-                        action: 'chatbot_get_messages',
-                        conversation_id: conversationId,
-                        nonce: chatbotPluginVars.nonce
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            // Hide loading indicator and make sure messages area is visible
-                            $('#chatbot-loading').hide();
-                            chatbotMessages.show();
-                            
-                            // Clear messages area and repopulate with all messages
-                            chatbotMessages.empty();
-                            
-                            // Add all messages
-                            response.data.messages.forEach(function(msg) {
-                                // Determine if the message is from AI or admin
-                                let senderType = msg.sender_type;
-                                if (senderType === 'bot') {
-                                    senderType = 'ai';
-                                }
-                                addMessage(msg.message, senderType);
-                            });
-                            
-                            // Update status based on activity
-                            if (response.data.messages.length > 0) {
-                                $('.chatbot-status').text('Connected');
-                            }
-                        }
-                    },
-                    error: function() {
-                        $('.chatbot-status').text('Connection error');
-                    }
-                });
+                fetchMessages();
             }, 5000); // Poll every 5 seconds
+        }
+        
+        // Function to fetch messages from the server
+        function fetchMessages() {
+            if (!conversationId) {
+                return;
+            }
+                
+            $.ajax({
+                url: chatbotPluginVars.ajaxUrl,
+                type: 'POST',
+                data: {
+                    action: 'chatbot_get_messages',
+                    conversation_id: conversationId,
+                    nonce: chatbotPluginVars.nonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Hide loading indicator and make sure messages area is visible
+                        $('#chatbot-loading').hide();
+                        chatbotMessages.show();
+                        
+                        // Clear messages area and repopulate with all messages
+                        chatbotMessages.empty();
+                        
+                        // Add all messages
+                        response.data.messages.forEach(function(msg) {
+                            // Determine if the message is from AI or admin
+                            let senderType = msg.sender_type;
+                            if (senderType === 'bot') {
+                                senderType = 'ai';
+                            }
+                            addMessage(msg.message, senderType);
+                        });
+                        
+                        // Update status based on activity
+                        if (response.data.messages.length > 0) {
+                            $('.chatbot-status').text('Connected');
+                        }
+                    }
+                },
+                error: function() {
+                    // Hide loading animation on error
+                    $('#chatbot-loading').hide();
+                    $('.chatbot-status').text('Connection error');
+                }
+            });
         }
         
         // Handle start button click
@@ -304,8 +332,9 @@
             chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
             
-            // Show loading animation
+            // Show loading animation and set a timeout to hide it 
             $('#chatbot-loading').show();
+            setLoadingTimeout();
             
             // Add status indicator
             if (!$('.chatbot-status').length) {
