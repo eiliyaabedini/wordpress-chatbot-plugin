@@ -1518,11 +1518,29 @@ Format each insight as JSON objects in an array. Example:
                 true
             );
             
+            // Enqueue Showdown.js for Markdown to HTML conversion (from CDN for reliability)
+            wp_enqueue_script(
+                'showdown-js',
+                'https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js',
+                array(),
+                '2.1.0',
+                false // Load in header instead of footer
+            );
+            
+            // Also enqueue our local version as a fallback
+            wp_enqueue_script(
+                'showdown-js-local',
+                CHATBOT_PLUGIN_URL . 'assets/js/showdown.min.js',
+                array(),
+                '2.1.0',
+                false // Load in header instead of footer
+            );
+            
             // Enqueue our admin JS
             wp_enqueue_script(
                 'chatbot-analytics-admin',
                 CHATBOT_PLUGIN_URL . 'assets/js/chatbot-analytics-admin.js',
-                array('jquery', 'chart-js'),
+                array('jquery', 'chart-js', 'showdown-js'),
                 CHATBOT_PLUGIN_VERSION,
                 true
             );
@@ -1535,13 +1553,14 @@ Format each insight as JSON objects in an array. Example:
                 CHATBOT_PLUGIN_VERSION
             );
             
-            // Localize script with nonce and ajax URL
+            // Localize script with nonce, ajax URL, and plugin URL
             wp_localize_script(
                 'chatbot-analytics-admin',
                 'chatbotAnalyticsVars',
                 array(
                     'ajaxUrl' => admin_url('admin-ajax.php'),
-                    'nonce' => wp_create_nonce('chatbot-admin-nonce')
+                    'nonce' => wp_create_nonce('chatbot-admin-nonce'),
+                    'pluginUrl' => CHATBOT_PLUGIN_URL
                 )
             );
         }

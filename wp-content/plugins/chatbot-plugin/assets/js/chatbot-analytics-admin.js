@@ -139,6 +139,7 @@
      * Add message from AI to the chat
      * 
      * Safely handles HTML button elements for suggested questions
+     * Uses Showdown.js to convert Markdown to HTML
      */
     function addAIMessage(sender, message) {
         // Create element structure
@@ -153,8 +154,59 @@
         // We set the HTML directly for the content div to preserve the button functionality
         const contentDiv = messageElement.find('.ai-chat-message-content');
         
-        // Replace regular line breaks with <br> tags to maintain formatting
-        let formattedMessage = message.replace(/\n/g, '<br>');
+        let formattedMessage = '';
+        
+        // CRITICAL FIX: Use a try/catch block to handle Showdown issues
+        try {
+            // First, make sure we have a showdown object
+            if (typeof showdown === 'undefined') {
+                console.error('Showdown library not defined - using fallback processing');
+                throw new Error('Showdown not available');
+            }
+            
+            // Initialize Showdown converter with options
+            const converter = new showdown.Converter({
+                tables: true,
+                strikethrough: true,
+                tasklists: true,
+                simpleLineBreaks: true
+            });
+            
+            // Convert markdown to HTML using Showdown
+            formattedMessage = converter.makeHtml(message);
+            console.log('Successfully converted Markdown to HTML with Showdown');
+        } catch (error) {
+            console.error('Error using Showdown:', error);
+            
+            // Fallback: Apply basic formatting for Markdown
+            formattedMessage = message
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br />')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/```(.*?)```/gs, '<pre><code>$1</code></pre>')
+                .replace(/`(.*?)`/g, '<code>$1</code>');
+                
+            formattedMessage = '<p>' + formattedMessage + '</p>';
+            
+            // Try to load Showdown again for future messages
+            if (typeof chatbotAnalyticsVars !== 'undefined' && chatbotAnalyticsVars.pluginUrl) {
+                console.log('Attempting to load Showdown from plugin URL');
+                const script = document.createElement('script');
+                script.src = chatbotAnalyticsVars.pluginUrl + 'assets/js/showdown.min.js';
+                document.head.appendChild(script);
+            } else {
+                console.log('Loading Showdown from CDN');
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js';
+                document.head.appendChild(script);
+            }
+        }
         
         // Set the HTML content safely
         contentDiv.html(formattedMessage);

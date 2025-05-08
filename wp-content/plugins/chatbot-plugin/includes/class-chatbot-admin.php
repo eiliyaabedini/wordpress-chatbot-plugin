@@ -149,6 +149,30 @@ class Chatbot_Admin {
             </div>
             
             <?php do_action('chatbot_after_overview_content'); ?>
+            
+            <!-- Direct Showdown.js script tag to ensure it's loaded before use -->
+            <script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js"></script>
+            
+            <!-- Inject Showdown directly if needed -->
+            <script type="text/javascript">
+                // Log showdown version to console for debugging
+                document.addEventListener('DOMContentLoaded', function() {
+                    console.log('Inline Showdown script loaded');
+                    window.showdownVersionCheck = function() {
+                        if (typeof showdown !== 'undefined') {
+                            console.log('Showdown is available, version:', showdown.version || 'unknown');
+                        } else {
+                            console.log('Showdown is NOT available');
+                        }
+                    };
+                    
+                    // Check showdown on load
+                    window.showdownVersionCheck();
+                    
+                    // Run another check after a short delay
+                    setTimeout(window.showdownVersionCheck, 1000);
+                });
+            </script>
         </div>
         <?php
     }
