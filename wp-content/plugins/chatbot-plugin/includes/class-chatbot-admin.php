@@ -125,7 +125,6 @@ class Chatbot_Admin {
                                     </div>
                                     <h3><?php _e('AI Chat Analysis', 'chatbot-plugin'); ?></h3>
                                     <p><?php _e('Your AI assistant can analyze your chatbot conversations and provide concise, actionable insights with suggested follow-up questions.', 'chatbot-plugin'); ?></p>
-                                    <p><em><?php _e('The new improved interface provides a summary with clickable question buttons for quick insights.', 'chatbot-plugin'); ?></em></p>
                                     <button id="generate-ai-overview" class="button button-primary">
                                         <?php _e('Start Conversation Analysis', 'chatbot-plugin'); ?>
                                     </button>
