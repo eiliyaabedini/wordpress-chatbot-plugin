@@ -47,7 +47,7 @@ $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
     <div class="chatbot-welcome-screen">
         <span class="chatbot-close welcome-close" id="welcome-close" style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 22px; color: #4a6cf7;">✕</span>
         <h3>Welcome to our chat!</h3>
-        <p>Please enter your name to start chatting with us.</p>
+        <p><?php echo esc_html(get_option('chatbot_welcome_message', 'Please enter your name to start chatting with us.')); ?></p>
         <div class="chatbot-name-container">
             <input type="text" class="chatbot-name-input" placeholder="Your name...">
             <button class="chatbot-start-btn">Start Chat</button>

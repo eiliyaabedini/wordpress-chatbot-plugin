@@ -140,12 +140,16 @@ class Chatbot_Plugin {
             true
         );
         
+        // Define default greeting to ensure consistency across the plugin
+        $default_greeting = 'Hello %s! How can I help you today?';
+        
         wp_localize_script(
             'chatbot-plugin-script',
             'chatbotPluginVars',
             array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
-                'nonce' => wp_create_nonce('chatbot-plugin-nonce')
+                'nonce' => wp_create_nonce('chatbot-plugin-nonce'),
+                'chatGreeting' => get_option('chatbot_chat_greeting', $default_greeting)
             )
         );
     }

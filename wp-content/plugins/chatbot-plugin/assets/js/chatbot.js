@@ -163,7 +163,11 @@
                         chatbotMessages.empty().show();
                         
                         // This is explicitly an admin message, not an AI response
-                        addMessage('Hello ' + visitorName + '! How can I help you today?', 'admin', false);
+                        // Use the chat greeting from settings with visitor name
+                        const defaultGreeting = 'Hello %s! How can I help you today?';
+                        let greeting = chatbotPluginVars.chatGreeting || defaultGreeting;
+                        greeting = greeting.replace('%s', visitorName);
+                        addMessage(greeting, 'admin', false);
                         
                         // Start polling for new messages
                         startPolling();

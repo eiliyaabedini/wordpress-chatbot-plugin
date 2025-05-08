@@ -49,6 +49,7 @@ class Chatbot_Settings {
     public function register_settings() {
         // Register general settings
         register_setting('chatbot_settings', 'chatbot_welcome_message');
+        register_setting('chatbot_settings', 'chatbot_chat_greeting');
         register_setting('chatbot_settings', 'chatbot_button_color');
         register_setting('chatbot_settings', 'chatbot_header_color');
         
@@ -65,6 +66,14 @@ class Chatbot_Settings {
             'chatbot_welcome_message',
             __('Welcome Message', 'chatbot-plugin'),
             array($this, 'render_welcome_message_field'),
+            'chatbot_settings',
+            'chatbot_general_settings'
+        );
+        
+        add_settings_field(
+            'chatbot_chat_greeting',
+            __('Chat Greeting', 'chatbot-plugin'),
+            array($this, 'render_chat_greeting_field'),
             'chatbot_settings',
             'chatbot_general_settings'
         );
@@ -198,6 +207,18 @@ class Chatbot_Settings {
         
         echo '<textarea name="chatbot_welcome_message" id="chatbot_welcome_message" class="large-text" rows="3">' . esc_textarea($welcome_message) . '</textarea>';
         echo '<p class="description">' . __('The welcome message displayed to visitors before they start chatting.', 'chatbot-plugin') . '</p>';
+    }
+    
+    /**
+     * Render chat greeting field
+     */
+    public function render_chat_greeting_field() {
+        $default_greeting = 'Hello %s! How can I help you today?';
+        $chat_greeting = get_option('chatbot_chat_greeting', $default_greeting);
+        
+        echo '<textarea name="chatbot_chat_greeting" id="chatbot_chat_greeting" class="large-text" rows="3">' . esc_textarea($chat_greeting) . '</textarea>';
+        echo '<p class="description">' . __('The greeting message shown when a chat begins. Use %s where the visitor\'s name should appear.', 'chatbot-plugin') . '</p>';
+        echo '<p class="description"><strong>' . __('Default:', 'chatbot-plugin') . '</strong> ' . esc_html($default_greeting) . '</p>';
     }
     
     /**

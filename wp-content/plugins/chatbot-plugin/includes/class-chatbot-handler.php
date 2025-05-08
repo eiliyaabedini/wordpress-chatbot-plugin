@@ -57,8 +57,11 @@ class Chatbot_Handler {
             wp_send_json_error(array('message' => 'Error creating conversation.'));
         }
         
-        // Add initial welcome message from admin
-        $welcome_message = 'Hello ' . $visitor_name . '! How can I help you today?';
+        // Add initial welcome message from admin using customized greeting from settings
+        // If no custom chat greeting is defined, fall back to default
+        $default_greeting = 'Hello %s! How can I help you today?';
+        $welcome_format = get_option('chatbot_chat_greeting', $default_greeting);
+        $welcome_message = sprintf($welcome_format, $visitor_name);
         $db->add_message($conversation_id, 'admin', $welcome_message);
         
         wp_send_json_success(array(
