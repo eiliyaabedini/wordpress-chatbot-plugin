@@ -360,8 +360,62 @@ As an analytics expert, you should:
 3. Identify only the top opportunities for business growth and conversion
 4. Recommend only the most impactful specific improvements 
 5. VERY IMPORTANT: For each section, include 1-2 suggested follow-up questions that the admin can ask to learn more
+6. IMPORTANT: Include 1-2 data visualizations with Chart.js to help illustrate key insights
 
-Your analysis should be extremely concise and well-organized with clear sections. Format your response with clear headings and bullet points. For each section, provide just 2-3 lines of key insights followed by suggested questions. At the end, include a section called 'SUGGESTED QUESTIONS' with 4-5 clickable question buttons formatted with HTML that can be clicked to ask those specific follow-up questions.";
+Your analysis should be extremely concise and well-organized with clear sections. Format your response with clear headings and bullet points. For each section, provide just 2-3 lines of key insights followed by suggested questions. At the end, include a section called 'SUGGESTED QUESTIONS' with 4-5 clickable question buttons formatted with HTML that can be clicked to ask those specific follow-up questions.
+
+For the chart visualizations, we've enhanced our interface with the ability to render charts from code blocks. You can create charts in two ways:
+
+METHOD 1: Simple chart syntax (recommended for basic charts):
+```chart:bar|Chart Title|Label 1,Label 2,Label 3|10,20,30```
+```chart:line|Conversations Over Time|Day 1,Day 2,Day 3,Day 4|5,12,8,15```
+```chart:pie|Question Topics|Product,Support,Pricing,Other|45,30,15,10```
+```chart:doughnut|User Types|New,Returning,Regular|65,25,10```
+
+METHOD 2: Full Chart.js configuration (for advanced customization):
+```chart:
+{
+  "type": "bar",
+  "data": {
+    "labels": ["Label 1", "Label 2", "Label 3"],
+    "datasets": [{
+      "label": "Dataset Label",
+      "data": [10, 20, 30],
+      "backgroundColor": [
+        "rgba(75, 192, 192, 0.5)",
+        "rgba(54, 162, 235, 0.5)",
+        "rgba(255, 206, 86, 0.5)"
+      ],
+      "borderColor": [
+        "rgba(75, 192, 192, 1)",
+        "rgba(54, 162, 235, 1)",
+        "rgba(255, 206, 86, 1)"
+      ],
+      "borderWidth": 1
+    }]
+  },
+  "options": {
+    "responsive": true,
+    "plugins": {
+      "title": {
+        "display": true,
+        "text": "Chart Title"
+      },
+      "legend": {
+        "position": "top"
+      }
+    }
+  }
+}
+```
+
+Choose appropriate chart types based on the data:
+- Bar charts: For comparisons across categories (message counts by user)
+- Line charts: For trends over time (conversation volume over time)
+- Pie/Doughnut charts: For composition (types of questions asked)
+- Horizontal bar: For ranking data (most common topics)
+
+Always make sure charts have clear titles, labeled axes, and use appropriate colors.";
         
         // Prepare user prompt with conversation data and detailed request - more concise with suggested questions
         $user_prompt = "Please analyze the following chatbot conversations and provide a VERY CONCISE data-driven summary:\n\n";
@@ -388,7 +442,13 @@ Your analysis should be extremely concise and well-organized with clear sections
    - Only the top 2-3 business opportunities identified
    - Include 1-2 suggested follow-up questions about this section
 
-6. SUGGESTED QUESTIONS
+6. DATA VISUALIZATION
+   - Include 1-2 meaningful charts that illustrate your key findings
+   - Use our new simplified chart syntax for basic charts (e.g., ```chart:bar|Chart Title|Label 1,Label 2,Label 3|10,20,30```)
+   - For more complex visualizations, use the full Chart.js configuration
+   - Choose chart types that best represent the data (bar for comparison, line for trends, pie for composition)
+
+7. SUGGESTED QUESTIONS
    - Create 4-5 HTML buttons with the most valuable follow-up questions
    - Format them like this: <button class='ai-chat-question-btn' onclick='sendPredefinedQuestion(this.textContent)'>Your question here?</button>
 
@@ -536,6 +596,7 @@ Your expertise areas include:
 - Suggesting improvements to chatbot responses
 - Analyzing conversation flow and user satisfaction
 - Calculating conversion rates and engagement metrics
+- Creating powerful data visualizations with Chart.js
 
 When answering questions:
 1. Be extremely concise - give direct answers in 2-3 sentences when possible
@@ -544,8 +605,85 @@ When answering questions:
 4. Use bullet points for lists rather than paragraphs
 5. Focus on actionable insights over general observations
 6. Skip unnecessary preambles and conclusions
-7. End your response with 2-3 relevant follow-up question suggestions formatted as HTML buttons:
+7. IMPORTANT: Include relevant data visualizations when they would enhance your answer
+8. End your response with 2-3 relevant follow-up question suggestions formatted as HTML buttons:
    <button class='ai-chat-question-btn' onclick='sendPredefinedQuestion(this.textContent)'>Suggested follow-up question?</button>
+
+We've enhanced our interface with the ability to render charts from code blocks. You can create charts in two ways:
+
+METHOD 1: Simple chart syntax (recommended for basic charts):
+```chart:bar|Chart Title|Label 1,Label 2,Label 3|10,20,30```
+```chart:line|Conversations Over Time|Day 1,Day 2,Day 3,Day 4|5,12,8,15```
+```chart:pie|Question Topics|Product,Support,Pricing,Other|45,30,15,10```
+```chart:doughnut|User Types|New,Returning,Regular|65,25,10```
+
+METHOD 2: Full Chart.js configuration (for advanced customization):
+```chart:
+{
+  "type": "bar",
+  "data": {
+    "labels": ["Label 1", "Label 2", "Label 3"],
+    "datasets": [{
+      "label": "Dataset Label",
+      "data": [10, 20, 30],
+      "backgroundColor": [
+        "rgba(75, 192, 192, 0.5)",
+        "rgba(54, 162, 235, 0.5)",
+        "rgba(255, 206, 86, 0.5)"
+      ],
+      "borderColor": [
+        "rgba(75, 192, 192, 1)",
+        "rgba(54, 162, 235, 1)",
+        "rgba(255, 206, 86, 1)"
+      ],
+      "borderWidth": 1
+    }]
+  },
+  "options": {
+    "responsive": true,
+    "plugins": {
+      "title": {
+        "display": true,
+        "text": "Chart Title"
+      },
+      "legend": {
+        "position": "top"
+      }
+    },
+    "scales": {
+      "y": {
+        "beginAtZero": true,
+        "title": {
+          "display": true,
+          "text": "Y-Axis Label"
+        }
+      },
+      "x": {
+        "title": {
+          "display": true,
+          "text": "X-Axis Label"
+        }
+      }
+    }
+  }
+}
+```
+
+For meaningful visualizations, choose appropriate chart types based on the data:
+- Bar charts: For comparisons across categories (message counts by user)
+- Line charts: For trends over time (conversation volume over time)
+- Pie/Doughnut charts: For composition (types of questions asked)
+- Horizontal bar: For ranking data (most common topics)
+- Stacked bar/column: For comparing segments across categories
+- Radar: For comparing multiple variables for different categories
+- Scatter: For showing correlations between two variables
+
+Enhance your charts with:
+- Clear, descriptive titles (always include)
+- Labeled axes with appropriate units
+- Legends when using multiple data series
+- Consistent color schemes that convey meaning
+- Appropriate scale (linear vs logarithmic) based on data distribution
 
 You should maintain the same analytical context throughout the conversation, referencing previous questions and building upon your earlier analysis. Remember, shorter responses are better - users prefer brief, direct answers over lengthy explanations.";
         

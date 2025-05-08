@@ -177,6 +177,9 @@
             
             // Process the HTML to convert suggested questions into interactive buttons
             formattedMessage = processQuestionSuggestions(formattedMessage);
+            
+            // Process the HTML to render charts based on special syntax
+            formattedMessage = processChartPlaceholders(formattedMessage);
             console.log('Successfully converted Markdown to HTML with Showdown');
         } catch (error) {
             console.error('Error using Showdown:', error);
@@ -199,6 +202,9 @@
             
             // Process suggested questions in the plain text version as well
             formattedMessage = processQuestionSuggestions(formattedMessage);
+            
+            // Process chart placeholders even in fallback mode
+            formattedMessage = processChartPlaceholders(formattedMessage);
             
             // Try to load Showdown again for future messages
             if (typeof chatbotAnalyticsVars !== 'undefined' && chatbotAnalyticsVars.pluginUrl) {
@@ -338,6 +344,147 @@
         }
         
         return modifiedContent;
+    }
+    
+    /**
+     * Process HTML content to render charts based on special syntax
+     * 
+     * @param {string} htmlContent The HTML content to process
+     * @return {string} The processed HTML with charts rendered
+     */
+    function processChartPlaceholders(htmlContent) {
+        // Make a copy of the original content to work with
+        let modifiedContent = htmlContent;
+        
+        // Chart counter to ensure unique IDs
+        let chartCounter = 0;
+        
+        // Pattern 1: Match Chart JSON in code blocks with "chart:" prefix
+        const chartCodePattern = /<pre><code>(chart:[\s\S]*?)<\/code><\/pre>/gi;
+        
+        // Replace chart code blocks with canvas elements
+        modifiedContent = modifiedContent.replace(chartCodePattern, (match, chartData) => {
+            // Extract the chart JSON data
+            let chartJson = chartData.replace(/^chart:/i, '').trim();
+            
+            try {
+                // Generate a unique ID for this chart
+                const chartId = 'ai-chat-chart-' + (++chartCounter);
+                
+                // Create canvas element
+                const canvasHtml = `<div class="ai-chat-chart-container"><canvas id="${chartId}" width="400" height="200"></canvas></div>`;
+                
+                // Schedule chart rendering after the DOM is updated
+                setTimeout(() => renderChart(chartId, chartJson), 100);
+                
+                return canvasHtml;
+            } catch (e) {
+                console.error('Error parsing chart data:', e);
+                return match; // Keep original content if there's an error
+            }
+        });
+        
+        // Pattern 2: Look for specific chart format for simple charts
+        // Format: ```chart:type|title|labels|data```
+        const simpleChartPattern = /<pre><code>chart:(bar|line|pie|doughnut)\|(.*?)\|(.*?)\|(.*?)<\/code><\/pre>/gi;
+        
+        modifiedContent = modifiedContent.replace(simpleChartPattern, (match, chartType, title, labelsStr, dataStr) => {
+            // Generate a unique ID for this chart
+            const chartId = 'ai-chat-chart-' + (++chartCounter);
+            
+            try {
+                // Parse the labels and data
+                const labels = labelsStr.split(',').map(label => label.trim());
+                const data = dataStr.split(',').map(value => parseFloat(value.trim()));
+                
+                // Create the chart configuration
+                const chartConfig = {
+                    type: chartType,
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: title.trim(),
+                            data: data,
+                            backgroundColor: [
+                                'rgba(75, 192, 192, 0.5)',
+                                'rgba(54, 162, 235, 0.5)',
+                                'rgba(255, 206, 86, 0.5)',
+                                'rgba(255, 99, 132, 0.5)',
+                                'rgba(153, 102, 255, 0.5)',
+                                'rgba(255, 159, 64, 0.5)'
+                            ],
+                            borderColor: [
+                                'rgba(75, 192, 192, 1)',
+                                'rgba(54, 162, 235, 1)',
+                                'rgba(255, 206, 86, 1)',
+                                'rgba(255, 99, 132, 1)',
+                                'rgba(153, 102, 255, 1)',
+                                'rgba(255, 159, 64, 1)'
+                            ],
+                            borderWidth: 1
+                        }]
+                    }
+                };
+                
+                // Create canvas element
+                const canvasHtml = `<div class="ai-chat-chart-container"><canvas id="${chartId}" width="400" height="240"></canvas></div>`;
+                
+                // Schedule chart rendering after the DOM is updated
+                setTimeout(() => renderChart(chartId, JSON.stringify(chartConfig)), 100);
+                
+                return canvasHtml;
+            } catch (e) {
+                console.error('Error creating simple chart:', e);
+                return match; // Keep original content if there's an error
+            }
+        });
+        
+        return modifiedContent;
+    }
+    
+    /**
+     * Render a chart on the specified canvas element
+     * 
+     * @param {string} canvasId The ID of the canvas element
+     * @param {string} chartDataJson The chart configuration in JSON format
+     */
+    function renderChart(canvasId, chartDataJson) {
+        try {
+            // Get the canvas element
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) {
+                console.error('Canvas element not found:', canvasId);
+                return;
+            }
+            
+            // Parse the chart data JSON
+            let chartData;
+            try {
+                chartData = JSON.parse(chartDataJson);
+            } catch (e) {
+                console.error('Invalid chart JSON:', e);
+                return;
+            }
+            
+            // Check if Chart.js is available
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded');
+                
+                // Display error message on canvas
+                const ctx = canvas.getContext('2d');
+                ctx.font = '14px Arial';
+                ctx.fillStyle = 'red';
+                ctx.fillText('Error: Chart.js library not loaded', 10, 50);
+                return;
+            }
+            
+            // Create and render the chart
+            new Chart(canvas, chartData);
+            
+            console.log('Chart rendered successfully:', canvasId);
+        } catch (error) {
+            console.error('Error rendering chart:', error);
+        }
     }
     
     /**
