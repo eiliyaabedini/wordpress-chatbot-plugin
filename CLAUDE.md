@@ -71,3 +71,7 @@ ddev exec "cd wp-content/plugins && zip -r chatbot-plugin.zip chatbot-plugin"
 ```
 
 Then download from the `wp-content/plugins` directory.
+
+## Development Guidelines
+
+- Always use Claude 3.7 Sonnet model dont go on 3.5
