@@ -115,3 +115,7 @@ Then download from the `wp-content/plugins` directory.
    - Truncate potentially large values in logs (e.g., system prompts)
 
 By maintaining comprehensive logging, we create a reliable audit trail for troubleshooting issues, understanding system behavior, and improving the plugin over time.
+
+## Development Reminder
+
+- Don't try to commit yourself, Commit just when I ask you!

@@ -421,7 +421,7 @@ class Chatbot_Admin {
                                         <?php 
                                         $conversation_count = $db->get_conversation_count_by_chatbot($config->id); 
                                         ?>
-                                        <a href="<?php echo admin_url('admin.php?page=chatbot-conversations&chatbot=' . $config->id); ?>">
+                                        <a href="<?php echo admin_url('admin.php?page=chatbot-conversations' . ($config->id ? '&chatbot=' . $config->id : '')); ?>">
                                             <?php echo number_format_i18n($conversation_count); ?> 
                                             <?php echo _n('conversation', 'conversations', $conversation_count, 'chatbot-plugin'); ?>
                                         </a>
@@ -498,7 +498,33 @@ class Chatbot_Admin {
         
         // Get current filters
         $status_filter = isset($_GET['status']) ? sanitize_text_field($_GET['status']) : 'all';
-        $chatbot_filter = isset($_GET['chatbot']) ? intval($_GET['chatbot']) : null;
+        
+        // Check for both chatbot and chatbot_filter parameters (for backward compatibility)
+        $chatbot_filter = null;
+        
+        // First check for chatbot_filter parameter
+        if (isset($_GET['chatbot_filter'])) {
+            // Only use it if it has a valid value (not empty)
+            if (!empty($_GET['chatbot_filter'])) {
+                $chatbot_filter = intval($_GET['chatbot_filter']);
+                error_log('Chatbot: DEBUG - display_all_conversations - Using chatbot_filter parameter: ' . $chatbot_filter);
+            } else {
+                error_log('Chatbot: DEBUG - display_all_conversations - chatbot_filter parameter exists but is empty, ignoring it');
+            }
+        } 
+        // If no chatbot_filter parameter or it was empty, check for the older 'chatbot' parameter
+        elseif (isset($_GET['chatbot'])) {
+            // Only use it if it has a valid value (not empty)
+            if (!empty($_GET['chatbot'])) {
+                $chatbot_filter = intval($_GET['chatbot']);
+                error_log('Chatbot: DEBUG - display_all_conversations - Using chatbot parameter (backward compatibility): ' . $chatbot_filter);
+            } else {
+                error_log('Chatbot: DEBUG - display_all_conversations - chatbot parameter exists but is empty, ignoring it');
+            }
+        } else {
+            // No filter parameters provided
+            error_log('Chatbot: DEBUG - display_all_conversations - No chatbot filter parameters found');
+        }
         
         // Get all chatbot configurations for the filter dropdown
         $chatbot_configs = $db->get_configurations();
@@ -522,7 +548,7 @@ class Chatbot_Admin {
             <!-- Status filter -->
             <div class="tablenav top">
                 <div class="alignleft actions">
-                    <form method="get">
+                    <form method="get" id="chatbot-filter-form">
                         <input type="hidden" name="page" value="chatbot-conversations">
                         <select name="status">
                             <option value="all" <?php selected($status_filter, 'all'); ?>><?php _e('All Conversations', 'chatbot-plugin'); ?></option>
@@ -532,7 +558,7 @@ class Chatbot_Admin {
                         </select>
                         
                         <!-- Add chatbot filter dropdown -->
-                        <select name="chatbot">
+                        <select name="chatbot_filter" id="chatbot_filter">
                             <option value=""><?php _e('All Chatbots', 'chatbot-plugin'); ?></option>
                             <?php foreach ($chatbot_configs as $config): ?>
                                 <option value="<?php echo esc_attr($config->id); ?>" <?php selected($chatbot_filter, $config->id); ?>>
@@ -543,6 +569,18 @@ class Chatbot_Admin {
                         
                         <input type="submit" class="button" value="<?php esc_attr_e('Filter', 'chatbot-plugin'); ?>">
                     </form>
+                    
+                    <script type="text/javascript">
+                        jQuery(document).ready(function($) {
+                            $('form').on('submit', function(e) {
+                                // If "All Chatbots" is selected (empty value), remove the parameter from the form
+                                if ($('#chatbot_filter').val() === '') {
+                                    $('#chatbot_filter').removeAttr('name');
+                                }
+                                // Keep the chatbot_filter name when submitting (don't rename to chatbot)
+                            });
+                        });
+                    </script>
                 </div>
             </div>
             
@@ -1008,6 +1046,18 @@ class Chatbot_Admin {
             CHATBOT_PLUGIN_VERSION,
             true
         );
+        
+        // Enqueue the filters script only on the conversations page
+        if (isset($_GET['page']) && $_GET['page'] === 'chatbot-conversations') {
+            error_log('Chatbot: DEBUG - enqueue_admin_scripts - Enqueuing chatbot-admin-filters.js on conversations page');
+            wp_enqueue_script(
+                'chatbot-admin-filters',
+                CHATBOT_PLUGIN_URL . 'assets/js/chatbot-admin-filters.js',
+                array('jquery', 'chatbot-admin-script'),
+                CHATBOT_PLUGIN_VERSION,
+                true
+            );
+        }
         
         wp_localize_script(
             'chatbot-admin-script',
