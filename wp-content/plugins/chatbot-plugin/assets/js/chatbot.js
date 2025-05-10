@@ -173,7 +173,7 @@
             // Get config name from data attribute if available
             const configName = $('.chatbot-container').attr('data-config-name') || 'Default';
             
-            console.log('Starting conversation with config name:', configName);
+            // Starting conversation with configuration
             
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,
@@ -219,7 +219,6 @@
         // Function to send a message to the server
         function sendMessage(message) {
             if (!conversationId) {
-                console.error('No active conversation');
                 return;
             }
             
@@ -284,7 +283,6 @@
         // Function to end the current conversation
         function endConversation() {
             if (!conversationId) {
-                console.error('No active conversation');
                 return;
             }
             

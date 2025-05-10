@@ -160,7 +160,6 @@
         try {
             // First, make sure we have a showdown object
             if (typeof showdown === 'undefined') {
-                console.error('Showdown library not defined - using fallback processing');
                 throw new Error('Showdown not available');
             }
             
@@ -180,9 +179,8 @@
             
             // Process the HTML to render charts based on special syntax
             formattedMessage = processChartPlaceholders(formattedMessage);
-            console.log('Successfully converted Markdown to HTML with Showdown');
         } catch (error) {
-            console.error('Error using Showdown:', error);
+            // Fallback if Showdown fails
             
             // Fallback: Apply basic formatting for Markdown
             formattedMessage = message
@@ -208,12 +206,12 @@
             
             // Try to load Showdown again for future messages
             if (typeof chatbotAnalyticsVars !== 'undefined' && chatbotAnalyticsVars.pluginUrl) {
-                console.log('Attempting to load Showdown from plugin URL');
+                // Load Showdown from plugin URL
                 const script = document.createElement('script');
                 script.src = chatbotAnalyticsVars.pluginUrl + 'assets/js/showdown.min.js';
                 document.head.appendChild(script);
             } else {
-                console.log('Loading Showdown from CDN');
+                // Load Showdown from CDN as fallback
                 const script = document.createElement('script');
                 script.src = 'https://cdnjs.cloudflare.com/ajax/libs/showdown/2.1.0/showdown.min.js';
                 document.head.appendChild(script);
@@ -379,8 +377,8 @@
                 
                 return canvasHtml;
             } catch (e) {
-                console.error('Error parsing chart data:', e);
-                return match; // Keep original content if there's an error
+                // Silent error handling - keep original content
+                return match;
             }
         });
         
@@ -434,8 +432,8 @@
                 
                 return canvasHtml;
             } catch (e) {
-                console.error('Error creating simple chart:', e);
-                return match; // Keep original content if there's an error
+                // Silent error handling - keep original content
+                return match;
             }
         });
         
@@ -489,8 +487,8 @@
                 
                 return canvasHtml;
             } catch (e) {
-                console.error('Error creating simple chart from plain text:', e);
-                return match; // Keep original content if there's an error
+                // Silent error handling - keep original content
+                return match;
             }
         });
         
@@ -508,7 +506,6 @@
             // Get the canvas element
             const canvas = document.getElementById(canvasId);
             if (!canvas) {
-                console.error('Canvas element not found:', canvasId);
                 return;
             }
             
@@ -517,7 +514,6 @@
             try {
                 chartData = JSON.parse(chartDataJson);
             } catch (e) {
-                console.error('Invalid chart JSON:', e, chartDataJson);
                 // Try to sanitize and fix common issues with the JSON
                 try {
                     // Sometimes the AI might generate invalid JSON with unquoted property names
@@ -526,25 +522,22 @@
                         .replace(/([{,])\s*(\w+)\s*:/g, '$1"$2":') // Quote unquoted property names
                         .replace(/(["\w\d\]])\s*([{\[])/g, '$1,$2') // Add missing commas
                         .replace(/,\s*([}\]])/g, '$1'); // Remove trailing commas
-                    
+
                     chartData = JSON.parse(fixedJson);
-                    console.log('JSON fixed and parsed successfully');
                 } catch (fixError) {
-                    console.error('Could not fix the JSON:', fixError);
+                    // Could not fix the JSON
                     return;
                 }
             }
             
             // Check if Chart.js is available
             if (typeof Chart === 'undefined') {
-                console.error('Chart.js is not loaded');
-                
                 // Display error message on canvas
                 const ctx = canvas.getContext('2d');
                 ctx.font = '14px Arial';
                 ctx.fillStyle = 'red';
                 ctx.fillText('Error: Chart.js library not loaded', 10, 50);
-                
+
                 // Try to load Chart.js dynamically
                 const script = document.createElement('script');
                 script.src = 'https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js';
@@ -553,9 +546,8 @@
                     setTimeout(() => {
                         try {
                             new Chart(canvas, chartData);
-                            console.log('Chart rendered after dynamic loading:', canvasId);
                         } catch (retryError) {
-                            console.error('Error rendering chart after dynamic loading:', retryError);
+                            // Silent error handling
                         }
                     }, 500);
                 };
@@ -565,10 +557,8 @@
             
             // Create and render the chart
             new Chart(canvas, chartData);
-            
-            console.log('Chart rendered successfully:', canvasId);
         } catch (error) {
-            console.error('Error rendering chart:', error);
+            // Silent error handling
         }
     }
     

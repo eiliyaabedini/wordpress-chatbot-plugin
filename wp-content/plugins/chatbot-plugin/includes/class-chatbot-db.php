@@ -203,7 +203,13 @@ class Chatbot_DB {
             $query_params
         );
         
-        chatbot_log('DEBUG', 'get_conversations_by_status', 'Query', $query);
+        // Log query execution without exposing the full query
+        chatbot_log('DEBUG', 'get_conversations_by_status', 'Executing query', array(
+            'status_filter' => $status,
+            'limit' => $limit,
+            'offset' => $offset,
+            'has_config_filter' => $chatbot_config_id !== null
+        ));
         
         return $wpdb->get_results($query);
     }
@@ -499,11 +505,10 @@ class Chatbot_DB {
         
         if ($result === false) {
             // Log the error for debugging
+            // Sanitize the error information to prevent exposing database structure
             chatbot_log('ERROR', 'add_configuration', 'Failed to add chatbot configuration', array(
-                'wpdb_error' => $wpdb->last_error,
-                'wpdb_query' => $wpdb->last_query,
-                'data' => $data,
-                'formats' => $formats
+                'wpdb_error_type' => $wpdb->last_error ? 'DB Error occurred' : 'No DB error',
+                'error_with_field' => $this->identify_problem_field($data, $wpdb->last_error)
             ));
             return false;
         }
@@ -660,6 +665,49 @@ class Chatbot_DB {
         );
         
         return $result !== false;
+    }
+
+    /**
+     * Helper function to identify which field might be causing database errors
+     * without exposing sensitive database information
+     *
+     * @param array $data The data being inserted/updated
+     * @param string $error_message The database error message
+     * @return string Sanitized field name that might be causing the issue
+     */
+    private function identify_problem_field($data, $error_message) {
+        // Don't return the raw error message, just check for common patterns
+        if (empty($error_message)) {
+            return 'unknown';
+        }
+
+        $field_issues = array();
+
+        // Check for common error patterns without exposing details
+        foreach ($data as $field => $value) {
+            // Check if the field name appears in the error message
+            if (stripos($error_message, $field) !== false) {
+                $field_issues[] = $field;
+            }
+
+            // Check for null values in non-nullable fields
+            if ($value === null && stripos($error_message, 'null') !== false &&
+                stripos($error_message, 'not') !== false) {
+                $field_issues[] = $field . '(null_issue)';
+            }
+
+            // Check for duplicate entry issues
+            if (stripos($error_message, 'duplicate') !== false &&
+                $field == 'name' && !empty($value)) {
+                return 'name(duplicate)';
+            }
+        }
+
+        if (!empty($field_issues)) {
+            return implode(',', $field_issues);
+        }
+
+        return 'unknown_field_issue';
     }
 }
 

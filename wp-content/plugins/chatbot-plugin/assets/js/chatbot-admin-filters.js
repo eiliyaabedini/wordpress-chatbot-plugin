@@ -8,17 +8,12 @@
     
     // Wait for DOM to be ready
     $(document).ready(function() {
-        // Log initialization
-        console.log('Chatbot admin filters initialized');
-        
         // Handle filter form submission
         $('#chatbot-filter-form').on('submit', function(e) {
-            console.log('Filter form submitted');
             
             // If "All Chatbots" is selected (empty value), remove the parameter from the form
             var chatbotFilter = $('#chatbot_filter');
             if (chatbotFilter.length && chatbotFilter.val() === '') {
-                console.log('All Chatbots selected - removing parameter from form');
                 chatbotFilter.removeAttr('name');
             }
         });
@@ -27,7 +22,6 @@
         function fixChatbotUrls() {
             // If we have an empty chatbot parameter, remove it from the URL
             if (window.location.href.includes('chatbot=') && !window.location.href.match(/chatbot=\d+/)) {
-                console.log('Detected problematic URL with empty chatbot parameter');
                 
                 var currentUrl = window.location.href;
                 var fixedUrl = currentUrl;
@@ -53,7 +47,6 @@
                 
                 // Only update if we actually changed something
                 if (fixedUrl !== currentUrl) {
-                    console.log('Fixed URL:', fixedUrl);
                     // Update URL without reloading
                     window.history.replaceState({}, document.title, fixedUrl);
                 }

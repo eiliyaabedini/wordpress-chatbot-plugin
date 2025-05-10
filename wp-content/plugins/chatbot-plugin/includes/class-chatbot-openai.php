@@ -83,8 +83,13 @@ class Chatbot_OpenAI {
             )
         );
         
-        // Log the debug data to the error log as well
-        error_log('Chatbot Debug: OpenAI options: ' . print_r($debug_data, true));
+        // Log sanitized debug data without exposing sensitive information
+        $sanitized_debug_log = array(
+            'api_key_exists' => $debug_data['api_key_exists'],
+            'model' => $debug_data['model'],
+            'option_count' => count($debug_data['option_names'])
+        );
+        error_log('Chatbot Debug: OpenAI options: ' . json_encode($sanitized_debug_log));
         
         wp_send_json_success($debug_data);
     }
@@ -495,7 +500,13 @@ class Chatbot_OpenAI {
             $response_body = json_decode(wp_remote_retrieve_body($response), true);
             
             if ($response_code !== 200) {
-                chatbot_log('ERROR', 'get_completion', 'API Error: ' . json_encode($response_body));
+                // Log API error without exposing the full response
+            $sanitized_error = array(
+                'status_code' => $response_code,
+                'error_type' => isset($response_body['error']['type']) ? $response_body['error']['type'] : 'unknown',
+                'error_code' => isset($response_body['error']['code']) ? $response_body['error']['code'] : 'unknown'
+            );
+            chatbot_log('ERROR', 'get_completion', 'API Error', $sanitized_error);
                 return "Error: API returned status code " . $response_code;
             }
             
@@ -577,7 +588,10 @@ class Chatbot_OpenAI {
             $response_body = json_decode(wp_remote_retrieve_body($response), true);
             
             if ($response_code !== 200) {
-                error_log('OpenAI API Error: ' . json_encode($response_body));
+                // Log sanitized error information
+                error_log('OpenAI API Error: Status ' . $response_code .
+                        (isset($response_body['error']['type']) ? ', Type: ' . $response_body['error']['type'] : '') .
+                        (isset($response_body['error']['code']) ? ', Code: ' . $response_body['error']['code'] : ''));
                 return $this->get_error_response();
             }
             
@@ -1099,12 +1113,17 @@ Your output should be the complete improved persona only, without explanations o
                 'improved_prompt' => $improved_prompt
             ));
         } else {
-            // Log the full API response for debugging
-            error_log('Error in improve_prompt. Response body: ' . wp_json_encode($response_body));
+            // Log sanitized error information about the API response
+            $error_summary = array(
+                'status_code' => $response_code,
+                'has_error_object' => isset($response_body['error']),
+                'has_choices' => isset($response_body['choices'])
+            );
+            error_log('Error in improve_prompt. Response summary: ' . json_encode($error_summary));
             
-            // Dump the full API request and response for debugging
-            error_log('Full debug - Request: ' . json_encode($request_body));
-            error_log('Full debug - Response: ' . json_encode($response_body));
+            // Log sanitized debug info
+            error_log('Improve prompt debug - API call failed with status code: ' . $response_code);
+            error_log('Improve prompt debug - Error type: ' . (isset($response_body['error']['type']) ? $response_body['error']['type'] : 'unknown'));
             
             // Create detailed error message
             $error_message = __('Error generating improved prompt.', 'chatbot-plugin');

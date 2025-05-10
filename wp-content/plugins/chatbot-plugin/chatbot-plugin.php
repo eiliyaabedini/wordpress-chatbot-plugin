@@ -1,11 +1,15 @@
 <?php
 /**
- * Plugin Name: Chatbot Plugin
- * Description: A WordPress plugin for integrating AI-powered chatbot functionality.
- * Version: 1.2.1
- * Author: Your Name
- * Author URI: https://example.com
- * Text Domain: chatbot-plugin
+ * Plugin Name: AI Chat Bot
+ * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
+ * Description: A powerful AI chatbot plugin for WordPress
+ * Version: 1.0.0
+ * Author: Eiliya Abedini
+ * Author URI: https://iact.ir
+ * License: GPL-2.0+
+ * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
+ * Text Domain: ai-chat-bot
+ * Domain Path: /languages
  */
 
 // If this file is called directly, abort.
@@ -14,7 +18,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.2.1');
+define('CHATBOT_PLUGIN_VERSION', '1.0.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -37,19 +41,65 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
  */
 function chatbot_log($level, $context, $message, $data = null) {
     $log_prefix = 'Chatbot: ' . $level . ' - ' . $context . ' - ';
-    
+
+    // List of sensitive keys that should never be logged fully
+    $sensitive_keys = array(
+        'api_key', 'password', 'secret', 'token', 'auth', 'credential',
+        'wpdb_error', 'wpdb_query', 'sql', 'body'
+    );
+
     if ($data !== null) {
         if (is_array($data) || is_object($data)) {
-            // For arrays and objects, convert to string representation
-            $data_string = print_r($data, true);
+            // Convert to array for consistent handling
+            $data_array = (array)$data;
+
+            // Sanitize sensitive data
+            foreach ($data_array as $key => $value) {
+                // Check if this key might contain sensitive information
+                foreach ($sensitive_keys as $sensitive_key) {
+                    if (stripos($key, $sensitive_key) !== false) {
+                        if (is_string($value) && !empty($value)) {
+                            // Mask the sensitive value - show only type and length
+                            $data_array[$key] = '[REDACTED:' . gettype($value) . ':' . strlen($value) . 'chars]';
+                        } elseif (is_array($value) || is_object($value)) {
+                            // For arrays/objects just show their type and size
+                            $data_array[$key] = '[REDACTED:' . gettype($value) . ':' . count((array)$value) . 'items]';
+                        }
+                        break;
+                    }
+                }
+            }
+
+            // Convert back to string representation
+            $data_string = print_r($data_array, true);
+
             // Truncate if too long
             if (strlen($data_string) > 500) {
                 $data_string = substr($data_string, 0, 500) . '... (truncated)';
             }
+
             error_log($log_prefix . $message . ' Data: ' . $data_string);
         } else {
-            // For simple values
-            error_log($log_prefix . $message . ' Data: ' . $data);
+            // For simple values, check if it might be sensitive
+            $potentially_sensitive = false;
+            if (is_string($data)) {
+                // Check if the data might contain sensitive information based on the message
+                $lower_message = strtolower($message);
+                foreach ($sensitive_keys as $sensitive_key) {
+                    if (stripos($lower_message, $sensitive_key) !== false) {
+                        $potentially_sensitive = true;
+                        break;
+                    }
+                }
+            }
+
+            if ($potentially_sensitive) {
+                // Only log the type and length of potentially sensitive data
+                error_log($log_prefix . $message . ' Data type: ' . gettype($data) . ', Length: ' . (is_string($data) ? strlen($data) : 'N/A'));
+            } else {
+                // Regular logging for non-sensitive data
+                error_log($log_prefix . $message . ' Data: ' . $data);
+            }
         }
     } else {
         error_log($log_prefix . $message);
@@ -310,7 +360,7 @@ class Chatbot_Plugin {
     
     public function init() {
         // Load text domain for internationalization
-        load_plugin_textdomain('chatbot-plugin', false, dirname(plugin_basename(__FILE__)) . '/languages');
+        load_plugin_textdomain('ai-chat-bot', false, dirname(plugin_basename(__FILE__)) . '/languages');
         
         // Enqueue scripts and styles
         add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));

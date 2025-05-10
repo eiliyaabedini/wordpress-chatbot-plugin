@@ -1752,10 +1752,10 @@ Format each insight as JSON objects in an array. Example:
                             nonce: chatbotPluginVars.nonce
                         },
                         success: function(response) {
-                            console.log('Event tracked:', eventType);
+                            // Event tracking successful
                         },
                         error: function() {
-                            console.error('Failed to track event:', eventType);
+                            // Silent error handling for tracking
                         }
                     });
                 }
