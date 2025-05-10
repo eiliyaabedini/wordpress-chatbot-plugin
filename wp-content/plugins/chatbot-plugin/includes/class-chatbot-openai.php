@@ -14,7 +14,7 @@ class Chatbot_OpenAI {
     
     private static $instance = null;
     private $api_key = '';
-    private $model = 'gpt-3.5-turbo';
+    private $model = 'gpt-4.1-mini';
     private $max_tokens = 1000;
     private $temperature = 0.7;
     private $system_prompt = '';
@@ -98,14 +98,47 @@ class Chatbot_OpenAI {
      * Refresh all OpenAI settings from the database
      */
     public function refresh_settings() {
-        // Original settings retrieval with detailed logging
+        // Get API key directly from the database with more verbose logging
+        $old_api_key = $this->api_key;
         $this->api_key = get_option('chatbot_openai_api_key', '');
-        $this->model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
+
+        // Log detailed information about API key retrieval
+        if (empty($this->api_key)) {
+            chatbot_log('WARNING', 'refresh_settings', 'API key is empty or not set in the database');
+        } else {
+            $key_format_valid = (strpos($this->api_key, 'sk-') === 0);
+            $key_length_valid = (strlen($this->api_key) >= 20); // Basic length validation
+
+            chatbot_log('INFO', 'refresh_settings', 'API key retrieved from database', array(
+                'api_key_length' => strlen($this->api_key),
+                'api_key_format_valid' => $key_format_valid ? 'Yes' : 'No',
+                'api_key_length_valid' => $key_length_valid ? 'Yes' : 'No',
+                'api_key_changed' => ($old_api_key !== $this->api_key) ? 'Yes' : 'No'
+            ));
+
+            // Specifically check for format issues
+            if (!$key_format_valid) {
+                chatbot_log('ERROR', 'refresh_settings', 'API key format is invalid. Should start with "sk-"');
+            }
+
+            if (!$key_length_valid) {
+                chatbot_log('ERROR', 'refresh_settings', 'API key length is too short');
+            }
+        }
+
+        // Get other settings
+        $this->model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
         $this->max_tokens = get_option('chatbot_openai_max_tokens', 150);
         $this->temperature = get_option('chatbot_openai_temperature', 0.7);
-        
-        error_log('Chatbot: Settings refreshed - API key exists: ' . (!empty($this->api_key) ? 'Yes' : 'No'));
-        
+
+        // Use ChatBot standard logging for overall settings
+        chatbot_log('INFO', 'refresh_settings', 'OpenAI settings refreshed', array(
+            'api_key_exists' => !empty($this->api_key) ? 'Yes' : 'No',
+            'model' => $this->model,
+            'max_tokens' => $this->max_tokens,
+            'temperature' => $this->temperature
+        ));
+
         // Check for potential legacy settings in the wrong group and sync them
         // This helps ensure backward compatibility if settings were saved under the wrong group
         $this->sync_settings_between_groups();
@@ -180,7 +213,7 @@ class Chatbot_OpenAI {
         );
         
         if (!in_array($model, $valid_models)) {
-            return 'gpt-3.5-turbo'; // Default fallback
+            return 'gpt-4.1-mini'; // Default fallback
         }
         
         return $model;
@@ -366,7 +399,7 @@ class Chatbot_OpenAI {
      * Render Model Field
      */
     public function render_model_field() {
-        $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
+        $model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
         
         $models = array(
             // O4 models - newest and most powerful
@@ -492,8 +525,12 @@ class Chatbot_OpenAI {
             ));
             
             if (is_wp_error($response)) {
-                chatbot_log('ERROR', 'get_completion', 'API Error: ' . $response->get_error_message());
-                return "Error: " . $response->get_error_message();
+                chatbot_log('ERROR', 'get_completion', 'API Error: ' . $response->get_error_message(), array(
+                    'model' => $model,
+                    'error_code' => $response->get_error_code(),
+                    'error_message' => $response->get_error_message()
+                ));
+                return "Error: Unable to connect to OpenAI API. Please check your API key and network connection.";
             }
             
             $response_code = wp_remote_retrieve_response_code($response);
@@ -533,10 +570,17 @@ class Chatbot_OpenAI {
     public function generate_response($conversation_id, $latest_message = '', $config = null) {
         // Ensure we have the latest settings
         $this->refresh_settings();
-        
+
+        // Add detailed logging to help diagnose API issues
+        chatbot_log('INFO', 'generate_response', 'Attempting to generate AI response', array(
+            'api_key_exists' => !empty($this->api_key) ? 'Yes' : 'No',
+            'model' => $this->model,
+            'conversation_id' => $conversation_id
+        ));
+
         // If no API key, return a default response
         if (empty($this->api_key)) {
-            error_log('OpenAI API key not configured. Using default response.');
+            chatbot_log('ERROR', 'generate_response', 'OpenAI API key not configured. Using default response.');
             return $this->get_default_response($latest_message);
         }
         
@@ -680,8 +724,41 @@ class Chatbot_OpenAI {
     }
     
     /**
+     * Check if OpenAI integration is configured
+     *
+     * @return bool True if API key is set, false otherwise
+     */
+    public function is_configured() {
+        // Make sure we have the latest settings
+        $this->refresh_settings();
+
+        // Get API key directly from options for cross-validation
+        $api_key_from_options = get_option('chatbot_openai_api_key', '');
+
+        // Check both class property and options
+        $key_in_property = !empty($this->api_key);
+        $key_in_options = !empty($api_key_from_options);
+
+        // Log detailed configuration status
+        chatbot_log('DEBUG', 'is_configured', 'Checking if OpenAI is configured', array(
+            'api_key_in_property' => $key_in_property ? 'Yes' : 'No',
+            'api_key_in_options' => $key_in_options ? 'Yes' : 'No',
+            'api_key_length' => $key_in_options ? strlen($api_key_from_options) : 0,
+            'api_key_format_valid' => ($key_in_options && strpos($api_key_from_options, 'sk-') === 0) ? 'Yes' : 'No'
+        ));
+
+        // If keys don't match, force a refresh
+        if ($key_in_property !== $key_in_options) {
+            chatbot_log('WARNING', 'is_configured', 'API key mismatch between property and options, forcing refresh');
+            $this->api_key = $api_key_from_options;
+        }
+
+        return !empty($this->api_key);
+    }
+
+    /**
      * Get the default system prompt that defines the chatbot's behavior
-     * 
+     *
      * @return string The default system prompt
      */
     private function get_default_system_prompt() {
@@ -777,22 +854,10 @@ class Chatbot_OpenAI {
         return $error_responses[array_rand($error_responses)];
     }
     
-    /**
-     * Check if OpenAI integration is properly configured
-     * 
-     * @return bool Whether the integration is configured
-     */
-    public function is_configured() {
-        // Always get the latest API key
-        $this->api_key = get_option('chatbot_openai_api_key', '');
-        return !empty($this->api_key);
-    }
+    // is_configured() method was defined earlier in the file, so removed duplicate definition here
     
     /**
-     * Test the OpenAI API connection
-     */
-    /**
-     * Test connection using the saved API key
+     * Test the OpenAI API connection using the saved API key
      */
     public function test_connection() {
         // Get the saved API key

@@ -55,7 +55,34 @@ class Chatbot_Settings {
         register_setting('chatbot_settings', 'chatbot_button_icon_type');
         register_setting('chatbot_settings', 'chatbot_button_icon_url');
         register_setting('chatbot_settings', 'chatbot_typing_indicator_text');
-        
+
+        // Register rate limit settings
+        register_setting('chatbot_settings', 'chatbot_rate_limit_per_minute', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'absint',
+            'default' => 5,
+        ));
+        register_setting('chatbot_settings', 'chatbot_rate_limit_per_hour', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'absint',
+            'default' => 20,
+        ));
+        register_setting('chatbot_settings', 'chatbot_rate_limit_per_day', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'absint',
+            'default' => 50,
+        ));
+        register_setting('chatbot_settings', 'chatbot_rate_limit_global_per_minute', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'absint',
+            'default' => 30,
+        ));
+        register_setting('chatbot_settings', 'chatbot_rate_limit_global_per_hour', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'absint',
+            'default' => 200,
+        ));
+
         // Register notification settings
         register_setting('chatbot_notification_settings', 'chatbot_notification_email');
         register_setting('chatbot_notification_settings', 'chatbot_email_notify_events', array(
@@ -74,6 +101,14 @@ class Chatbot_Settings {
             'chatbot_general_settings',
             __('General Settings', 'chatbot-plugin'),
             array($this, 'render_general_section'),
+            'chatbot_settings'
+        );
+
+        // Add rate limiting section
+        add_settings_section(
+            'chatbot_rate_limit_section',
+            __('Rate Limiting', 'chatbot-plugin'),
+            array($this, 'render_rate_limit_section'),
             'chatbot_settings'
         );
         
@@ -125,6 +160,77 @@ class Chatbot_Settings {
             'chatbot_settings',
             'chatbot_general_settings'
         );
+
+        // Add rate limit fields
+        add_settings_field(
+            'chatbot_rate_limit_per_minute',
+            __('Messages per minute (per user)', 'chatbot-plugin'),
+            array($this, 'render_number_field'),
+            'chatbot_settings',
+            'chatbot_rate_limit_section',
+            array(
+                'label_for' => 'chatbot_rate_limit_per_minute',
+                'min' => 1,
+                'max' => 60,
+                'description' => __('Maximum number of messages a user can send per minute.', 'chatbot-plugin')
+            )
+        );
+
+        add_settings_field(
+            'chatbot_rate_limit_per_hour',
+            __('Messages per hour (per user)', 'chatbot-plugin'),
+            array($this, 'render_number_field'),
+            'chatbot_settings',
+            'chatbot_rate_limit_section',
+            array(
+                'label_for' => 'chatbot_rate_limit_per_hour',
+                'min' => 5,
+                'max' => 500,
+                'description' => __('Maximum number of messages a user can send per hour.', 'chatbot-plugin')
+            )
+        );
+
+        add_settings_field(
+            'chatbot_rate_limit_per_day',
+            __('Messages per day (per user)', 'chatbot-plugin'),
+            array($this, 'render_number_field'),
+            'chatbot_settings',
+            'chatbot_rate_limit_section',
+            array(
+                'label_for' => 'chatbot_rate_limit_per_day',
+                'min' => 10,
+                'max' => 1000,
+                'description' => __('Maximum number of messages a user can send per day.', 'chatbot-plugin')
+            )
+        );
+
+        add_settings_field(
+            'chatbot_rate_limit_global_per_minute',
+            __('Global messages per minute', 'chatbot-plugin'),
+            array($this, 'render_number_field'),
+            'chatbot_settings',
+            'chatbot_rate_limit_section',
+            array(
+                'label_for' => 'chatbot_rate_limit_global_per_minute',
+                'min' => 5,
+                'max' => 1000,
+                'description' => __('Maximum number of messages from all users per minute.', 'chatbot-plugin')
+            )
+        );
+
+        add_settings_field(
+            'chatbot_rate_limit_global_per_hour',
+            __('Global messages per hour', 'chatbot-plugin'),
+            array($this, 'render_number_field'),
+            'chatbot_settings',
+            'chatbot_rate_limit_section',
+            array(
+                'label_for' => 'chatbot_rate_limit_global_per_hour',
+                'min' => 20,
+                'max' => 5000,
+                'description' => __('Maximum number of messages from all users per hour.', 'chatbot-plugin')
+            )
+        );
         
         // Add notification settings section
         add_settings_section(
@@ -171,17 +277,17 @@ class Chatbot_Settings {
         if (!current_user_can('manage_options')) {
             return;
         }
-        
+
         // Get active tab
         $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'general';
-        
+
         // Debug logging for settings page access
         error_log('Chatbot: Displaying settings page, active tab: ' . $active_tab);
-        
+
         ?>
         <div class="wrap">
             <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            
+
             <h2 class="nav-tab-wrapper">
                 <a href="?page=chatbot-settings&tab=general" class="nav-tab <?php echo $active_tab === 'general' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('General', 'chatbot-plugin'); ?>
@@ -191,6 +297,9 @@ class Chatbot_Settings {
                 </a>
                 <a href="?page=chatbot-settings&tab=notifications" class="nav-tab <?php echo $active_tab === 'notifications' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Notifications', 'chatbot-plugin'); ?>
+                </a>
+                <a href="?page=chatbot-settings&tab=security" class="nav-tab <?php echo $active_tab === 'security' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Security', 'chatbot-plugin'); ?>
                 </a>
             </h2>
             
@@ -257,19 +366,22 @@ class Chatbot_Settings {
                 } elseif ($active_tab === 'notifications') {
                     // Debug log for Notifications tab rendering
                     error_log('Chatbot: Rendering Notifications settings tab');
-                    
+
                     settings_fields('chatbot_notification_settings');
                     do_settings_sections('chatbot_notification_settings');
+                } elseif ($active_tab === 'security') {
+                    // Security tab content
+                    $this->render_security_tab();
                 } elseif ($active_tab === 'openai') {
                     // Debug log for OpenAI tab rendering
                     error_log('Chatbot: Rendering OpenAI settings tab');
-                    
+
                     // Debug current OpenAI settings values
                     $api_key = get_option('chatbot_openai_api_key', '');
                     $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
                     $max_tokens = get_option('chatbot_openai_max_tokens', 150);
                     $temperature = get_option('chatbot_openai_temperature', 0.7);
-                    
+
                     error_log('Chatbot: OpenAI API Key exists: ' . (!empty($api_key) ? 'Yes' : 'No'));
                     error_log('Chatbot: OpenAI Model: ' . $model);
                     error_log('Chatbot: OpenAI Max Tokens: ' . $max_tokens);
@@ -352,6 +464,39 @@ class Chatbot_Settings {
      */
     public function render_general_section() {
         echo '<p>' . __('Configure general settings for the chatbot.', 'chatbot-plugin') . '</p>';
+    }
+
+    /**
+     * Render rate limit section
+     */
+    public function render_rate_limit_section() {
+        echo '<p>' . __('Configure rate limits to prevent abuse and control API costs.', 'chatbot-plugin') . '</p>';
+
+        // Add reset button if rate limiter class exists
+        if (class_exists('Chatbot_Rate_Limiter')) {
+            echo '<div style="margin: 10px 0 20px;">';
+            echo '<a href="' . admin_url('admin.php?page=chatbot-settings&tab=security') . '" class="button button-small">';
+            echo __('Go to Security Tab for Rate Limit Reset', 'chatbot-plugin');
+            echo '</a>';
+            echo '<p class="description" style="margin-top: 5px;">' . __('Use the Security tab to reset all rate limit counters if needed.', 'chatbot-plugin') . '</p>';
+            echo '</div>';
+        }
+    }
+
+    /**
+     * Render number field
+     */
+    public function render_number_field($args) {
+        $option_name = $args['label_for'];
+        $min = isset($args['min']) ? $args['min'] : 0;
+        $max = isset($args['max']) ? $args['max'] : 1000;
+        $value = get_option($option_name);
+
+        echo '<input type="number" id="' . esc_attr($option_name) . '" name="' . esc_attr($option_name) . '" value="' . esc_attr($value) . '" min="' . esc_attr($min) . '" max="' . esc_attr($max) . '" class="small-text" />';
+
+        if (isset($args['description'])) {
+            echo '<p class="description">' . esc_html($args['description']) . '</p>';
+        }
     }
     
     /**
@@ -707,7 +852,320 @@ class Chatbot_Settings {
             <?php
         }
     }
-}
+
+    /**
+     * Render security tab content
+     */
+    public function render_security_tab() {
+        // Add CSS for security tab
+        echo '<style>
+        .rate-limiting-card {
+            background-color: #f9f9f9;
+            border: 1px solid #e5e5e5;
+            border-radius: 5px;
+            padding: 20px;
+            max-width: 100%;
+        }
+        .rate-limiting-card h2,
+        .security-card h2 {
+            margin-top: 0;
+            color: #23282d;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .rate-limiting-card table {
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .rate-limiting-card table th {
+            background-color: #f1f1f1;
+            font-weight: 600;
+        }
+        .rate-limiting-card table td,
+        .rate-limiting-card table th {
+            padding: 10px;
+            border: 1px solid #e1e1e1;
+        }
+        .security-card {
+            background-color: #f9f9f9;
+            border: 1px solid #e5e5e5;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        </style>';
+
+        // Check for rate limiter reset action
+        if (isset($_POST['action']) && $_POST['action'] === 'reset_rate_limits' &&
+            isset($_POST['chatbot_security_nonce']) &&
+            wp_verify_nonce($_POST['chatbot_security_nonce'], 'chatbot_reset_rate_limits')) {
+
+            if (class_exists('Chatbot_Rate_Limiter')) {
+                $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+                $reset_result = $rate_limiter->reset_all_rate_limits();
+
+                if ($reset_result) {
+                    echo '<div class="notice notice-success is-dismissible"><p>' . __('All rate limits have been reset successfully.', 'chatbot-plugin') . '</p></div>';
+                } else {
+                    echo '<div class="notice notice-error is-dismissible"><p>' . __('Failed to reset rate limits.', 'chatbot-plugin') . '</p></div>';
+                }
+            } else {
+                echo '<div class="notice notice-error is-dismissible"><p>' . __('Rate limiter not available.', 'chatbot-plugin') . '</p></div>';
+            }
+        }
+
+        ?>
+        <div class="rate-limiting-card">
+            <h2><?php _e('Rate Limiting', 'chatbot-plugin'); ?></h2>
+            <p><?php _e('Rate limiting protects your chatbot from abuse and helps manage API costs by limiting how many messages users can send in a given time period.', 'chatbot-plugin'); ?></p>
+
+            <?php if (class_exists('Chatbot_Rate_Limiter')): ?>
+                <?php $rate_limiter = Chatbot_Rate_Limiter::get_instance(); ?>
+
+                <h3><?php _e('Current Rate Limit Settings', 'chatbot-plugin'); ?></h3>
+                <table class="widefat" style="max-width: 800px;">
+                    <thead>
+                        <tr>
+                            <th><?php _e('Setting', 'chatbot-plugin'); ?></th>
+                            <th><?php _e('Value', 'chatbot-plugin'); ?></th>
+                            <th><?php _e('Description', 'chatbot-plugin'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php
+                        // Display current rate limit settings
+                        $rate_settings = array(
+                            'messages_per_minute' => array(
+                                'label' => __('Messages per minute (per user)', 'chatbot-plugin'),
+                                'description' => __('Maximum number of messages a user can send per minute', 'chatbot-plugin')
+                            ),
+                            'messages_per_hour' => array(
+                                'label' => __('Messages per hour (per user)', 'chatbot-plugin'),
+                                'description' => __('Maximum number of messages a user can send per hour', 'chatbot-plugin')
+                            ),
+                            'messages_per_day' => array(
+                                'label' => __('Messages per day (per user)', 'chatbot-plugin'),
+                                'description' => __('Maximum number of messages a user can send per day', 'chatbot-plugin')
+                            ),
+                            'global_per_minute' => array(
+                                'label' => __('Global messages per minute', 'chatbot-plugin'),
+                                'description' => __('Maximum number of messages from all users per minute', 'chatbot-plugin')
+                            ),
+                            'global_per_hour' => array(
+                                'label' => __('Global messages per hour', 'chatbot-plugin'),
+                                'description' => __('Maximum number of messages from all users per hour', 'chatbot-plugin')
+                            )
+                        );
+
+                        // Loop through settings and display current values
+                        foreach ($rate_settings as $key => $setting) {
+                            $option_name = 'chatbot_rate_limit_' . str_replace('messages_', '', $key);
+                            $default_value = $rate_limiter->default_limits[$key] ?? '';
+                            $current_value = get_option($option_name, $default_value);
+
+                            echo '<tr>';
+                            echo '<td><strong>' . esc_html($setting['label']) . '</strong></td>';
+                            echo '<td>' . esc_html($current_value) . '</td>';
+                            echo '<td>' . esc_html($setting['description']) . '</td>';
+                            echo '</tr>';
+                        }
+                        ?>
+                    </tbody>
+                </table>
+
+                <p><?php _e('You can adjust these settings in the Rate Limiting section of the General settings tab.', 'chatbot-plugin'); ?>
+                <a href="<?php echo admin_url('admin.php?page=chatbot-settings&tab=general'); ?>" class="button button-small"><?php _e('Go to Rate Limit Settings', 'chatbot-plugin'); ?></a>
+                </p>
+
+                <h3><?php _e('Reset All Rate Limits', 'chatbot-plugin'); ?></h3>
+                <p><?php _e('If you need to reset all rate limit counters (for example, after testing or if users are experiencing issues), you can do so using the button below.', 'chatbot-plugin'); ?></p>
+                <p><strong><?php _e('Warning:', 'chatbot-plugin'); ?></strong> <?php _e('This will reset all rate limit counters for all users. Use with caution.', 'chatbot-plugin'); ?></p>
+
+                <!-- Use AJAX for rate limit reset instead of form submission -->
+                <button id="chatbot-reset-rate-limits" class="button button-primary"><?php esc_html_e('Reset All Rate Limits', 'chatbot-plugin'); ?></button>
+                <span id="reset-result-message" style="margin-left: 10px; display: inline-block;"></span>
+
+                <script type="text/javascript">
+                jQuery(document).ready(function($) {
+                    $('#chatbot-reset-rate-limits').on('click', function() {
+                        if (confirm('<?php esc_attr_e('Are you sure you want to reset all rate limits? This action cannot be undone.', 'chatbot-plugin'); ?>')) {
+                            var button = $(this);
+                            var resultMessage = $('#reset-result-message');
+
+                            // Disable button and show loading message
+                            button.prop('disabled', true);
+                            resultMessage.html('<em><?php esc_html_e('Resetting rate limits...', 'chatbot-plugin'); ?></em>');
+
+                            // Make AJAX request to reset rate limits
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'chatbot_reset_rate_limits',
+                                    nonce: '<?php echo wp_create_nonce('chatbot_reset_rate_limits'); ?>'
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        resultMessage.html('<span style="color: green;"><?php esc_html_e('All rate limits have been reset successfully!', 'chatbot-plugin'); ?></span>');
+                                    } else {
+                                        resultMessage.html('<span style="color: red;"><?php esc_html_e('Failed to reset rate limits.', 'chatbot-plugin'); ?></span>');
+                                    }
+                                },
+                                error: function() {
+                                    resultMessage.html('<span style="color: red;"><?php esc_html_e('An error occurred while resetting rate limits.', 'chatbot-plugin'); ?></span>');
+                                },
+                                complete: function() {
+                                    // Re-enable button
+                                    button.prop('disabled', false);
+                                }
+                            });
+                        }
+                    });
+                });
+                </script>
+
+                <!-- Add API Key Verification Section -->
+                <h3><?php _e('Verify OpenAI API Key', 'chatbot-plugin'); ?></h3>
+                <p><?php _e('Verify that your OpenAI API key is correctly configured and working properly.', 'chatbot-plugin'); ?></p>
+
+                <div class="api-key-verification-tool">
+                    <button id="chatbot-verify-api-key" class="button button-primary"><?php esc_html_e('Verify API Key', 'chatbot-plugin'); ?></button>
+                    <span id="api-key-result-message" style="margin-left: 10px; display: inline-block;"></span>
+
+                    <div id="api-key-results-container" style="margin-top: 10px; display: none;">
+                        <h4><?php _e('Verification Results:', 'chatbot-plugin'); ?></h4>
+                        <pre id="api-key-results" style="background: #f5f5f5; padding: 10px; max-height: 200px; overflow: auto;"></pre>
+                    </div>
+
+                    <script type="text/javascript">
+                    jQuery(document).ready(function($) {
+                        $('#chatbot-verify-api-key').on('click', function() {
+                            var $button = $(this);
+                            var $message = $('#api-key-result-message');
+                            var $resultsContainer = $('#api-key-results-container');
+                            var $results = $('#api-key-results');
+
+                            // Disable button during test
+                            $button.prop('disabled', true);
+                            $message.html('<span style="color: blue;">Testing API key...</span>');
+
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'chatbot_test_openai',
+                                    nonce: '<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>'
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        $message.html('<span style="color: green;">✓ ' + response.data.message + '</span>');
+                                        $results.html('API key is correctly configured and working properly.\n\nModel: ' +
+                                                    '<?php echo esc_js(get_option('chatbot_openai_model', 'gpt-3.5-turbo')); ?>\n' +
+                                                    'Connection status: success');
+                                    } else {
+                                        $message.html('<span style="color: red;">✗ Error</span>');
+                                        $results.html('API key verification failed.\n\nError: ' + response.data.message);
+                                    }
+                                    $resultsContainer.show();
+                                },
+                                error: function() {
+                                    $message.html('<span style="color: red;">✗ Connection error</span>');
+                                    $results.html('Could not connect to the server to verify the API key.');
+                                    $resultsContainer.show();
+                                },
+                                complete: function() {
+                                    $button.prop('disabled', false);
+                                }
+                            });
+                        });
+                    });
+                    </script>
+                </div>
+
+                <!-- Add Rate Limit Test Section -->
+                <h3><?php _e('Test Rate Limiting', 'chatbot-plugin'); ?></h3>
+                <p><?php _e('Use this tool to test that rate limiting is working correctly.', 'chatbot-plugin'); ?></p>
+
+                <div class="rate-limit-test-tool">
+                    <button id="chatbot-test-rate-limit" class="button"><?php esc_html_e('Simulate Rate Limit Test', 'chatbot-plugin'); ?></button>
+                    <span id="test-result-message" style="margin-left: 10px; display: inline-block;"></span>
+
+                    <div id="test-results-container" style="margin-top: 10px; display: none;">
+                        <h4><?php _e('Test Results:', 'chatbot-plugin'); ?></h4>
+                        <pre id="test-results" style="background: #f5f5f5; padding: 10px; max-height: 200px; overflow: auto;"></pre>
+                    </div>
+
+                    <script type="text/javascript">
+                    jQuery(document).ready(function($) {
+                        $('#chatbot-test-rate-limit').on('click', function() {
+                            var button = $(this);
+                            var resultMessage = $('#test-result-message');
+                            var testResults = $('#test-results');
+                            var testContainer = $('#test-results-container');
+
+                            // Disable button and show loading message
+                            button.prop('disabled', true);
+                            resultMessage.html('<em><?php esc_html_e('Testing rate limits...', 'chatbot-plugin'); ?></em>');
+                            testResults.empty();
+                            testContainer.hide();
+
+                            // Make AJAX request to test rate limits
+                            $.ajax({
+                                url: ajaxurl,
+                                type: 'POST',
+                                data: {
+                                    action: 'chatbot_test_rate_limits',
+                                    nonce: '<?php echo wp_create_nonce('chatbot_test_rate_limits'); ?>'
+                                },
+                                success: function(response) {
+                                    if (response.success) {
+                                        resultMessage.html('<span style="color: green;"><?php esc_html_e('Test completed successfully!', 'chatbot-plugin'); ?></span>');
+
+                                        // Display test results
+                                        testResults.html(response.data.results);
+                                        testContainer.show();
+                                    } else {
+                                        resultMessage.html('<span style="color: red;"><?php esc_html_e('Test failed:', 'chatbot-plugin'); ?> ' + response.data.message + '</span>');
+                                    }
+                                },
+                                error: function() {
+                                    resultMessage.html('<span style="color: red;"><?php esc_html_e('An error occurred during the test.', 'chatbot-plugin'); ?></span>');
+                                },
+                                complete: function() {
+                                    // Re-enable button
+                                    button.prop('disabled', false);
+                                }
+                            });
+                        });
+                    });
+                    </script>
+                </div>
+
+                <!-- "Test AI Response" section was removed from here since it's already available in the OpenAI tab -->
+                <!-- This eliminates duplicate functionality and prevents errors -->
+            <?php else: ?>
+                <div class="notice notice-warning">
+                    <p><?php _e('Rate limiting functionality is not available. Make sure the plugin is installed and activated correctly.', 'chatbot-plugin'); ?></p>
+                </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="security-card">
+            <h2><?php _e('Security Best Practices', 'chatbot-plugin'); ?></h2>
+            <p><?php _e('Here are some recommendations to keep your chatbot secure:', 'chatbot-plugin'); ?></p>
+
+            <ul style="list-style-type: disc; margin-left: 20px;">
+                <li><?php _e('Regularly update the plugin to get the latest security improvements', 'chatbot-plugin'); ?></li>
+                <li><?php _e('Keep your WordPress installation and all plugins up to date', 'chatbot-plugin'); ?></li>
+                <li><?php _e('Use strong passwords for your WordPress admin account', 'chatbot-plugin'); ?></li>
+                <li><?php _e('Implement WordPress security plugins for additional protection', 'chatbot-plugin'); ?></li>
+                <li><?php _e('Monitor your chatbot logs for any suspicious activity', 'chatbot-plugin'); ?></li>
+                <li><?php _e('Adjust rate limits based on your site traffic and API usage', 'chatbot-plugin'); ?></li>
+            </ul>
+        </div>
+        <?php
+    }
+} // End of Chatbot_Settings class
 
 // Initialize the settings
 function chatbot_settings_init() {
