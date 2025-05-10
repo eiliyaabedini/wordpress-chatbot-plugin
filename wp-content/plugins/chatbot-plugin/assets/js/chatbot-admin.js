@@ -533,7 +533,7 @@
                                     <span class="chatbot-admin-message-time">${response.data.formatted_time}</span>
                                 </div>
                                 <div class="chatbot-admin-message-content">
-                                    ${message.replace(/\n/g, '<br>')}
+                                    ${$('<div/>').text(message).html().replace(/\n/g, '<br>')}
                                 </div>
                             </div>
                         `;

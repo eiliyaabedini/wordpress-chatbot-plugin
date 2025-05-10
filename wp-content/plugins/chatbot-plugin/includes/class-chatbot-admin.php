@@ -24,20 +24,23 @@ class Chatbot_Admin {
     public function __construct() {
         // Add admin menu
         add_action('admin_menu', array($this, 'add_admin_menu'));
-        
+
         // Register admin-specific scripts and styles
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
-        
+
         // Register AJAX handlers for admin
         add_action('wp_ajax_chatbot_admin_send_message', array($this, 'admin_send_message'));
-        
+        add_action('wp_ajax_chatbot_reset_rate_limits', array($this, 'ajax_reset_rate_limits'));
+        add_action('wp_ajax_chatbot_test_rate_limits', array($this, 'ajax_test_rate_limits'));
+        add_action('wp_ajax_chatbot_test_ai_response', array($this, 'ajax_test_ai_response'));
+
         // Handle admin actions
         add_action('admin_init', array($this, 'handle_admin_actions'));
-        
+
         // Add admin-post handlers for form submissions
         add_action('admin_post_chatbot_add_configuration', array($this, 'process_add_configuration'));
         add_action('admin_post_chatbot_update_configuration', array($this, 'process_update_configuration'));
-        
+
         // Add admin notices
         add_action('admin_notices', array($this, 'show_admin_notices'));
     }
@@ -189,26 +192,31 @@ class Chatbot_Admin {
         // Check for success messages from admin-post redirects
         if (isset($_GET['success'])) {
             $success_type = sanitize_text_field($_GET['success']);
-            
-            if ($success_type === 'add') {
-                add_settings_error('chatbot_plugin', 'add-success', __('Chatbot added successfully.', 'chatbot-plugin'), 'updated');
-            } elseif ($success_type === 'update') {
-                add_settings_error('chatbot_plugin', 'update-success', __('Chatbot updated successfully.', 'chatbot-plugin'), 'updated');
+
+            // Whitelist approach for success messages
+            $allowed_success_types = array('add', 'update');
+            if (in_array($success_type, $allowed_success_types, true)) {
+                $message = ($success_type === 'add')
+                    ? __('Chatbot added successfully.', 'chatbot-plugin')
+                    : __('Chatbot updated successfully.', 'chatbot-plugin');
+                add_settings_error('chatbot_plugin', esc_attr('success-' . $success_type), esc_html($message), 'updated');
             }
         }
-        
+
         // Check for error messages from admin-post redirects
         if (isset($_GET['error'])) {
             $error_type = sanitize_text_field($_GET['error']);
-            
-            if ($error_type === 'name_required') {
-                add_settings_error('chatbot_plugin', 'name-required', __('Chatbot name is required.', 'chatbot-plugin'), 'error');
-            } elseif ($error_type === 'name_exists') {
-                add_settings_error('chatbot_plugin', 'name-exists', __('A chatbot with this name already exists.', 'chatbot-plugin'), 'error');
-            } elseif ($error_type === 'db_error') {
-                add_settings_error('chatbot_plugin', 'db-error', __('Failed to add or update chatbot. Please try again.', 'chatbot-plugin'), 'error');
-            } elseif ($error_type === 'invalid_data') {
-                add_settings_error('chatbot_plugin', 'invalid-data', __('Invalid configuration data.', 'chatbot-plugin'), 'error');
+
+            // Whitelist approach for error messages
+            $error_messages = array(
+                'name_required' => __('Chatbot name is required.', 'chatbot-plugin'),
+                'name_exists' => __('A chatbot with this name already exists.', 'chatbot-plugin'),
+                'db_error' => __('Failed to add or update chatbot. Please try again.', 'chatbot-plugin'),
+                'invalid_data' => __('Invalid configuration data.', 'chatbot-plugin')
+            );
+
+            if (isset($error_messages[$error_type])) {
+                add_settings_error('chatbot_plugin', esc_attr('error-' . $error_type), esc_html($error_messages[$error_type]), 'error');
             }
         }
         
@@ -719,11 +727,11 @@ class Chatbot_Admin {
                                             ?>
                                         </span>
                                         <span class="chatbot-admin-message-time">
-                                            <?php echo date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($message->timestamp)); ?>
+                                            <?php echo esc_html(date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($message->timestamp))); ?>
                                         </span>
                                     </div>
                                     <div class="chatbot-admin-message-content">
-                                        <?php echo nl2br(esc_html($message->message)); ?>
+                                        <?php echo wp_kses(nl2br(esc_html($message->message)), array('br' => array())); ?>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -1033,10 +1041,19 @@ class Chatbot_Admin {
         
         // Enqueue jQuery
         wp_enqueue_script('jquery');
-        
+
         // Ensure thickbox is loaded for modals
         wp_enqueue_script('thickbox');
         wp_enqueue_style('thickbox');
+
+        // Add DOMPurify for HTML sanitization
+        wp_enqueue_script(
+            'dompurify',
+            'https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js',
+            array(),
+            '2.4.0',
+            true
+        );
         
         // Add custom admin script
         wp_enqueue_script(
@@ -1075,6 +1092,191 @@ class Chatbot_Admin {
         );
     }
     
+    /**
+     * AJAX handler for resetting rate limits
+     */
+    public function ajax_reset_rate_limits() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_reset_rate_limits')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+            return;
+        }
+
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied.'));
+            return;
+        }
+
+        // Check if rate limiter class exists
+        if (!class_exists('Chatbot_Rate_Limiter')) {
+            wp_send_json_error(array('message' => 'Rate limiter not available.'));
+            return;
+        }
+
+        // Reset all rate limits
+        $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+        $result = $rate_limiter->reset_all_rate_limits();
+
+        if ($result) {
+            wp_send_json_success(array('message' => 'All rate limits have been reset successfully.'));
+        } else {
+            wp_send_json_error(array('message' => 'Failed to reset rate limits.'));
+        }
+    }
+
+    /**
+     * AJAX handler for testing rate limits
+     */
+    public function ajax_test_rate_limits() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_test_rate_limits')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+            return;
+        }
+
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied.'));
+            return;
+        }
+
+        // Check if rate limiter class exists
+        if (!class_exists('Chatbot_Rate_Limiter')) {
+            wp_send_json_error(array('message' => 'Rate limiter not available.'));
+            return;
+        }
+
+        // Get rate limiter instance
+        $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+
+        // Run a test sequence
+        $results = array();
+        $test_user_id = 'test_user_' . uniqid();
+
+        // Reset limits first
+        $rate_limiter->reset_all_rate_limits();
+        $results[] = "- Rate limits reset successfully";
+
+        // Get current rate limit settings
+        $limits = array();
+        foreach ($rate_limiter->option_names as $key => $option_name) {
+            $limits[$key] = get_option($option_name, $rate_limiter->default_limits[$key]);
+        }
+
+        $results[] = "- Current rate limit settings:";
+        foreach ($limits as $key => $value) {
+            $results[] = "  * $key: $value";
+        }
+
+        // Test 1: First message should succeed
+        $check_result = $rate_limiter->can_send_message($test_user_id);
+        $results[] = "- Test 1: First message check: " . ($check_result['allowed'] ? "PASS" : "FAIL - " . $check_result['reason']);
+
+        // Increment counter
+        $rate_limiter->increment_rate_counters($test_user_id);
+        $results[] = "- Incremented counters for first message";
+
+        // Test 2: Second message should also succeed
+        $check_result = $rate_limiter->can_send_message($test_user_id);
+        $results[] = "- Test 2: Second message check: " . ($check_result['allowed'] ? "PASS" : "FAIL - " . $check_result['reason']);
+
+        // Simulate sending messages up to per-minute limit
+        $per_minute_limit = $limits['messages_per_minute'];
+        $results[] = "- Simulating sending " . ($per_minute_limit - 1) . " more messages";
+
+        for ($i = 0; $i < $per_minute_limit - 1; $i++) {
+            $rate_limiter->increment_rate_counters($test_user_id);
+        }
+
+        // Test 3: After reaching limit, should fail
+        $check_result = $rate_limiter->can_send_message($test_user_id);
+        $results[] = "- Test 3: After sending " . $per_minute_limit . " messages: " .
+                   (!$check_result['allowed'] ? "PASS - Blocked as expected: " . $check_result['reason'] : "FAIL - Should be blocked");
+
+        // Test 4: Different user should still be able to send
+        $different_user_id = 'different_user_' . uniqid();
+        $check_result = $rate_limiter->can_send_message($different_user_id);
+        $results[] = "- Test 4: Different user test: " .
+                   ($check_result['allowed'] ? "PASS - Different user not affected" : "FAIL - " . $check_result['reason']);
+
+        // Clean up by resetting rate limits again
+        $rate_limiter->reset_all_rate_limits();
+        $results[] = "- Cleanup: Rate limits reset";
+
+        // Format results as a string
+        $results_text = implode("\n", $results);
+
+        wp_send_json_success(array(
+            'message' => 'Rate limit testing completed',
+            'results' => $results_text
+        ));
+    }
+
+    /**
+     * AJAX handler for testing AI response
+     */
+    public function ajax_test_ai_response() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_test_ai_response')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+            return;
+        }
+
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied.'));
+            return;
+        }
+
+        // Get test message
+        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+
+        if (empty($message)) {
+            wp_send_json_error(array('message' => 'No test message provided.'));
+            return;
+        }
+
+        // Check if OpenAI class exists
+        if (!class_exists('Chatbot_OpenAI')) {
+            wp_send_json_error(array('message' => 'OpenAI integration not available.'));
+            return;
+        }
+
+        // Create test conversation in the database
+        $db = Chatbot_DB::get_instance();
+        $conversation_id = $db->create_conversation('Test User', null, 'Test');
+
+        if (!$conversation_id) {
+            wp_send_json_error(array('message' => 'Failed to create test conversation.'));
+            return;
+        }
+
+        // Add the test message to the conversation
+        $db->add_message($conversation_id, 'user', $message);
+
+        // Get OpenAI instance
+        $openai = Chatbot_OpenAI::get_instance();
+
+        // Check if API key is configured
+        if (!$openai->is_configured()) {
+            wp_send_json_error(array('message' => 'OpenAI API key not configured. Please add your API key in the OpenAI Integration tab.'));
+            return;
+        }
+
+        // Generate a response
+        $response = $openai->generate_response($conversation_id, $message);
+
+        // Clean up test conversation
+        $db->delete_conversation($conversation_id);
+
+        // Send the response
+        wp_send_json_success(array(
+            'response' => nl2br(esc_html($response)),
+            'raw_response' => $response
+        ));
+    }
+
     /**
      * AJAX handler for sending an admin message
      */

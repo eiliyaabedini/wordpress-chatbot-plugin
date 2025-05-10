@@ -219,8 +219,21 @@
         }
         
         // Set the HTML content safely
-        contentDiv.html(formattedMessage);
-        
+        // Create a DOMPurify config to only allow safe tags
+        if (typeof DOMPurify !== 'undefined') {
+            // If DOMPurify is available, use it to sanitize the HTML
+            contentDiv.html(DOMPurify.sanitize(formattedMessage, {
+                ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'ol', 'li', 'br', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'code'],
+                ALLOWED_ATTR: ['href', 'target', 'class', 'id', 'style']
+            }));
+        } else {
+            // If DOMPurify is not available, use a more restrictive approach
+            // Convert the formatted message to plain text and then replace only specific markdown-like patterns
+            const textContent = $('<div/>').text(formattedMessage).text();
+            // Only handle basic formatting like line breaks
+            contentDiv.html(textContent.replace(/\n/g, '<br>'));
+        }
+
         // Add the element to the chat container
         $('#ai-chat-messages-container').append(messageElement);
         scrollChatToBottom();
