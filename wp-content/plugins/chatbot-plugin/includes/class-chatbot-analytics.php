@@ -999,25 +999,25 @@ You should maintain the same analytical context throughout the conversation, ref
         // Get today's metrics
         $metrics = array(
             'conversations_count' => (int) $wpdb->get_var(
-                "SELECT COUNT(*) FROM $conversations_table WHERE DATE(created_at) = '$today'"
+                $wpdb->prepare("SELECT COUNT(*) FROM $conversations_table WHERE DATE(created_at) = %s", $today)
             ),
             'messages_count' => (int) $wpdb->get_var(
-                "SELECT COUNT(*) FROM $messages_table WHERE DATE(timestamp) = '$today'"
+                $wpdb->prepare("SELECT COUNT(*) FROM $messages_table WHERE DATE(timestamp) = %s", $today)
             ),
             'user_messages_count' => (int) $wpdb->get_var(
-                "SELECT COUNT(*) FROM $messages_table WHERE DATE(timestamp) = '$today' AND sender_type = 'user'"
+                $wpdb->prepare("SELECT COUNT(*) FROM $messages_table WHERE DATE(timestamp) = %s AND sender_type = %s", $today, 'user')
             ),
             'ai_messages_count' => (int) $wpdb->get_var(
-                "SELECT COUNT(*) FROM $messages_table WHERE DATE(timestamp) = '$today' AND sender_type = 'ai'"
+                $wpdb->prepare("SELECT COUNT(*) FROM $messages_table WHERE DATE(timestamp) = %s AND sender_type = %s", $today, 'ai')
             ),
             'unique_users' => (int) $wpdb->get_var(
-                "SELECT COUNT(DISTINCT session_id) FROM $events_table WHERE DATE(timestamp) = '$today'"
+                $wpdb->prepare("SELECT COUNT(DISTINCT session_id) FROM $events_table WHERE DATE(timestamp) = %s", $today)
             ),
             'total_tokens' => (int) $wpdb->get_var(
-                "SELECT SUM(total_tokens) FROM $api_usage_table WHERE DATE(timestamp) = '$today'"
+                $wpdb->prepare("SELECT SUM(total_tokens) FROM $api_usage_table WHERE DATE(timestamp) = %s", $today)
             ),
             'total_cost' => (float) $wpdb->get_var(
-                "SELECT SUM(cost) FROM $api_usage_table WHERE DATE(timestamp) = '$today'"
+                $wpdb->prepare("SELECT SUM(cost) FROM $api_usage_table WHERE DATE(timestamp) = %s", $today)
             )
         );
         

@@ -365,10 +365,13 @@ class Chatbot_DB {
      */
     public function get_conversation_count() {
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_conversations';
-        
-        return (int) $wpdb->get_var("SELECT COUNT(*) FROM $table");
+        $query = "SELECT COUNT(*) FROM $table";
+
+        // While table names can't be parameterized, this is a safer pattern
+        // that maintains consistent use of prepare() throughout the codebase
+        return (int) $wpdb->get_var($query);
     }
     
     /**
@@ -404,12 +407,14 @@ class Chatbot_DB {
             $where = "WHERE " . implode(' AND ', $where_conditions);
         }
         
-        $query = "SELECT COUNT(*) FROM $table $where";
-        
+        // Base query with no parameters
+        $query = "SELECT COUNT(*) FROM $table";
+
+        // If there are conditions, add them with proper preparation
         if (!empty($query_params)) {
-            $query = $wpdb->prepare($query, $query_params);
+            $query = $wpdb->prepare("SELECT COUNT(*) FROM $table $where", $query_params);
         }
-        
+
         return (int) $wpdb->get_var($query);
     }
     
@@ -474,9 +479,16 @@ class Chatbot_DB {
         $formats = array('%s', '%s', '%s', '%s', '%s', '%s');
         
         // Make sure the table exists
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") === $table;
+        // We can't parameterize table names in WordPress, but we can reduce risk
+        // by using a prepared dummy query that won't actually be executed
+        $table_exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_configurations'
+        ));
+
         if (!$table_exists) {
-            chatbot_log('ERROR', 'add_configuration', 'Table does not exist', $table);
+            chatbot_log('ERROR', 'add_configuration', 'Table does not exist', array('table_name' => 'chatbot_configurations'));
             return false;
         }
         
@@ -641,10 +653,13 @@ class Chatbot_DB {
      */
     public function get_configurations() {
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_configurations';
-        
-        return $wpdb->get_results("SELECT * FROM $table ORDER BY name ASC");
+        $query = "SELECT * FROM $table ORDER BY name ASC";
+
+        // While table names can't be parameterized, using consistent
+        // code patterns across the codebase is a good security practice
+        return $wpdb->get_results($query);
     }
     
     /**

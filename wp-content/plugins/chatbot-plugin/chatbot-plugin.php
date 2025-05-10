@@ -247,32 +247,64 @@ function update_chatbot_database_tables() {
     // Check if the conversations table needs updating
     $table_name = $wpdb->prefix . 'chatbot_conversations';
     
-    // Check for status column
-    $check_status_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_name` LIKE 'status'");
+    // Check for status column using INFORMATION_SCHEMA for better security
+    $check_status_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $table_name,
+            'status'
+        )
+    );
     if (empty($check_status_column)) {
         // Add new columns for archiving/status features
-        $wpdb->query("ALTER TABLE `$table_name` 
-                      ADD COLUMN `status` varchar(20) DEFAULT 'active' NOT NULL,
-                      ADD COLUMN `ended_at` datetime DEFAULT NULL,
-                      ADD COLUMN `archived_at` datetime DEFAULT NULL");
+        // Because table/column names can't be parameterized directly in SQL,
+        // we construct the query safely with known table name
+        $alter_query = sprintf(
+            "ALTER TABLE `%s`
+             ADD COLUMN `status` varchar(20) DEFAULT 'active' NOT NULL,
+             ADD COLUMN `ended_at` datetime DEFAULT NULL,
+             ADD COLUMN `archived_at` datetime DEFAULT NULL",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
         
         chatbot_log('INFO', 'update_tables', 'Added status columns to conversations table');
     }
     
-    // Check for chatbot_config_id column
-    $check_config_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_name` LIKE 'chatbot_config_id'");
+    // Check for chatbot_config_id column using INFORMATION_SCHEMA for better security
+    $check_config_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $table_name,
+            'chatbot_config_id'
+        )
+    );
     if (empty($check_config_column)) {
         // Add new column for chatbot configuration
-        $wpdb->query("ALTER TABLE `$table_name` 
-                      ADD COLUMN `chatbot_config_id` bigint(20) DEFAULT NULL,
-                      ADD COLUMN `chatbot_config_name` varchar(100) DEFAULT NULL");
+        // Because table/column names can't be parameterized directly in SQL,
+        // we construct the query safely with known table name
+        $alter_query = sprintf(
+            "ALTER TABLE `%s`
+             ADD COLUMN `chatbot_config_id` bigint(20) DEFAULT NULL,
+             ADD COLUMN `chatbot_config_name` varchar(100) DEFAULT NULL",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
         
         chatbot_log('INFO', 'update_tables', 'Added chatbot configuration columns to conversations table');
     }
     
     // Check if the configurations table exists
     $table_configurations = $wpdb->prefix . 'chatbot_configurations';
-    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_configurations'") === $table_configurations;
+    $table_exists = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
+            DB_NAME,
+            $table_configurations
+        )
+    );
     
     if (!$table_exists) {
         $charset_collate = $wpdb->get_charset_collate();
@@ -293,24 +325,52 @@ function update_chatbot_database_tables() {
     
     // Check for knowledge and persona columns in configurations table
     if ($table_exists) {
-        // Check for knowledge column
-        $check_knowledge_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_configurations` LIKE 'knowledge'");
-        $check_persona_column = $wpdb->get_results("SHOW COLUMNS FROM `$table_configurations` LIKE 'persona'");
+        // Check for knowledge column using INFORMATION_SCHEMA for better security
+        $check_knowledge_column = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                DB_NAME,
+                $table_configurations,
+                'knowledge'
+            )
+        );
+        $check_persona_column = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                DB_NAME,
+                $table_configurations,
+                'persona'
+            )
+        );
         
         if (empty($check_knowledge_column) || empty($check_persona_column)) {
             chatbot_log('INFO', 'update_tables', 'Adding knowledge and persona columns to configurations table');
             
             // First, make sure both columns don't exist before adding
             if (empty($check_knowledge_column)) {
-                $wpdb->query("ALTER TABLE `$table_configurations` ADD COLUMN `knowledge` text DEFAULT NULL AFTER `system_prompt`");
+                // Using sprintf for consistent, clean code - table name is not user input
+                $alter_query = sprintf(
+                    "ALTER TABLE `%s` ADD COLUMN `knowledge` text DEFAULT NULL AFTER `system_prompt`",
+                    $wpdb->prefix . 'chatbot_configurations'
+                );
+                $wpdb->query($alter_query);
             }
-            
+
             if (empty($check_persona_column)) {
-                $wpdb->query("ALTER TABLE `$table_configurations` ADD COLUMN `persona` text DEFAULT NULL AFTER `knowledge`");
+                // Using sprintf for consistent, clean code - table name is not user input
+                $alter_query = sprintf(
+                    "ALTER TABLE `%s` ADD COLUMN `persona` text DEFAULT NULL AFTER `knowledge`",
+                    $wpdb->prefix . 'chatbot_configurations'
+                );
+                $wpdb->query($alter_query);
             }
             
             // Now migrate existing data from system_prompt to both fields
-            $configurations = $wpdb->get_results("SELECT id, system_prompt FROM `$table_configurations`");
+            $query = sprintf(
+                "SELECT id, system_prompt FROM `%s`",
+                $wpdb->prefix . 'chatbot_configurations'
+            );
+            $configurations = $wpdb->get_results($query);
             
             foreach ($configurations as $config) {
                 if (!empty($config->system_prompt)) {
