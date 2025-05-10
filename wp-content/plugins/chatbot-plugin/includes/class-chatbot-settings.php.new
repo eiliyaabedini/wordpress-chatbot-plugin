@@ -893,12 +893,12 @@ class Chatbot_Settings {
             display: inline-block;
         }
         .chatbot-manual-cleanup-section {
-            margin-top: 20px;
-            padding-top: 20px;
+            margin-top: 20px; 
+            padding-top: 20px; 
             border-top: 1px solid #ddd;
         }
         </style>';
-
+        
         ?>
         <div class="data-retention-card">
             <h2><?php _e('Data Retention Policy', 'chatbot-plugin'); ?></h2>
@@ -906,7 +906,7 @@ class Chatbot_Settings {
 
             <form method="post" action="options.php" class="chatbot-settings-form">
                 <?php settings_fields('chatbot_data_retention'); ?>
-
+                
                 <table class="form-table">
                     <tr>
                         <th scope="row"><?php _e('Enable Automatic Cleanup', 'chatbot-plugin'); ?></th>
@@ -1010,26 +1010,26 @@ class Chatbot_Settings {
                     var status = $('#cleanup-status');
                     var resultsContainer = $('#cleanup-results');
                     var resultsContent = $('#cleanup-results-content');
-
+                    
                     // Get the selected option
                     var actionType = $('input[name="cleanup_period"]:checked').val();
                     var days = $('#cleanup-days').val();
                     var export_data = $('#cleanup-export').is(':checked');
-
+                    
                     // Make sure the user confirms the action
-                    var confirmMessage = actionType === 'all' ?
-                        '<?php esc_attr_e('Are you sure you want to delete ALL conversations? This action cannot be undone.', 'chatbot-plugin'); ?>' :
+                    var confirmMessage = actionType === 'all' ? 
+                        '<?php esc_attr_e('Are you sure you want to delete ALL conversations? This action cannot be undone.', 'chatbot-plugin'); ?>' : 
                         '<?php esc_attr_e('Are you sure you want to delete conversations older than', 'chatbot-plugin'); ?> ' + days + ' <?php esc_attr_e('days? This action cannot be undone.', 'chatbot-plugin'); ?>';
-
+                    
                     if (!confirm(confirmMessage)) {
                         return false;
                     }
-
+                    
                     // Disable the button and show loading message
                     button.prop('disabled', true);
                     status.html('<span style="color:blue;"><em><?php esc_html_e('Cleaning up data...', 'chatbot-plugin'); ?></em></span>');
                     resultsContainer.hide();
-
+                    
                     // Run the cleanup via AJAX
                     $.ajax({
                         url: ajaxurl,
@@ -1044,18 +1044,18 @@ class Chatbot_Settings {
                         success: function(response) {
                             if (response.success) {
                                 status.html('<span style="color:green;"><?php esc_html_e('Cleanup completed successfully!', 'chatbot-plugin'); ?></span>');
-
+                                
                                 // Show results
                                 var resultHTML = '<p><strong><?php esc_html_e('Conversations deleted:', 'chatbot-plugin'); ?></strong> ' + response.data.deleted_count + '</p>';
-
+                                
                                 if (response.data.error_count > 0) {
                                     resultHTML += '<p><strong><?php esc_html_e('Failed to delete:', 'chatbot-plugin'); ?></strong> ' + response.data.error_count + '</p>';
                                 }
-
+                                
                                 if (export_data && response.data.export_path) {
                                     resultHTML += '<p><strong><?php esc_html_e('Export created:', 'chatbot-plugin'); ?></strong> ' + response.data.export_path + '</p>';
                                 }
-
+                                
                                 resultsContent.html(resultHTML);
                                 resultsContainer.show();
                             } else {
@@ -1077,7 +1077,7 @@ class Chatbot_Settings {
         <div class="data-retention-card">
             <h2><?php _e('Data Retention Guidelines', 'chatbot-plugin'); ?></h2>
             <p><?php _e('Here are some best practices for data retention in compliance with GDPR and other privacy regulations:', 'chatbot-plugin'); ?></p>
-
+            
             <ul style="list-style-type: disc; margin-left: 20px;">
                 <li><?php _e('Only store personal data for as long as necessary for the purposes for which it was collected', 'chatbot-plugin'); ?></li>
                 <li><?php _e('Regularly review and delete data that is no longer needed', 'chatbot-plugin'); ?></li>
@@ -1086,7 +1086,7 @@ class Chatbot_Settings {
                 <li><?php _e('Ensure you have a legal basis for retaining any data you keep', 'chatbot-plugin'); ?></li>
                 <li><?php _e('Provide mechanisms for users to request deletion of their data', 'chatbot-plugin'); ?></li>
             </ul>
-
+            
             <p><?php _e('For more information on GDPR compliance, visit the <a href="https://gdpr.eu/" target="_blank">official GDPR website</a>.', 'chatbot-plugin'); ?></p>
         </div>
         <?php
@@ -1133,39 +1133,19 @@ class Chatbot_Settings {
             margin-top: 30px;
         }
         </style>';
-
-        // Add a reference to the Data Retention tab
+        
+        // Add a reference to the new Data Retention tab
         ?>
         <div class="security-card" style="margin-top: 0;">
             <h2><?php _e('Data Management & GDPR', 'chatbot-plugin'); ?></h2>
             <p><?php _e('For data retention settings and GDPR compliance options, please visit our dedicated Data Retention tab.', 'chatbot-plugin'); ?></p>
-
+            
             <p><a href="?page=chatbot-settings&tab=data-retention" class="button button-primary">
                 <?php _e('Go to Data Retention Settings', 'chatbot-plugin'); ?>
             </a></p>
         </div>
-        <?php
 
-        // Check for rate limiter reset action
-        if (isset($_POST['action']) && $_POST['action'] === 'reset_rate_limits' &&
-            isset($_POST['chatbot_security_nonce']) &&
-            wp_verify_nonce($_POST['chatbot_security_nonce'], 'chatbot_reset_rate_limits')) {
-
-            if (class_exists('Chatbot_Rate_Limiter')) {
-                $rate_limiter = Chatbot_Rate_Limiter::get_instance();
-                $reset_result = $rate_limiter->reset_all_rate_limits();
-
-                if ($reset_result) {
-                    echo '<div class="notice notice-success is-dismissible"><p>' . __('All rate limits have been reset successfully.', 'chatbot-plugin') . '</p></div>';
-                } else {
-                    echo '<div class="notice notice-error is-dismissible"><p>' . __('Failed to reset rate limits.', 'chatbot-plugin') . '</p></div>';
-                }
-            } else {
-                echo '<div class="notice notice-error is-dismissible"><p>' . __('Rate limiter not available.', 'chatbot-plugin') . '</p></div>';
-            }
-        }
-
-        ?>
+        <!-- Rate Limiting Card -->
         <div class="rate-limiting-card">
             <h2><?php _e('Rate Limiting', 'chatbot-plugin'); ?></h2>
             <p><?php _e('Rate limiting protects your chatbot from abuse and helps manage API costs by limiting how many messages users can send in a given time period.', 'chatbot-plugin'); ?></p>
@@ -1417,7 +1397,7 @@ class Chatbot_Settings {
         </div>
         <?php
     }
-} // End of Chatbot_Settings class
+}
 
 // Initialize the settings
 function chatbot_settings_init() {

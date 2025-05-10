@@ -31,6 +31,7 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-rate-limiter.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-data-retention.php';
 
 /**
  * Helper function for standardized logging
