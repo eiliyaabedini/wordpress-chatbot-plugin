@@ -135,29 +135,66 @@ class Chatbot_Handler {
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot-plugin-nonce')) {
             wp_send_json_error(array('message' => 'Security check failed.'));
         }
-        
+
         // Get parameters
         $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : 0;
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
         $sender_type = isset($_POST['sender_type']) ? sanitize_text_field($_POST['sender_type']) : 'user';
-        
+
         if (empty($message) || empty($conversation_id)) {
             wp_send_json_error(array('message' => 'Missing required parameters.'));
         }
-        
+
+        // Check rate limits only for user messages
+        if ($sender_type === 'user' && class_exists('Chatbot_Rate_Limiter')) {
+            $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+            $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
+
+            // Check if rate limit is exceeded and message length is acceptable
+            $rate_check = $rate_limiter->can_send_message($session_id, $message);
+            if (!$rate_check['allowed']) {
+                $log_type = ($rate_check['reason'] === 'message_too_long') ? 'message_length' : 'rate_limit';
+
+                if (function_exists('chatbot_log')) {
+                    chatbot_log('WARN', $log_type, 'Message rejected', array(
+                        'reason' => $rate_check['reason'],
+                        'session_id' => $session_id,
+                        'message_length' => isset($rate_check['current_length']) ? $rate_check['current_length'] : null,
+                        'max_length' => isset($rate_check['max_length']) ? $rate_check['max_length'] : null
+                    ));
+                }
+
+                wp_send_json_error(array(
+                    'message' => $rate_check['message'],
+                    'rate_limited' => true,
+                    'reason' => $rate_check['reason'],
+                    'current_length' => isset($rate_check['current_length']) ? $rate_check['current_length'] : null,
+                    'max_length' => isset($rate_check['max_length']) ? $rate_check['max_length'] : null
+                ));
+                return;
+            }
+        }
+
         // Check if the conversation is active
         $db = Chatbot_DB::get_instance();
         $conversation = $db->get_conversation($conversation_id);
-        
+
         if (!$conversation || $conversation->status !== 'active') {
             wp_send_json_error(array('message' => 'Conversation is not active.'));
         }
-        
+
         // Add the message to the database
         $message_id = $db->add_message($conversation_id, $sender_type, $message);
-        
+
         if (!$message_id) {
             wp_send_json_error(array('message' => 'Error saving message.'));
+        }
+
+        // Increment rate limit counters for user messages
+        if ($sender_type === 'user' && class_exists('Chatbot_Rate_Limiter')) {
+            $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+            $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : '';
+            $rate_limiter->increment_rate_counters($session_id);
         }
         
         // If it's a user message, generate an automatic admin response
@@ -167,7 +204,65 @@ class Chatbot_Handler {
             
             // Add AI response to the database
             // Use 'ai' sender type for OpenAI responses to distinguish from human admin messages
-            $sender_type = class_exists('Chatbot_OpenAI') && Chatbot_OpenAI::get_instance()->is_configured() ? 'ai' : 'admin';
+            $is_openai_class_loaded = class_exists('Chatbot_OpenAI');
+            $is_api_configured = false;
+            $api_key_exists = false;
+            $api_key_format_valid = false;
+
+            if ($is_openai_class_loaded) {
+                $openai_instance = Chatbot_OpenAI::get_instance();
+                // Force a settings refresh to ensure we have the latest API key
+                $openai_instance->refresh_settings();
+                $is_api_configured = $openai_instance->is_configured();
+
+                // Directly check API key for detailed diagnosis
+                $api_key = get_option('chatbot_openai_api_key', '');
+                $api_key_exists = !empty($api_key);
+                $api_key_format_valid = ($api_key_exists && strpos($api_key, 'sk-') === 0);
+                $api_key_length_valid = ($api_key_exists && strlen($api_key) >= 20);
+
+                // Log detailed OpenAI configuration status
+                if (function_exists('chatbot_log')) {
+                    chatbot_log('DEBUG', 'send_message', 'OpenAI configuration check', array(
+                        'openai_class_loaded' => $is_openai_class_loaded ? 'Yes' : 'No',
+                        'is_api_configured' => $is_api_configured ? 'Yes' : 'No',
+                        'api_key_exists' => $api_key_exists ? 'Yes' : 'No',
+                        'api_key_length' => $api_key_exists ? strlen($api_key) : 0,
+                        'api_key_format_valid' => $api_key_format_valid ? 'Yes' : 'No',
+                        'api_key_length_valid' => $api_key_length_valid ? 'Yes' : 'No',
+                        'response_type' => $is_api_configured ? 'AI' : 'Admin'
+                    ));
+
+                    // Log specific API key validation issues
+                    if (!$api_key_exists) {
+                        chatbot_log('ERROR', 'send_message', 'API key is not set in options');
+                    } elseif (!$api_key_format_valid) {
+                        chatbot_log('ERROR', 'send_message', 'API key format is invalid. Should start with "sk-"');
+                    } elseif (!$api_key_length_valid) {
+                        chatbot_log('ERROR', 'send_message', 'API key length is too short');
+                    }
+                }
+            }
+
+            // Check for a valid API key with correct format
+            $sender_type = ($is_openai_class_loaded && $is_api_configured && $api_key_format_valid) ? 'ai' : 'admin';
+
+            // Add an indicator in the message for debugging (admin only)
+            if ($sender_type === 'admin') {
+                $debug_reason = '';
+                if (!$is_openai_class_loaded) {
+                    $debug_reason = "OpenAI class not loaded";
+                } elseif (!$api_key_exists) {
+                    $debug_reason = "API key not set";
+                } elseif (!$api_key_format_valid) {
+                    $debug_reason = "API key format invalid (should start with 'sk-')";
+                } elseif (!$is_api_configured) {
+                    $debug_reason = "OpenAI integration not configured properly";
+                }
+
+                $response .= "\n\n[Debug: AI integration not active. Reason: " . $debug_reason . ". Please check OpenAI API key configuration in Settings.]";
+            }
+
             $db->add_message($conversation_id, $sender_type, $response);
         }
         

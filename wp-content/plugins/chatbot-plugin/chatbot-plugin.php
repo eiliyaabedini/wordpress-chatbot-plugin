@@ -30,6 +30,7 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-openai.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-rate-limiter.php';
 
 /**
  * Helper function for standardized logging
@@ -461,6 +462,13 @@ class Chatbot_Plugin {
         $default_greeting = 'Hello %s! How can I help you today?';
         $default_typing_indicator = 'AI Assistant is typing...';
         
+        // Get max message length from rate limiter settings
+        $max_message_length = 500; // Default value
+        if (class_exists('Chatbot_Rate_Limiter')) {
+            $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+            $max_message_length = get_option($rate_limiter->option_names['max_message_length'], $rate_limiter->default_limits['max_message_length']);
+        }
+
         wp_localize_script(
             'chatbot-plugin-script',
             'chatbotPluginVars',
@@ -468,7 +476,8 @@ class Chatbot_Plugin {
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('chatbot-plugin-nonce'),
                 'chatGreeting' => get_option('chatbot_chat_greeting', $default_greeting),
-                'typingIndicatorText' => get_option('chatbot_typing_indicator_text', $default_typing_indicator)
+                'typingIndicatorText' => get_option('chatbot_typing_indicator_text', $default_typing_indicator),
+                'maxMessageLength' => $max_message_length
             )
         );
     }

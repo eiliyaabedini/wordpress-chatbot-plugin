@@ -521,33 +521,82 @@
             }
         });
         
+        // Add character counter
+        const charCounter = $('<div class="chatbot-char-counter"></div>');
+        chatbotInputContainer.append(charCounter);
+
+        // Function to update character counter
+        function updateCharCounter() {
+            const message = chatbotInput.val();
+            const maxLength = chatbotPluginVars.maxMessageLength || 500;
+            const currentLength = message.length;
+            const remainingChars = maxLength - currentLength;
+
+            // Update counter text
+            charCounter.text(currentLength + '/' + maxLength);
+
+            // Add warning if approaching limit
+            if (remainingChars < 50) {
+                charCounter.addClass('warning');
+            } else {
+                charCounter.removeClass('warning');
+            }
+
+            // Add error if over limit
+            if (remainingChars < 0) {
+                charCounter.addClass('error');
+                chatbotSendBtn.prop('disabled', true);
+            } else {
+                charCounter.removeClass('error');
+                chatbotSendBtn.prop('disabled', false);
+            }
+        }
+
+        // Update counter on input
+        chatbotInput.on('input', updateCharCounter);
+
+        // Initialize counter
+        updateCharCounter();
+
         // Handle send button click
         chatbotSendBtn.on('click', function() {
             const message = chatbotInput.val().trim();
-            
-            if (message !== '') {
+            const maxLength = chatbotPluginVars.maxMessageLength || 500;
+
+            if (message !== '' && message.length <= maxLength) {
                 addMessage(message, 'user', false);
                 chatbotInput.val('');
                 sendMessage(message);
+                updateCharCounter();
+            } else if (message.length > maxLength) {
+                // Show error message if too long
+                chatbotMessages.append('<div class="chatbot-system-message">Your message is too long. Maximum ' + maxLength + ' characters allowed.</div>');
+                chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
             }
         });
-        
+
         // Handle end chat button click
         chatbotEndBtn.on('click', function() {
             endConversation();
         });
-        
+
         // Handle enter key press in input
         chatbotInput.on('keypress', function(e) {
             if (e.which === 13) {
                 const message = chatbotInput.val().trim();
-                
-                if (message !== '') {
+                const maxLength = chatbotPluginVars.maxMessageLength || 500;
+
+                if (message !== '' && message.length <= maxLength) {
                     addMessage(message, 'user', false);
                     chatbotInput.val('');
                     sendMessage(message);
+                    updateCharCounter();
+                } else if (message.length > maxLength) {
+                    // Show error message if too long
+                    chatbotMessages.append('<div class="chatbot-system-message">Your message is too long. Maximum ' + maxLength + ' characters allowed.</div>');
+                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
-                
+
                 e.preventDefault();
             }
         });
