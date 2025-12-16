@@ -609,5 +609,119 @@
         // Poll every 10 seconds
         setInterval(pollForNewMessages, 10000);
     });
-    
+
+    // Knowledge Sources UI with Select2
+    $(document).ready(function() {
+        var $select = $('#chatbot_knowledge_sources_select');
+        var $hiddenInput = $('#chatbot_knowledge_sources');
+        var $knowledgeField = $('#chatbot_knowledge');
+        var $personaField = $('#chatbot_persona');
+        var $tokenCount = $('#chatbot_token_count');
+        var $tokenBar = $('#chatbot_token_bar');
+        var $tokenPercentage = $('#chatbot_token_percentage');
+        var maxTokens = 100000;
+
+        // Skip if not on the configuration page
+        if ($select.length === 0) {
+            return;
+        }
+
+        console.log('Knowledge Sources UI initialized with Select2');
+
+        // Initialize Select2
+        if ($.fn.select2) {
+            $select.select2({
+                placeholder: 'Search and select posts, pages, products...',
+                allowClear: true,
+                width: '100%'
+            });
+        } else if ($.fn.selectWoo) {
+            $select.selectWoo({
+                placeholder: 'Search and select posts, pages, products...',
+                allowClear: true,
+                width: '100%'
+            });
+        }
+
+        // Calculate tokens from text (1 token ≈ 4 characters)
+        function countTokens(text) {
+            if (!text) return 0;
+            return Math.ceil(text.length / 4);
+        }
+
+        // Update token counter based on all knowledge sources
+        function updateTokenCounter() {
+            var totalTokens = 0;
+
+            // Count tokens from manual knowledge field
+            var knowledgeTokens = countTokens($knowledgeField.val());
+            totalTokens += knowledgeTokens;
+
+            // Count tokens from persona field
+            var personaTokens = countTokens($personaField.val());
+            totalTokens += personaTokens;
+
+            // Count tokens from selected WordPress content
+            var wpContentTokens = 0;
+            $select.find('option:selected').each(function() {
+                wpContentTokens += parseInt($(this).data('tokens')) || 0;
+            });
+            totalTokens += wpContentTokens;
+
+            var percentage = Math.min((totalTokens / maxTokens) * 100, 100);
+
+            $tokenCount.text(totalTokens.toLocaleString());
+            $tokenBar.css('width', percentage + '%');
+            $tokenPercentage.text('(' + Math.round(percentage) + '%)');
+
+            // Color coding
+            $tokenBar.removeClass('warning danger');
+            if (percentage >= 100) {
+                $tokenBar.addClass('danger');
+            } else if (percentage >= 80) {
+                $tokenBar.addClass('warning');
+            }
+
+            // Log breakdown for debugging
+            console.log('Token breakdown - Knowledge:', knowledgeTokens, 'Persona:', personaTokens, 'WP Content:', wpContentTokens, 'Total:', totalTokens);
+        }
+
+        // Update hidden input with selected IDs as JSON
+        function updateHiddenInput() {
+            var selectedIds = $select.val() || [];
+            // Convert string values to integers
+            selectedIds = selectedIds.map(function(id) {
+                return parseInt(id, 10);
+            });
+            $hiddenInput.val(JSON.stringify(selectedIds));
+            console.log('Knowledge sources updated:', selectedIds);
+        }
+
+        // Listen for selection changes
+        $select.on('change', function() {
+            updateHiddenInput();
+            updateTokenCounter();
+        });
+
+        // Listen for changes in knowledge and persona fields
+        $knowledgeField.on('input', updateTokenCounter);
+        $personaField.on('input', updateTokenCounter);
+
+        // Initialize on page load
+        updateTokenCounter();
+
+        // Ensure hidden input is populated correctly on load
+        var currentValue = $hiddenInput.val();
+        if (currentValue) {
+            try {
+                var ids = JSON.parse(currentValue);
+                if (Array.isArray(ids)) {
+                    $select.val(ids.map(String)).trigger('change.select2');
+                }
+            } catch (e) {
+                console.log('Could not parse existing knowledge sources');
+            }
+        }
+    });
+
 })(jQuery);

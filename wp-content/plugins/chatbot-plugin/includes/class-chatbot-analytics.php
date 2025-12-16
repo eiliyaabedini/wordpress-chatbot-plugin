@@ -161,21 +161,58 @@ class Chatbot_Analytics {
     
     /**
      * Track an event in the analytics system
+     * Security: Rate limited and event type validated for unauthenticated users
      */
     public function track_event() {
         // Verify nonce
         if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot-plugin-nonce')) {
             wp_send_json_error(array('message' => 'Security check failed.'));
         }
-        
+
         // Get parameters
         $event_type = isset($_POST['event_type']) ? sanitize_text_field($_POST['event_type']) : '';
         $event_data = isset($_POST['event_data']) ? $_POST['event_data'] : array();
         $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : null;
         $session_id = isset($_POST['session_id']) ? sanitize_text_field($_POST['session_id']) : null;
-        
+
         if (empty($event_type)) {
             wp_send_json_error(array('message' => 'Missing event type.'));
+        }
+
+        // Security: Whitelist allowed event types to prevent data pollution
+        $allowed_event_types = array(
+            'chatbot_opened',
+            'chatbot_closed',
+            'message_sent',
+            'message_received',
+            'conversation_started',
+            'conversation_ended',
+            'feedback_submitted',
+            'error_occurred'
+        );
+
+        if (!in_array($event_type, $allowed_event_types, true)) {
+            chatbot_log('WARN', 'track_event', 'Blocked invalid event type', array('event_type' => $event_type));
+            wp_send_json_error(array('message' => 'Invalid event type.'));
+        }
+
+        // Security: Rate limiting for unauthenticated users (max 60 events per minute per IP)
+        if (!is_user_logged_in()) {
+            $client_ip = $this->get_client_ip();
+            $rate_limit_key = 'chatbot_rate_' . md5($client_ip);
+            $rate_limit = get_transient($rate_limit_key);
+
+            if ($rate_limit === false) {
+                // First request - set counter
+                set_transient($rate_limit_key, 1, 60); // 60 second window
+            } elseif ($rate_limit >= 60) {
+                // Rate limit exceeded
+                chatbot_log('WARN', 'track_event', 'Rate limit exceeded', array('ip' => $client_ip));
+                wp_send_json_error(array('message' => 'Rate limit exceeded. Please try again later.'));
+            } else {
+                // Increment counter
+                set_transient($rate_limit_key, $rate_limit + 1, 60);
+            }
         }
         
         // Sanitize event data
@@ -455,11 +492,11 @@ Always make sure charts have clear titles, labeled axes, and use appropriate col
 Keep your entire response under 750 words. Format with clear headings and simple bullet points. Use concise language and be specific. The HTML buttons should work when clicked to send the question text to the chatbot.";
         
         try {
-            // Generate summary using OpenAI's completion endpoint with higher token limit
-            // Use direct API call with higher token limit override instead of get_completion
-            $api_url = 'https://api.openai.com/v1/chat/completions';
-            
-            // Prepare messages
+            // IMPORTANT: Use the proper OpenAI integration layer which automatically
+            // detects and uses AIPass when available, or falls back to direct OpenAI API
+            chatbot_log('INFO', 'generate_conversation_summary', 'Using OpenAI integration layer (supports both AIPass and direct API)');
+
+            // Prepare messages for the AI
             $messages = array(
                 array(
                     'role' => 'system',
@@ -470,66 +507,92 @@ Keep your entire response under 750 words. Format with clear headings and simple
                     'content' => $user_prompt,
                 ),
             );
-            
-            // Set higher token limit for analytics (4000 tokens)
-            $token_limit = 4000;
-            
-            // Use the configured model
-            $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
-            
-            // Create request body with higher token limit
-            $request_body = array(
-                'model' => $model,
-                'messages' => $messages,
-                'max_tokens' => $token_limit,
-                'temperature' => 0.7
-            );
-            
-            // Make API request
-            $api_key = get_option('chatbot_openai_api_key', '');
-            $response_data = wp_remote_post($api_url, array(
-                'headers' => array(
-                    'Authorization' => 'Bearer ' . $api_key,
-                    'Content-Type' => 'application/json',
-                ),
-                'body' => json_encode($request_body),
-                'timeout' => 60, // Longer timeout for detailed analysis
-                'data_format' => 'body',
-            ));
-            
-            if (is_wp_error($response_data)) {
-                chatbot_log('ERROR', 'generate_conversation_summary', 'API Error: ' . $response_data->get_error_message());
-                wp_send_json_error(array('message' => 'Failed to generate summary: ' . $response_data->get_error_message()));
-                return;
+
+            // Check if using AIPass or direct API
+            $using_aipass = $openai->is_using_aipass();
+            chatbot_log('INFO', 'generate_conversation_summary', 'Integration mode: ' . ($using_aipass ? 'AIPass' : 'Direct OpenAI API'));
+
+            // Generate the summary using the integration layer
+            // This will automatically use AIPass if configured, otherwise direct OpenAI API
+            if ($using_aipass && class_exists('Chatbot_AIPass')) {
+                // Use AIPass integration
+                $aipass = Chatbot_AIPass::get_instance();
+                // Hardcoded: Use Gemini 2.5 Pro for AI Insights (most capable for analysis)
+                $model = 'gemini/gemini-2.5-pro';
+
+                $result = $aipass->generate_completion(
+                    $messages,
+                    $model,
+                    4000, // Higher token limit for analytics
+                    0.7
+                );
+
+                if (!$result['success']) {
+                    chatbot_log('ERROR', 'generate_conversation_summary', 'AIPass API Error: ' . $result['error']);
+                    wp_send_json_error(array('message' => 'Failed to generate summary: ' . $result['error']));
+                    return;
+                }
+
+                $response = $result['content'];
+            } else {
+                // Use direct OpenAI API
+                $api_url = 'https://api.openai.com/v1/chat/completions';
+                $model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
+
+                // Create request body
+                $request_body = array(
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_tokens' => 4000,
+                    'temperature' => 0.7
+                );
+
+                // Make API request
+                $api_key = get_option('chatbot_openai_api_key', '');
+                $response_data = wp_remote_post($api_url, array(
+                    'headers' => array(
+                        'Authorization' => 'Bearer ' . $api_key,
+                        'Content-Type' => 'application/json',
+                    ),
+                    'body' => json_encode($request_body),
+                    'timeout' => 60,
+                    'data_format' => 'body',
+                ));
+
+                if (is_wp_error($response_data)) {
+                    chatbot_log('ERROR', 'generate_conversation_summary', 'API Error: ' . $response_data->get_error_message());
+                    wp_send_json_error(array('message' => 'Failed to generate summary: ' . $response_data->get_error_message()));
+                    return;
+                }
+
+                $response_code = wp_remote_retrieve_response_code($response_data);
+                $response_body = json_decode(wp_remote_retrieve_body($response_data), true);
+
+                if ($response_code !== 200) {
+                    chatbot_log('ERROR', 'generate_conversation_summary', 'API Error: ' . json_encode($response_body));
+                    wp_send_json_error(array('message' => 'Failed to generate summary: API returned status code ' . $response_code));
+                    return;
+                }
+
+                if (!isset($response_body['choices'][0]['message']['content'])) {
+                    chatbot_log('ERROR', 'generate_conversation_summary', 'Unexpected API response format');
+                    wp_send_json_error(array('message' => 'Failed to generate summary: Unexpected API response format'));
+                    return;
+                }
+
+                $response = $response_body['choices'][0]['message']['content'];
             }
-            
-            $response_code = wp_remote_retrieve_response_code($response_data);
-            $response_body = json_decode(wp_remote_retrieve_body($response_data), true);
-            
-            if ($response_code !== 200) {
-                chatbot_log('ERROR', 'generate_conversation_summary', 'API Error: ' . json_encode($response_body));
-                wp_send_json_error(array('message' => 'Failed to generate summary: API returned status code ' . $response_code));
-                return;
-            }
-            
-            if (!isset($response_body['choices'][0]['message']['content'])) {
-                chatbot_log('ERROR', 'generate_conversation_summary', 'Unexpected API response format');
-                wp_send_json_error(array('message' => 'Failed to generate summary: Unexpected API response format'));
-                return;
-            }
-            
-            $response = $response_body['choices'][0]['message']['content'];
-            
+
             if (empty($response)) {
-                wp_send_json_error(array('message' => 'Failed to generate summary. OpenAI API returned an empty response.'));
+                wp_send_json_error(array('message' => 'Failed to generate summary. AI returned an empty response.'));
                 return;
             }
-            
+
             wp_send_json_success(array(
                 'summary' => $response,
                 'conversation_data' => $conversation_data
             ));
-            
+
         } catch (Exception $e) {
             chatbot_log('ERROR', 'generate_conversation_summary', 'Error generating summary: ' . $e->getMessage());
             wp_send_json_error(array('message' => 'Error generating summary: ' . $e->getMessage()));
@@ -772,11 +835,10 @@ You should maintain the same analytical context throughout the conversation, ref
                 'chat_history_length' => count($chat_history),
                 'conversation_data_count' => count($conversation_data)
             ));
-            
-            // Generate response using OpenAI's completion endpoint with higher token limit
-            // Use the get_completion method directly with higher token limit override
-            $api_url = 'https://api.openai.com/v1/chat/completions';
-            
+
+            // IMPORTANT: Use the proper OpenAI integration layer which automatically
+            // detects and uses AIPass when available, or falls back to direct OpenAI API
+
             // Prepare messages
             $messages = array(
                 array(
@@ -788,59 +850,82 @@ You should maintain the same analytical context throughout the conversation, ref
                     'content' => $user_prompt,
                 ),
             );
-            
-            // Set higher token limit for analytics (4000 tokens)
-            $token_limit = 4000;
-            
-            // Use the configured model
-            $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
-            
-            // Create request body with higher token limit
-            $request_body = array(
-                'model' => $model,
-                'messages' => $messages,
-                'max_tokens' => $token_limit,
-                'temperature' => 0.7
-            );
-            
-            // Make API request
-            $api_key = get_option('chatbot_openai_api_key', '');
-            $response_data = wp_remote_post($api_url, array(
-                'headers' => array(
-                    'Authorization' => 'Bearer ' . $api_key,
-                    'Content-Type' => 'application/json',
-                ),
-                'body' => json_encode($request_body),
-                'timeout' => 60, // Longer timeout for detailed analysis
-                'data_format' => 'body',
-            ));
-            
-            if (is_wp_error($response_data)) {
-                throw new Exception('API Error: ' . $response_data->get_error_message());
-            }
-            
-            $response_code = wp_remote_retrieve_response_code($response_data);
-            $response_body = json_decode(wp_remote_retrieve_body($response_data), true);
-            
-            if ($response_code !== 200) {
-                throw new Exception('API Error: ' . json_encode($response_body));
-            }
-            
-            if (isset($response_body['choices'][0]['message']['content'])) {
-                $response = $response_body['choices'][0]['message']['content'];
+
+            // Check if using AIPass or direct API
+            $using_aipass = $openai->is_using_aipass();
+            chatbot_log('INFO', 'handle_follow_up_question', 'Integration mode: ' . ($using_aipass ? 'AIPass' : 'Direct OpenAI API'));
+
+            // Generate the response using the integration layer
+            if ($using_aipass && class_exists('Chatbot_AIPass')) {
+                // Use AIPass integration
+                $aipass = Chatbot_AIPass::get_instance();
+                // Hardcoded: Use Gemini 2.5 Pro for AI Insights follow-up questions (most capable for analysis)
+                $model = 'gemini/gemini-2.5-pro';
+
+                $result = $aipass->generate_completion(
+                    $messages,
+                    $model,
+                    4000, // Higher token limit for analytics
+                    0.7
+                );
+
+                if (!$result['success']) {
+                    throw new Exception('AIPass API Error: ' . $result['error']);
+                }
+
+                $response = $result['content'];
             } else {
-                throw new Exception('Unexpected API response format.');
+                // Use direct OpenAI API
+                $api_url = 'https://api.openai.com/v1/chat/completions';
+                $model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
+
+                // Create request body
+                $request_body = array(
+                    'model' => $model,
+                    'messages' => $messages,
+                    'max_tokens' => 4000,
+                    'temperature' => 0.7
+                );
+
+                // Make API request
+                $api_key = get_option('chatbot_openai_api_key', '');
+                $response_data = wp_remote_post($api_url, array(
+                    'headers' => array(
+                        'Authorization' => 'Bearer ' . $api_key,
+                        'Content-Type' => 'application/json',
+                    ),
+                    'body' => json_encode($request_body),
+                    'timeout' => 60,
+                    'data_format' => 'body',
+                ));
+
+                if (is_wp_error($response_data)) {
+                    throw new Exception('API Error: ' . $response_data->get_error_message());
+                }
+
+                $response_code = wp_remote_retrieve_response_code($response_data);
+                $response_body = json_decode(wp_remote_retrieve_body($response_data), true);
+
+                if ($response_code !== 200) {
+                    throw new Exception('API Error: ' . json_encode($response_body));
+                }
+
+                if (isset($response_body['choices'][0]['message']['content'])) {
+                    $response = $response_body['choices'][0]['message']['content'];
+                } else {
+                    throw new Exception('Unexpected API response format.');
+                }
             }
-            
+
             if (!$response) {
-                wp_send_json_error(array('message' => 'Failed to generate response. OpenAI API returned an empty response.'));
+                wp_send_json_error(array('message' => 'Failed to generate response. AI returned an empty response.'));
                 return;
             }
-            
+
             wp_send_json_success(array(
                 'response' => $response
             ));
-            
+
         } catch (Exception $e) {
             chatbot_log('ERROR', 'handle_follow_up_question', 'Error generating response', array(
                 'error' => $e->getMessage()

@@ -442,41 +442,44 @@ class Chatbot_DB {
      * @param string $system_prompt System prompt for the chatbot (for backward compatibility)
      * @param string $knowledge Knowledge base content for the chatbot
      * @param string $persona Personality and tone information for the chatbot
+     * @param string $knowledge_sources JSON array of WordPress post IDs to use as knowledge
      * @return int|false The configuration ID or false on failure
      */
-    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '') {
+    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '') {
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_configurations';
-        
+
         // If knowledge and persona are empty but system_prompt is provided, use system_prompt for both
         if (empty($knowledge) && !empty($system_prompt)) {
             $knowledge = $system_prompt;
         }
-        
+
         if (empty($persona) && !empty($system_prompt)) {
             $persona = "You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.";
         }
-        
+
         // Log the input parameters for debugging
         chatbot_log('DEBUG', 'add_configuration', 'Adding new chatbot configuration', array(
             'name' => $name,
             'system_prompt_length' => strlen($system_prompt),
             'knowledge_length' => strlen($knowledge),
-            'persona_length' => strlen($persona)
+            'persona_length' => strlen($persona),
+            'knowledge_sources' => $knowledge_sources
         ));
-        
+
         // Prepare data with sanitization
         $data = array(
             'name' => sanitize_text_field($name),
             'system_prompt' => sanitize_textarea_field($system_prompt),
             'knowledge' => sanitize_textarea_field($knowledge),
             'persona' => sanitize_textarea_field($persona),
+            'knowledge_sources' => $knowledge_sources, // JSON string, no sanitization needed for valid JSON
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
-        
-        $formats = array('%s', '%s', '%s', '%s', '%s', '%s');
+
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s');
         
         // Make sure the table exists
         // We can't parameterize table names in WordPress, but we can reduce risk
@@ -533,37 +536,39 @@ class Chatbot_DB {
     
     /**
      * Update a chatbot configuration
-     * 
+     *
      * @param int $id Configuration ID
      * @param string $name Configuration name
      * @param string $system_prompt System prompt for the chatbot (for backward compatibility)
      * @param string $knowledge Knowledge base content for the chatbot
      * @param string $persona Personality and tone information for the chatbot
+     * @param string $knowledge_sources JSON array of WordPress post IDs to use as knowledge
      * @return bool Whether the update was successful
      */
-    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '') {
+    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '') {
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_configurations';
-        
+
         // If knowledge and persona are empty but system_prompt is provided, use system_prompt for both
         if (empty($knowledge) && !empty($system_prompt)) {
             $knowledge = $system_prompt;
         }
-        
+
         if (empty($persona) && !empty($system_prompt)) {
             $persona = "You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.";
         }
-        
+
         // Log the update operation
         chatbot_log('DEBUG', 'update_configuration', 'Updating chatbot configuration', array(
             'id' => $id,
             'name' => $name,
             'system_prompt_length' => strlen($system_prompt),
             'knowledge_length' => strlen($knowledge),
-            'persona_length' => strlen($persona)
+            'persona_length' => strlen($persona),
+            'knowledge_sources' => $knowledge_sources
         ));
-        
+
         $result = $wpdb->update(
             $table,
             array(
@@ -571,13 +576,14 @@ class Chatbot_DB {
                 'system_prompt' => sanitize_textarea_field($system_prompt),
                 'knowledge' => sanitize_textarea_field($knowledge),
                 'persona' => sanitize_textarea_field($persona),
+                'knowledge_sources' => $knowledge_sources, // JSON string
                 'updated_at' => current_time('mysql')
             ),
             array('id' => $id),
-            array('%s', '%s', '%s', '%s', '%s'),
+            array('%s', '%s', '%s', '%s', '%s', '%s'),
             array('%d')
         );
-        
+
         return $result !== false;
     }
     
@@ -680,6 +686,204 @@ class Chatbot_DB {
         );
         
         return $result !== false;
+    }
+
+    /**
+     * Extract content from a WordPress post for use as knowledge
+     *
+     * @param int $post_id The post ID
+     * @return array|null Post data with content, or null if not available
+     */
+    public function extract_post_content($post_id) {
+        $post = get_post($post_id);
+
+        // Handle deleted or non-published content
+        if (!$post || $post->post_status !== 'publish') {
+            chatbot_log('DEBUG', 'extract_post_content', 'Post not available', array(
+                'post_id' => $post_id,
+                'exists' => $post ? 'yes' : 'no',
+                'status' => $post ? $post->post_status : 'N/A'
+            ));
+            return null;
+        }
+
+        // Get post type label (Post, Page, Product, etc.)
+        $post_type_obj = get_post_type_object($post->post_type);
+        $type_label = $post_type_obj ? $post_type_obj->labels->singular_name : 'Content';
+
+        // Extract clean content - remove shortcodes first, then strip HTML
+        $content = strip_shortcodes($post->post_content);
+        $content = wp_strip_all_tags($content);
+
+        // Clean up extra whitespace
+        $content = preg_replace('/\s+/', ' ', $content);
+        $content = trim($content);
+
+        // Calculate approximate token count (1 token ≈ 4 characters)
+        $token_count = ceil(strlen($content) / 4);
+
+        return array(
+            'id' => $post_id,
+            'title' => $post->post_title,
+            'type' => $type_label,
+            'url' => get_permalink($post_id),
+            'content' => $content,
+            'token_count' => $token_count
+        );
+    }
+
+    /**
+     * Get formatted knowledge content from selected WordPress posts/pages
+     *
+     * @param string $sources_json JSON string containing array of post IDs
+     * @return string Formatted knowledge content for system prompt
+     */
+    public function get_knowledge_from_sources($sources_json) {
+        if (empty($sources_json)) {
+            return '';
+        }
+
+        // Decode the JSON array of post IDs
+        $post_ids = json_decode($sources_json, true);
+
+        if (!is_array($post_ids) || empty($post_ids)) {
+            chatbot_log('DEBUG', 'get_knowledge_from_sources', 'No valid post IDs found', array(
+                'sources_json' => substr($sources_json, 0, 100)
+            ));
+            return '';
+        }
+
+        chatbot_log('INFO', 'get_knowledge_from_sources', 'Extracting knowledge from WordPress content', array(
+            'post_count' => count($post_ids)
+        ));
+
+        $knowledge_parts = array();
+        $total_tokens = 0;
+        $max_tokens = 100000; // 100k token limit
+
+        foreach ($post_ids as $post_id) {
+            $post_data = $this->extract_post_content(intval($post_id));
+
+            if (!$post_data) {
+                continue; // Skip unavailable posts
+            }
+
+            // Check if adding this post would exceed the token limit
+            if ($total_tokens + $post_data['token_count'] > $max_tokens) {
+                chatbot_log('WARNING', 'get_knowledge_from_sources', 'Token limit reached, skipping remaining posts', array(
+                    'total_tokens' => $total_tokens,
+                    'skipped_post_id' => $post_id
+                ));
+                break;
+            }
+
+            // Format the content for this post
+            $formatted = sprintf(
+                "--- %s: %s ---\nURL: %s\n%s\n",
+                $post_data['type'],
+                $post_data['title'],
+                $post_data['url'],
+                $post_data['content']
+            );
+
+            $knowledge_parts[] = $formatted;
+            $total_tokens += $post_data['token_count'];
+        }
+
+        if (empty($knowledge_parts)) {
+            return '';
+        }
+
+        // Add header with instruction about citing sources
+        $knowledge = "IMPORTANT: When answering questions using this content, always cite the source URL so users can learn more.\n\n";
+        $knowledge .= implode("\n", $knowledge_parts);
+
+        chatbot_log('INFO', 'get_knowledge_from_sources', 'Knowledge extracted successfully', array(
+            'posts_included' => count($knowledge_parts),
+            'total_tokens' => $total_tokens
+        ));
+
+        return $knowledge;
+    }
+
+    /**
+     * Search WordPress posts/pages for knowledge source selection
+     *
+     * @param string $search Search term
+     * @param int $limit Maximum results to return
+     * @return array Array of posts with id, title, type, and token_count
+     */
+    public function search_posts_for_knowledge($search = '', $limit = 50) {
+        $args = array(
+            'post_type' => 'any', // All public post types
+            'post_status' => 'publish',
+            'posts_per_page' => $limit,
+            'orderby' => 'title',
+            'order' => 'ASC'
+        );
+
+        if (!empty($search)) {
+            $args['s'] = sanitize_text_field($search);
+        }
+
+        // Get all public post types to search
+        $public_post_types = get_post_types(array('public' => true), 'names');
+        // Remove attachment from the list
+        unset($public_post_types['attachment']);
+        $args['post_type'] = array_values($public_post_types);
+
+        $posts = get_posts($args);
+        $results = array();
+
+        foreach ($posts as $post) {
+            $post_type_obj = get_post_type_object($post->post_type);
+            $type_label = $post_type_obj ? $post_type_obj->labels->singular_name : 'Content';
+
+            // Calculate approximate token count
+            $content = strip_shortcodes($post->post_content);
+            $content = wp_strip_all_tags($content);
+            $token_count = ceil(strlen($content) / 4);
+
+            $results[] = array(
+                'id' => $post->ID,
+                'title' => $post->post_title,
+                'type' => $type_label,
+                'type_slug' => $post->post_type,
+                'url' => get_permalink($post->ID),
+                'token_count' => $token_count
+            );
+        }
+
+        return $results;
+    }
+
+    /**
+     * Get token count for selected knowledge sources
+     *
+     * @param string $sources_json JSON string containing array of post IDs
+     * @return int Total token count
+     */
+    public function get_knowledge_sources_token_count($sources_json) {
+        if (empty($sources_json)) {
+            return 0;
+        }
+
+        $post_ids = json_decode($sources_json, true);
+
+        if (!is_array($post_ids) || empty($post_ids)) {
+            return 0;
+        }
+
+        $total_tokens = 0;
+
+        foreach ($post_ids as $post_id) {
+            $post_data = $this->extract_post_content(intval($post_id));
+            if ($post_data) {
+                $total_tokens += $post_data['token_count'];
+            }
+        }
+
+        return $total_tokens;
     }
 
     /**

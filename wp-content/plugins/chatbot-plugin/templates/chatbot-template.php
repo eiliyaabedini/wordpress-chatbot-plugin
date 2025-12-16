@@ -8,8 +8,14 @@ if (!defined('WPINC')) {
     die;
 }
 
-// Get theme from shortcode attributes
+// Get shortcode attributes
 $theme = isset($atts['theme']) ? $atts['theme'] : 'light';
+$mode = isset($atts['mode']) ? $atts['mode'] : 'floating';
+$height = isset($atts['height']) ? $atts['height'] : '600px';
+$skip_welcome = isset($atts['skip_welcome']) && ($atts['skip_welcome'] === 'true' || $atts['skip_welcome'] === true);
+
+// Determine if inline mode
+$is_inline = ($mode === 'inline');
 
 // Helper function to darken/lighten hex colors
 if (!function_exists('adjustBrightness')) {
@@ -55,8 +61,8 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
 }
 </style>
 
-<!-- Chatbot button -->
-<div class="chat-button" id="chatButton">
+<!-- Chatbot button (hidden in inline mode) -->
+<div class="chat-button<?php echo $is_inline ? ' inline-hidden' : ''; ?>" id="chatButton"<?php echo $is_inline ? ' style="display:none;"' : ''; ?>>
     <div class="chat-icon">
         <?php 
         // Get button icon type and render appropriate icon
@@ -124,11 +130,30 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
 </div>
 
 <!-- Chatbot container -->
-<div class="chatbot-container <?php echo esc_attr($theme); ?>" id="chatbot-container" <?php if (isset($atts['name']) && !empty($atts['name'])): ?>data-config-name="<?php echo esc_attr($atts['name']); ?>"<?php endif; ?>>
+<div class="chatbot-container <?php echo esc_attr($theme); ?><?php echo $is_inline ? ' inline active' : ''; ?>"
+     id="chatbot-container"
+     <?php if (isset($atts['name']) && !empty($atts['name'])): ?>data-config-name="<?php echo esc_attr($atts['name']); ?>"<?php endif; ?>
+     data-mode="<?php echo esc_attr($mode); ?>"
+     <?php if ($skip_welcome): ?>data-skip-welcome="true"<?php endif; ?>
+     <?php if ($is_inline): ?>style="height: <?php echo esc_attr($height); ?>;"<?php endif; ?>>
     <!-- Header only shown in chat mode, not in welcome screen -->
     <div class="chatbot-header" style="display:none;">
-        <span>Chat Support</span>
-        <span class="chatbot-close" id="chatbot-close">✕</span>
+        <div class="chatbot-header-content">
+            <div class="chatbot-header-title">Chat Support</div>
+            <div class="chatbot-header-branding">
+                <span class="powered-by-text">Powered by</span>
+                <a href="https://aipass.one" target="_blank" rel="noopener noreferrer" class="aipass-logo-link">
+                    <div class="aipass-logo">
+                        <div class="aipass-ai-box">AI</div>
+                        <div class="aipass-pass-text">Pass</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+        <div class="chatbot-header-actions">
+            <button class="chatbot-end-btn" title="End this conversation">End Chat</button>
+            <span class="chatbot-close" id="chatbot-close">✕</span>
+        </div>
     </div>
     
     <div class="chatbot-messages" id="chatbot-messages">
@@ -141,10 +166,6 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
         </div>
     </div>
     
-    <!-- Simple text-based typing indicator at the bottom of chat -->
-    <div class="chatbot-simple-typing-indicator" id="chatbot-typing-status" style="display:none;">
-        <?php echo esc_html(get_option('chatbot_typing_indicator_text', 'AI Assistant is typing...')); ?>
-    </div>
     
     <div class="chatbot-welcome-screen">
         <span class="chatbot-close welcome-close" id="welcome-close" style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 22px; color: #4a6cf7;">✕</span>
@@ -157,17 +178,46 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
     </div>
     
     <div class="chatbot-input-container" style="display:none;">
-        <input type="text" class="chatbot-input" placeholder="Type your message...">
-        <div class="chatbot-buttons-container">
-            <button class="chatbot-send-btn">
-                <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        <div class="chatbot-input-row">
+            <!-- Input wrapper with send button inside -->
+            <div class="chatbot-input-wrapper">
+                <input type="text" class="chatbot-input" placeholder="Type your message...">
+                <button class="chatbot-send-btn">
+                    <svg viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Microphone Button for Voice Input -->
+            <button type="button" class="chatbot-mic-btn" title="Voice input">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                    <line x1="12" y1="19" x2="12" y2="23"></line>
+                    <line x1="8" y1="23" x2="16" y2="23"></line>
                 </svg>
             </button>
-            <button class="chatbot-end-btn" title="End this conversation">
-                End Chat
-            </button>
         </div>
+        <div class="chatbot-input-options">
+            <!-- TTS Auto-play Toggle -->
+            <label class="chatbot-tts-toggle" title="Automatically play AI responses as audio">
+                <span class="tts-toggle-label">Auto play</span>
+                <input type="checkbox" id="chatbot-tts-autoplay">
+                <span class="tts-toggle-switch"></span>
+            </label>
+        </div>
+    </div>
+
+    <!-- Powered by AIPass footer (shown only in inline mode) -->
+    <div class="chatbot-inline-footer">
+        <span class="powered-by-text">Powered by</span>
+        <a href="https://aipass.one" target="_blank" rel="noopener noreferrer" class="aipass-logo-link">
+            <div class="aipass-logo">
+                <div class="aipass-ai-box">AI</div>
+                <div class="aipass-pass-text">Pass</div>
+            </div>
+        </a>
     </div>
 </div>

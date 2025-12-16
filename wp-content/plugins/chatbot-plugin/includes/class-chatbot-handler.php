@@ -209,13 +209,20 @@ class Chatbot_Handler {
             $api_key_exists = false;
             $api_key_format_valid = false;
 
+            // Check if using AIPass (do this first, before other checks)
+            $using_aipass = false;
+            if (class_exists('Chatbot_AIPass')) {
+                $aipass = Chatbot_AIPass::get_instance();
+                $using_aipass = get_option('chatbot_aipass_enabled', false) && $aipass->is_connected();
+            }
+
             if ($is_openai_class_loaded) {
                 $openai_instance = Chatbot_OpenAI::get_instance();
                 // Force a settings refresh to ensure we have the latest API key
                 $openai_instance->refresh_settings();
                 $is_api_configured = $openai_instance->is_configured();
 
-                // Directly check API key for detailed diagnosis
+                // Directly check API key for detailed diagnosis (only if not using AIPass)
                 $api_key = get_option('chatbot_openai_api_key', '');
                 $api_key_exists = !empty($api_key);
                 $api_key_format_valid = ($api_key_exists && strpos($api_key, 'sk-') === 0);
@@ -223,44 +230,43 @@ class Chatbot_Handler {
 
                 // Log detailed OpenAI configuration status
                 if (function_exists('chatbot_log')) {
-                    chatbot_log('DEBUG', 'send_message', 'OpenAI configuration check', array(
+                    chatbot_log('DEBUG', 'send_message', 'AI integration check', array(
                         'openai_class_loaded' => $is_openai_class_loaded ? 'Yes' : 'No',
                         'is_api_configured' => $is_api_configured ? 'Yes' : 'No',
+                        'using_aipass' => $using_aipass ? 'Yes' : 'No',
                         'api_key_exists' => $api_key_exists ? 'Yes' : 'No',
-                        'api_key_length' => $api_key_exists ? strlen($api_key) : 0,
                         'api_key_format_valid' => $api_key_format_valid ? 'Yes' : 'No',
-                        'api_key_length_valid' => $api_key_length_valid ? 'Yes' : 'No',
-                        'response_type' => $is_api_configured ? 'AI' : 'Admin'
+                        'response_type' => ($is_api_configured || $using_aipass) ? 'AI' : 'Admin'
                     ));
-
-                    // Log specific API key validation issues
-                    if (!$api_key_exists) {
-                        chatbot_log('ERROR', 'send_message', 'API key is not set in options');
-                    } elseif (!$api_key_format_valid) {
-                        chatbot_log('ERROR', 'send_message', 'API key format is invalid. Should start with "sk-"');
-                    } elseif (!$api_key_length_valid) {
-                        chatbot_log('ERROR', 'send_message', 'API key length is too short');
-                    }
                 }
             }
 
-            // Check for a valid API key with correct format
-            $sender_type = ($is_openai_class_loaded && $is_api_configured && $api_key_format_valid) ? 'ai' : 'admin';
+            // Determine sender type: 'ai' if using AIPass OR has valid API key, otherwise 'admin'
+            $sender_type = 'admin'; // Default to admin
 
-            // Add an indicator in the message for debugging (admin only)
-            if ($sender_type === 'admin') {
+            if ($is_openai_class_loaded && $is_api_configured) {
+                // is_configured() already checks for AIPass, so this is sufficient
+                $sender_type = 'ai';
+            }
+
+            // Log diagnostic information to error log (NEVER show debug info to users)
+            if ($sender_type === 'admin' && !$using_aipass) {
                 $debug_reason = '';
                 if (!$is_openai_class_loaded) {
                     $debug_reason = "OpenAI class not loaded";
                 } elseif (!$api_key_exists) {
-                    $debug_reason = "API key not set";
+                    $debug_reason = "API key not set and AIPass not connected";
                 } elseif (!$api_key_format_valid) {
                     $debug_reason = "API key format invalid (should start with 'sk-')";
                 } elseif (!$is_api_configured) {
                     $debug_reason = "OpenAI integration not configured properly";
                 }
 
-                $response .= "\n\n[Debug: AI integration not active. Reason: " . $debug_reason . ". Please check OpenAI API key configuration in Settings.]";
+                // Log to error log for admin debugging, but DO NOT show to users
+                chatbot_log('WARN', 'send_message', 'AI integration not active', array(
+                    'reason' => $debug_reason,
+                    'using_fallback' => true
+                ));
             }
 
             $db->add_message($conversation_id, $sender_type, $response);

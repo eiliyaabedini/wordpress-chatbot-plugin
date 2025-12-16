@@ -3,7 +3,7 @@
  * Plugin Name: AI Chat Bot
  * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
  * Description: A powerful AI chatbot plugin for WordPress
- * Version: 1.0.0
+ * Version: 1.2.0
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -18,11 +18,16 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.0.0');
+define('CHATBOT_PLUGIN_VERSION', '1.2.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Include required files
+// IMPORTANT: Load AIPass classes BEFORE OpenAI class
+// so that OpenAI can detect AIPass during initialization
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass-proxy.php';
+
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-handler.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
@@ -224,6 +229,7 @@ function create_chatbot_database_tables() {
         system_prompt text NOT NULL,
         knowledge text,
         persona text,
+        knowledge_sources text,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id),
@@ -392,6 +398,28 @@ function update_chatbot_database_tables() {
                 }
             }
         }
+
+        // Check for knowledge_sources column (for WordPress content as knowledge)
+        $check_knowledge_sources_column = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                DB_NAME,
+                $table_configurations,
+                'knowledge_sources'
+            )
+        );
+
+        if (empty($check_knowledge_sources_column)) {
+            chatbot_log('INFO', 'update_tables', 'Adding knowledge_sources column to configurations table');
+
+            $alter_query = sprintf(
+                "ALTER TABLE `%s` ADD COLUMN `knowledge_sources` text DEFAULT NULL AFTER `persona`",
+                $wpdb->prefix . 'chatbot_configurations'
+            );
+            $wpdb->query($alter_query);
+
+            chatbot_log('INFO', 'update_tables', 'Added knowledge_sources column to configurations table');
+        }
     }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');
@@ -450,11 +478,20 @@ class Chatbot_Plugin {
             array(),
             CHATBOT_PLUGIN_VERSION
         );
-        
+
+        // Add marked.js for markdown rendering (lightweight, ~8KB gzipped)
+        wp_enqueue_script(
+            'marked-js',
+            'https://cdn.jsdelivr.net/npm/marked/marked.min.js',
+            array(),
+            '15.0.4',
+            true
+        );
+
         wp_enqueue_script(
             'chatbot-plugin-script',
             CHATBOT_PLUGIN_URL . 'assets/js/chatbot.js',
-            array('jquery'),
+            array('jquery', 'marked-js'),
             CHATBOT_PLUGIN_VERSION,
             true
         );
@@ -488,6 +525,9 @@ class Chatbot_Plugin {
             array(
                 'theme' => 'light',
                 'name' => '',
+                'mode' => 'floating',       // 'floating' (default) or 'inline'
+                'height' => '600px',        // Height for inline mode
+                'skip_welcome' => 'false',  // Skip welcome screen and start immediately
             ),
             $atts,
             'chatbot'

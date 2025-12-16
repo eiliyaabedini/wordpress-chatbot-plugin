@@ -17,59 +17,351 @@
         const chatbotNameInput = $('.chatbot-name-input');
         const chatbotStartBtn = $('.chatbot-start-btn');
         const chatbotInputContainer = $('.chatbot-input-container');
-        
+
+        // Detect inline mode from data attribute
+        const isInlineMode = chatbotContainer.data('mode') === 'inline';
+        const skipWelcome = chatbotContainer.data('skip-welcome') === true || chatbotContainer.data('skip-welcome') === 'true';
+
+        // TTS/STT Variables
+        let ttsAutoPlay = localStorage.getItem('chatbot_tts_autoplay') === 'true';
+        let currentAudio = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let ttsQueue = []; // Queue for TTS requests
+        let ttsProcessing = false; // Flag to prevent concurrent TTS
+        const chatbotMicBtn = $('.chatbot-mic-btn');
+        const chatbotTtsToggle = $('#chatbot-tts-autoplay');
+
+        // Initialize TTS toggle from localStorage
+        chatbotTtsToggle.prop('checked', ttsAutoPlay);
+
+        // TTS Toggle event handler
+        chatbotTtsToggle.on('change', function() {
+            ttsAutoPlay = $(this).is(':checked');
+            localStorage.setItem('chatbot_tts_autoplay', ttsAutoPlay);
+            console.log('TTS Auto-play:', ttsAutoPlay ? 'enabled' : 'disabled');
+        });
+
+        // Speaker icon SVG for messages
+        const speakerIconSVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+
+        // Process TTS queue one at a time
+        async function processTTSQueue() {
+            if (ttsProcessing || ttsQueue.length === 0) {
+                return;
+            }
+
+            ttsProcessing = true;
+            const { text, button, retryCount } = ttsQueue.shift();
+
+            try {
+                await executeTTS(text, button, retryCount);
+            } finally {
+                ttsProcessing = false;
+                // Process next in queue after a small delay
+                if (ttsQueue.length > 0) {
+                    setTimeout(processTTSQueue, 500);
+                }
+            }
+        }
+
+        // Add TTS request to queue
+        function playTTS(text, button) {
+            // Stop any currently playing audio first
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+                $('.chatbot-speaker-btn').removeClass('playing');
+            }
+
+            // Add to queue
+            ttsQueue.push({ text, button, retryCount: 0 });
+
+            // Start processing if not already
+            processTTSQueue();
+        }
+
+        // Execute TTS for a message via AJAX (server-side API call)
+        async function executeTTS(text, button, retryCount = 0) {
+            // Show loading state
+            button.addClass('loading').removeClass('playing');
+
+            try {
+                console.log('Generating TTS for:', text.substring(0, 50) + '...');
+
+                // Make AJAX call to server for TTS
+                const response = await $.ajax({
+                    url: chatbotPluginVars.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'chatbot_generate_speech',
+                        text: text,
+                        voice: 'alloy',
+                        nonce: chatbotPluginVars.nonce
+                    },
+                    timeout: 30000 // 30 second timeout
+                });
+
+                if (!response.success) {
+                    throw new Error(response.data?.message || 'TTS failed');
+                }
+
+                // Convert base64 audio to blob
+                const audioData = response.data.audio_data;
+                const byteCharacters = atob(audioData);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const audioBlob = new Blob([byteArray], { type: 'audio/mpeg' });
+
+                // Create audio and play
+                const audioUrl = URL.createObjectURL(audioBlob);
+                currentAudio = new Audio(audioUrl);
+
+                return new Promise((resolve, reject) => {
+                    currentAudio.onplay = function() {
+                        button.removeClass('loading').addClass('playing');
+                    };
+
+                    currentAudio.onended = function() {
+                        button.removeClass('playing');
+                        URL.revokeObjectURL(audioUrl);
+                        currentAudio = null;
+                        resolve();
+                    };
+
+                    currentAudio.onerror = function(e) {
+                        console.error('Audio playback error:', e);
+                        button.removeClass('loading playing');
+                        URL.revokeObjectURL(audioUrl);
+                        currentAudio = null;
+                        reject(e);
+                    };
+
+                    currentAudio.play().then(() => {
+                        console.log('TTS playback started');
+                    }).catch(reject);
+                });
+
+            } catch (error) {
+                console.error('TTS error:', error);
+                button.removeClass('loading playing');
+
+                // Retry on server errors (up to 2 retries)
+                if (retryCount < 2 && error.message && error.message.includes('Internal Server Error')) {
+                    console.log('Retrying TTS after error, attempt', retryCount + 1);
+                    await new Promise(resolve => setTimeout(resolve, 1000 * (retryCount + 1)));
+                    return executeTTS(text, button, retryCount + 1);
+                }
+            }
+        }
+
+        // Stop current audio playback
+        function stopAudio() {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio = null;
+                $('.chatbot-speaker-btn').removeClass('playing loading');
+            }
+        }
+
+        // Start voice recording for STT
+        async function startRecording() {
+            try {
+                console.log('Requesting microphone access...');
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                // Determine best audio format
+                let mimeType = 'audio/webm';
+                if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                    mimeType = 'audio/webm;codecs=opus';
+                } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
+                    mimeType = 'audio/mp4';
+                }
+
+                mediaRecorder = new MediaRecorder(stream, { mimeType: mimeType });
+                audioChunks = [];
+
+                mediaRecorder.ondataavailable = function(e) {
+                    if (e.data.size > 0) {
+                        audioChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async function() {
+                    console.log('Recording stopped, processing audio...');
+                    chatbotMicBtn.removeClass('recording').addClass('processing');
+
+                    const audioBlob = new Blob(audioChunks, { type: mimeType });
+                    console.log('Audio blob created:', audioBlob.size, 'bytes');
+
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Transcribe the audio via AJAX
+                    await transcribeAudio(audioBlob);
+
+                    chatbotMicBtn.removeClass('processing');
+                };
+
+                mediaRecorder.onerror = function(e) {
+                    console.error('MediaRecorder error:', e);
+                    chatbotMicBtn.removeClass('recording processing');
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                mediaRecorder.start();
+                chatbotMicBtn.addClass('recording');
+                console.log('Recording started');
+
+            } catch (error) {
+                console.error('Microphone error:', error);
+                chatbotMicBtn.removeClass('recording processing');
+
+                if (error.name === 'NotAllowedError') {
+                    alert('Microphone access was denied. Please allow microphone access in your browser settings.');
+                } else if (error.name === 'NotFoundError') {
+                    alert('No microphone found. Please connect a microphone and try again.');
+                } else {
+                    alert('Could not access microphone. Please check your permissions.');
+                }
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                console.log('Stopping recording...');
+            }
+        }
+
+        // Transcribe audio via AJAX (server-side API call)
+        async function transcribeAudio(audioBlob) {
+            try {
+                console.log('Transcribing audio...');
+
+                // Convert blob to base64
+                const reader = new FileReader();
+                const base64Promise = new Promise((resolve, reject) => {
+                    reader.onloadend = () => {
+                        // Remove data URL prefix (e.g., "data:audio/webm;base64,")
+                        const base64 = reader.result.split(',')[1];
+                        resolve(base64);
+                    };
+                    reader.onerror = reject;
+                });
+                reader.readAsDataURL(audioBlob);
+                const audioBase64 = await base64Promise;
+
+                // Make AJAX call to server for STT
+                const response = await $.ajax({
+                    url: chatbotPluginVars.ajaxUrl,
+                    type: 'POST',
+                    data: {
+                        action: 'chatbot_transcribe_audio',
+                        audio_data: audioBase64,
+                        nonce: chatbotPluginVars.nonce
+                    }
+                });
+
+                console.log('Transcription response:', response);
+
+                if (response.success && response.data.text) {
+                    // Insert transcribed text into input field
+                    const currentText = chatbotInput.val();
+                    const newText = currentText ? currentText + ' ' + response.data.text : response.data.text;
+                    chatbotInput.val(newText);
+                    chatbotInput.focus();
+
+                    // Update character counter
+                    chatbotInput.trigger('input');
+
+                    console.log('Transcription inserted:', response.data.text);
+                } else {
+                    console.warn('No text in transcription result');
+                    if (response.data?.message) {
+                        alert('Transcription failed: ' + response.data.message);
+                    }
+                }
+
+            } catch (error) {
+                console.error('STT error:', error);
+                alert('Could not transcribe audio. Please try again.');
+            }
+        }
+
+        // Microphone button click handler (toggle recording)
+        chatbotMicBtn.on('click', function() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
         // Detect if we're on mobile
         let isMobile = window.innerWidth <= 768;
-        
+
         // Update mobile detection on window resize
         $(window).on('resize', function() {
             isMobile = window.innerWidth <= 768;
         });
-        
-        // Toggle chat window
-        chatButton.on('click', function() {
-            chatbotContainer.toggleClass('active');
-            
-            if (chatbotContainer.hasClass('active')) {
-                // If on mobile, hide the chat button when chat is open
+
+        // Toggle chat window (only for floating mode)
+        if (!isInlineMode) {
+            chatButton.on('click', function() {
+                chatbotContainer.toggleClass('active');
+
+                if (chatbotContainer.hasClass('active')) {
+                    // If on mobile, hide the chat button when chat is open
+                    if (isMobile) {
+                        chatButton.addClass('hidden-mobile');
+                    }
+
+                    // If conversation already exists, focus on input field, otherwise focus on name input
+                    if (conversationId) {
+                        chatbotInput.focus();
+                        chatbotWelcomeScreen.hide();
+                        $('.chatbot-header').show();
+                        chatbotMessages.show();
+                        chatbotInputContainer.show();
+                    } else {
+                        // Show welcome screen and focus on name input
+                        chatbotWelcomeScreen.show();
+                        $('.chatbot-header').hide();
+                        chatbotMessages.hide();
+                        chatbotNameInput.focus();
+                    }
+                }
+            });
+        }
+
+        // Close chat window (only for floating mode)
+        if (!isInlineMode) {
+            chatbotClose.on('click', function() {
+                chatbotContainer.removeClass('active');
+                // If on mobile, show the chat button again when chat is closed
                 if (isMobile) {
-                    chatButton.addClass('hidden-mobile');
+                    chatButton.removeClass('hidden-mobile');
                 }
-                
-                // If conversation already exists, focus on input field, otherwise focus on name input
-                if (conversationId) {
-                    chatbotInput.focus();
-                    chatbotWelcomeScreen.hide();
-                    $('.chatbot-header').show();
-                    chatbotMessages.show();
-                    chatbotInputContainer.show();
-                } else {
-                    // Show welcome screen and focus on name input
-                    chatbotWelcomeScreen.show();
-                    $('.chatbot-header').hide();
-                    chatbotMessages.hide();
-                    chatbotNameInput.focus();
+            });
+
+            // Close welcome screen
+            $('#welcome-close').on('click', function() {
+                chatbotContainer.removeClass('active');
+                // If on mobile, show the chat button again when welcome screen is closed
+                if (isMobile) {
+                    chatButton.removeClass('hidden-mobile');
                 }
-            }
-        });
-        
-        // Close chat window
-        chatbotClose.on('click', function() {
-            chatbotContainer.removeClass('active');
-            // If on mobile, show the chat button again when chat is closed
-            if (isMobile) {
-                chatButton.removeClass('hidden-mobile');
-            }
-        });
-        
-        // Close welcome screen
-        $('#welcome-close').on('click', function() {
-            chatbotContainer.removeClass('active');
-            // If on mobile, show the chat button again when welcome screen is closed
-            if (isMobile) {
-                chatButton.removeClass('hidden-mobile');
-            }
-        });
+            });
+        } else {
+            // In inline mode, hide the close buttons
+            chatbotClose.hide();
+            $('#welcome-close').hide();
+        }
         
         let conversationId = null;
         let visitorName = '';
@@ -91,36 +383,116 @@
             }, 10000);
         }
         
+        // Configure marked.js for safe rendering
+        if (typeof marked !== 'undefined') {
+            marked.setOptions({
+                breaks: true,      // Convert \n to <br>
+                gfm: true,         // GitHub Flavored Markdown
+                headerIds: false,  // Don't add IDs to headers (security)
+                mangle: false      // Don't mangle email addresses
+            });
+        }
+
+        // Function to safely render markdown (only for AI/bot messages)
+        function renderMarkdown(text) {
+            if (typeof marked === 'undefined') {
+                // Fallback: escape HTML and convert newlines to <br>
+                return $('<div>').text(text).html().replace(/\n/g, '<br>');
+            }
+
+            try {
+                // Parse markdown
+                let html = marked.parse(text);
+
+                // Make links open in new tab and add security attributes
+                html = html.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
+
+                return html;
+            } catch (e) {
+                console.error('Markdown parsing error:', e);
+                // Fallback to plain text
+                return $('<div>').text(text).html().replace(/\n/g, '<br>');
+            }
+        }
+
+        // Track message IDs that have already had TTS played
+        let playedTTSMessages = new Set();
+
         // Function to add a new message to the chat
-        function addMessage(message, senderType, preventScroll) {
+        function addMessage(message, senderType, preventScroll, messageId) {
             // Remove loading animation if it exists
             $('#chatbot-loading').hide();
-            
+
             // Only hide typing indicator for AI responses, keep it for user messages
             if (senderType === 'ai' || senderType === 'admin') {
-                window.typingIndicatorShown = false;
-                $('#chatbot-typing-status').fadeOut(100);
+                hideTypingIndicator();
             }
-            
+
             const messageElement = $('<div class="chatbot-message ' + senderType + '"></div>');
-            
+
+            // Create wrapper for message content (for flex layout with speaker button)
+            const messageWrapper = $('<div class="chatbot-message-wrapper"></div>');
+
             // Add sender label for AI and admin messages
             if (senderType === 'ai' || senderType === 'admin') {
                 const senderLabel = $('<div class="chatbot-message-sender"></div>');
                 senderLabel.text(senderType === 'ai' ? 'AI Assistant' : 'Admin');
-                messageElement.append(senderLabel);
+                messageWrapper.append(senderLabel);
             } else if (senderType === 'system') {
                 const senderLabel = $('<div class="chatbot-message-sender"></div>');
                 senderLabel.text('System');
                 messageElement.append(senderLabel);
             }
-            
-            // Add message text
-            const messageText = $('<div></div>').text(message);
-            messageElement.append(messageText);
-            
+
+            // Add message text - render markdown for AI/admin messages, plain text for user
+            const messageText = $('<div class="chatbot-message-content"></div>');
+            if (senderType === 'ai' || senderType === 'admin') {
+                // Render markdown for AI/admin messages
+                messageText.html(renderMarkdown(message));
+                messageWrapper.append(messageText);
+                messageElement.append(messageWrapper);
+
+                // Add speaker button for TTS
+                const speakerBtn = $('<button class="chatbot-speaker-btn" title="Play audio"></button>');
+                speakerBtn.html(speakerIconSVG);
+
+                // Store the message text for TTS
+                speakerBtn.data('message', message);
+
+                // Click handler for speaker button
+                speakerBtn.on('click', function(e) {
+                    e.stopPropagation();
+                    const btn = $(this);
+                    const text = btn.data('message');
+
+                    // If currently playing, stop
+                    if (btn.hasClass('playing')) {
+                        stopAudio();
+                    } else {
+                        playTTS(text, btn);
+                    }
+                });
+
+                messageElement.append(speakerBtn);
+
+                // Auto-play TTS if enabled and this is a new message (not from history)
+                // Use messageId to avoid playing TTS multiple times for the same message
+                const msgKey = messageId || message.substring(0, 50);
+                if (ttsAutoPlay && !preventScroll && !playedTTSMessages.has(msgKey)) {
+                    playedTTSMessages.add(msgKey);
+                    // Delay slightly to ensure message is rendered
+                    setTimeout(function() {
+                        playTTS(message, speakerBtn);
+                    }, 100);
+                }
+            } else {
+                // Plain text for user messages (security: prevent XSS)
+                messageText.text(message);
+                messageElement.append(messageText);
+            }
+
             chatbotMessages.append(messageElement);
-            
+
             // Only scroll to bottom if not prevented (new messages)
             if (!preventScroll) {
                 chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
@@ -131,22 +503,53 @@
         function showTypingIndicator() {
             // Hide loading animation
             $('#chatbot-loading').hide();
-            
-            // Show simple typing status
-            $('#chatbot-typing-status').fadeIn(200);
-            
+
+            // Remove any existing typing bubble
+            $('.chatbot-typing-bubble').remove();
+
+            // Create typing bubble with dots animation
+            const typingBubble = $(`
+                <div class="chatbot-typing-bubble">
+                    <div class="chatbot-typing-dots">
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                        <span class="dot"></span>
+                    </div>
+                </div>
+            `);
+
+            // Add to messages area
+            chatbotMessages.append(typingBubble);
+            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+
+            // Disable input while waiting for response
+            chatbotInput.prop('disabled', true);
+            chatbotSendBtn.prop('disabled', true);
+            $('.chatbot-mic-btn').prop('disabled', true);
+
             // Set flag to track typing state
             window.typingIndicatorShown = true;
-            
-            // Set a safety timeout to hide the indicator if it gets stuck
+
+            // Set a safety timeout to show message if it takes too long
             setTimeout(function() {
-                // Only hide if there's been no response yet
+                // Only show message if still waiting
                 if (window.typingIndicatorShown) {
-                    $('#chatbot-typing-status').fadeOut(200);
                     chatbotMessages.append('<div class="chatbot-system-message">Our assistant is still thinking. Please wait a moment...</div>');
                     chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
-            }, 15000); // Hide after 15 seconds if no response
+            }, 15000); // Show message after 15 seconds if no response
+        }
+
+        // Function to hide typing indicator
+        function hideTypingIndicator() {
+            window.typingIndicatorShown = false;
+            $('.chatbot-typing-bubble').remove();
+
+            // Re-enable input
+            chatbotInput.prop('disabled', false);
+            chatbotSendBtn.prop('disabled', false);
+            $('.chatbot-mic-btn').prop('disabled', false);
+            chatbotInput.focus();
         }
         
         // Function to start a new conversation
@@ -155,18 +558,20 @@
                 alert('Please enter your name to start the chat.');
                 return;
             }
-            
+
             visitorName = name.trim();
-            
-            // Hide welcome screen, show header, messages area and chat interface with loading animation
+
+            // Hide welcome screen, show messages area and chat interface with loading animation
             chatbotWelcomeScreen.hide();
-            $('.chatbot-header').show();
+            // Only show header in floating mode (inline mode hides it via CSS)
+            if (!isInlineMode) {
+                $('.chatbot-header').show();
+            }
             chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
             $('#chatbot-loading').show();
             setLoadingTimeout(); // Set timeout to hide loading indicator
-            $('.chatbot-typing-indicator').hide();
-            
+
             // Show connection status directly in chat
             chatbotMessages.append('<div class="chatbot-system-message">Connecting to AI assistant...</div>');
             
@@ -254,7 +659,7 @@
                         }
                     } else {
                         // Hide typing indicator and show error
-                        $('.chatbot-typing-indicator').hide();
+                        hideTypingIndicator();
                         chatbotMessages.append('<div class="chatbot-system-message">Error sending message. Please try again.</div>');
                         chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                         
@@ -275,11 +680,11 @@
                 },
                 error: function() {
                     // Just hide typing indicator without showing error message
-                    $('.chatbot-typing-indicator').hide();
+                    hideTypingIndicator();
                 }
             });
         }
-        
+
         // Function to end the current conversation
         function endConversation() {
             if (!conversationId) {
@@ -473,27 +878,41 @@
                         if (hasNewMessages || currentMessageCount === 0) {
                             // Clear messages area and repopulate with all messages
                             chatbotMessages.empty();
-                            
+
+                            // Find the last AI message index (for auto-play TTS)
+                            let lastAiMessageIndex = -1;
+                            if (hasNewMessages) {
+                                for (let i = response.data.messages.length - 1; i >= 0; i--) {
+                                    const sType = response.data.messages[i].sender_type;
+                                    if (sType === 'bot' || sType === 'ai' || sType === 'admin') {
+                                        lastAiMessageIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+
                             // Add all messages
-                            response.data.messages.forEach(function(msg) {
+                            response.data.messages.forEach(function(msg, index) {
                                 // Determine if the message is from AI or admin
                                 let senderType = msg.sender_type;
                                 if (senderType === 'bot') {
                                     senderType = 'ai';
                                 }
-                                addMessage(msg.message, senderType, !hasNewMessages); // Pass flag to prevent scrolling
+                                // Only allow TTS auto-play for the last AI message when there are new messages
+                                const isLastAiMessage = hasNewMessages && index === lastAiMessageIndex;
+                                const preventTTS = !isLastAiMessage;
+                                addMessage(msg.message, senderType, preventTTS, msg.id);
                             });
-                            
+
                             // If there are new messages from the AI, hide the typing indicator
                             if (hasNewMessages) {
                                 // Check if we received an AI message
                                 const hasNewAiMessage = response.data.messages.some(function(msg) {
                                     return (msg.sender_type === 'bot' || msg.sender_type === 'ai');
                                 });
-                                
+
                                 if (hasNewAiMessage) {
-                                    window.typingIndicatorShown = false;
-                                    $('#chatbot-typing-status').fadeOut(200);
+                                    hideTypingIndicator();
                                 }
                             }
                         }
@@ -521,9 +940,9 @@
             }
         });
         
-        // Add character counter
+        // Add character counter to input options row
         const charCounter = $('<div class="chatbot-char-counter"></div>');
-        chatbotInputContainer.append(charCounter);
+        chatbotInputContainer.find('.chatbot-input-options').prepend(charCounter);
 
         // Function to update character counter
         function updateCharCounter() {
@@ -616,21 +1035,24 @@
             // Resume conversation
             conversationId = storedConversationId;
             visitorName = storedVisitorName;
-            
-            // Hide welcome screen, show header, messages and chat interface
+
+            // Hide welcome screen, show messages and chat interface
             chatbotWelcomeScreen.hide();
-            $('.chatbot-header').show();
+            // Only show header in floating mode (inline mode hides it via CSS)
+            if (!isInlineMode) {
+                $('.chatbot-header').show();
+            }
             chatbotMessages.show(); // Show messages area
             chatbotInputContainer.show();
-            
-            // Show loading animation and set a timeout to hide it 
+
+            // Show loading animation and set a timeout to hide it
             $('#chatbot-loading').show();
             setLoadingTimeout();
-            
+
             // Show reconnection message
             chatbotMessages.append('<div class="chatbot-system-message">Reconnecting to previous session...</div>');
             chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-            
+
             // Start polling for new messages
             startPolling();
         }
@@ -650,10 +1072,36 @@
             }
         });
         
-        // Check if the chatbot was open in the previous session
-        if (localStorage.getItem('chatbot_is_open') === 'true') {
+        // Check if the chatbot was open in the previous session (floating mode only)
+        if (!isInlineMode && localStorage.getItem('chatbot_is_open') === 'true') {
             chatbotContainer.addClass('active');
         }
+
+        // Inline mode initialization
+        if (isInlineMode) {
+            // Container is already visible (has .active class from PHP)
+            // Check if we should restore a previous conversation
+            if (shouldRestore) {
+                // Already handled above - conversation restored
+                console.log('Inline mode: Restored previous conversation');
+            } else if (skipWelcome) {
+                // Skip welcome screen and start conversation immediately with "Guest"
+                console.log('Inline mode: Skipping welcome, auto-starting conversation');
+                chatbotWelcomeScreen.hide();
+                chatbotMessages.show();
+                chatbotInputContainer.show();
+
+                // Auto-start conversation with "Guest" name
+                startConversation('Guest');
+            } else {
+                // Show welcome screen as usual
+                console.log('Inline mode: Showing welcome screen');
+                chatbotWelcomeScreen.show();
+                chatbotMessages.hide();
+                chatbotInputContainer.hide();
+                chatbotNameInput.focus();
+            }
+        }
     });
-    
+
 })(jQuery);

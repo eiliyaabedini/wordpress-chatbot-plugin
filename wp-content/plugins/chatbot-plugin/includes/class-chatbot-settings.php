@@ -293,7 +293,7 @@ class Chatbot_Settings {
                     <?php _e('General', 'chatbot-plugin'); ?>
                 </a>
                 <a href="?page=chatbot-settings&tab=openai" class="nav-tab <?php echo $active_tab === 'openai' ? 'nav-tab-active' : ''; ?>">
-                    <?php _e('OpenAI Integration', 'chatbot-plugin'); ?>
+                    <?php _e('AI Integration', 'chatbot-plugin'); ?>
                 </a>
                 <a href="?page=chatbot-settings&tab=notifications" class="nav-tab <?php echo $active_tab === 'notifications' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Notifications', 'chatbot-plugin'); ?>
@@ -306,22 +306,28 @@ class Chatbot_Settings {
                 </a>
             </h2>
             
-            <?php 
+            <?php
             // We still need the sync functionality without showing the debug panel
+            // Security: Verify nonce to prevent CSRF attacks
             if ($active_tab === 'openai' && isset($_GET['action']) && $_GET['action'] === 'sync_settings') {
-                // Try to force sync settings
-                if (class_exists('Chatbot_OpenAI')) {
-                    $openai = Chatbot_OpenAI::get_instance();
-                    if (method_exists($openai, 'sync_settings_between_groups')) {
-                        // Silently sync settings
-                        $openai->sync_settings_between_groups();
-                        
-                        // Force refresh to see changes
-                        echo '<script>
-                            setTimeout(function() {
-                                window.location.href = "' . admin_url('admin.php?page=chatbot-settings&tab=openai') . '";
-                            }, 500);
-                        </script>';
+                // Verify nonce for CSRF protection
+                if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'chatbot_sync_settings')) {
+                    echo '<div class="notice notice-error"><p>' . esc_html__('Security check failed. Please try again.', 'chatbot-plugin') . '</p></div>';
+                } else {
+                    // Try to force sync settings
+                    if (class_exists('Chatbot_OpenAI')) {
+                        $openai = Chatbot_OpenAI::get_instance();
+                        if (method_exists($openai, 'sync_settings_between_groups')) {
+                            // Silently sync settings
+                            $openai->sync_settings_between_groups();
+
+                            // Force refresh to see changes
+                            echo '<script>
+                                setTimeout(function() {
+                                    window.location.href = "' . esc_url(admin_url('admin.php?page=chatbot-settings&tab=openai')) . '";
+                                }, 500);
+                            </script>';
+                        }
                     }
                 }
             }
@@ -331,19 +337,19 @@ class Chatbot_Settings {
             ?>
                 <!-- Hidden diagnostic panel, only visible with ?debug=openai parameter -->
                 <div class="card" style="margin-bottom: 20px; background-color: #f8f8f8; border-left: 4px solid blue; padding: 10px 15px;">
-                    <h3>OpenAI Settings Diagnostic</h3>
+                    <h3>AI Settings Diagnostic</h3>
                     <?php
-                    // Direct database query to find OpenAI options
+                    // Direct database query to find AI integration options
                     global $wpdb;
                     $openai_options = $wpdb->get_results(
-                        "SELECT option_name, option_value FROM {$wpdb->options} 
-                        WHERE option_name LIKE 'chatbot_openai_%'"
+                        "SELECT option_name, option_value FROM {$wpdb->options}
+                        WHERE option_name LIKE 'chatbot_openai_%' OR option_name LIKE 'chatbot_aipass_%'"
                     );
                     
                     if (empty($openai_options)) {
-                        echo '<p>No OpenAI settings found in database.</p>';
+                        echo '<p>No AI integration settings found in database.</p>';
                     } else {
-                        echo '<p>Current OpenAI settings found in database:</p>';
+                        echo '<p>Current AI integration settings found in database:</p>';
                         echo '<ul>';
                         foreach ($openai_options as $option) {
                             $display_value = $option->option_name === 'chatbot_openai_api_key' 
@@ -379,10 +385,10 @@ class Chatbot_Settings {
                     // Data Retention tab content
                     $this->render_data_retention_tab();
                 } elseif ($active_tab === 'openai') {
-                    // Debug log for OpenAI tab rendering
-                    error_log('Chatbot: Rendering OpenAI settings tab');
+                    // Debug log for AI Integration tab rendering
+                    error_log('Chatbot: Rendering AI Integration settings tab');
 
-                    // Debug current OpenAI settings values
+                    // Debug current AI integration settings values
                     $api_key = get_option('chatbot_openai_api_key', '');
                     $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
                     $max_tokens = get_option('chatbot_openai_max_tokens', 150);
@@ -396,27 +402,27 @@ class Chatbot_Settings {
                     // Add diagnostic JavaScript to check registered settings
                     ?>
                     <script type="text/javascript">
-                    console.group('Chatbot Debug: OpenAI Settings');
-                    console.log('Tab active: OpenAI Integration');
+                    console.group('Chatbot Debug: AI Integration Settings');
+                    console.log('Tab active: AI Integration');
                     console.log('Settings group used: chatbot_openai_settings');
-                    
-                    // Helper function to inspect DOM elements
-                    function inspectFields() {
-                        console.log('API Key field exists:', $('#chatbot_openai_api_key').length > 0);
-                        console.log('Model field exists:', $('#chatbot_openai_model').length > 0);
-                        console.log('Max tokens field exists:', $('#chatbot_openai_max_tokens').length > 0);
-                        console.log('Temperature field exists:', $('#chatbot_openai_temperature').length > 0);
-                        console.log('System prompt field exists:', $('#chatbot_openai_system_prompt').length > 0);
-                        
-                        // Check for any visible fields at all
-                        console.log('Input fields in form:', $('form input, form textarea, form select').length);
-                        
-                        // Check form action
-                        console.log('Form action:', $('form').attr('action'));
-                    }
-                    
+
                     // Log all available wp options for debugging
                     jQuery(document).ready(function($) {
+                        // Helper function to inspect DOM elements
+                        function inspectFields() {
+                            console.log('API Key field exists:', $('#chatbot_openai_api_key').length > 0);
+                            console.log('Model field exists:', $('#chatbot_openai_model').length > 0);
+                            console.log('Max tokens field exists:', $('#chatbot_openai_max_tokens').length > 0);
+                            console.log('Temperature field exists:', $('#chatbot_openai_temperature').length > 0);
+                            console.log('System prompt field exists:', $('#chatbot_openai_system_prompt').length > 0);
+
+                            // Check for any visible fields at all
+                            console.log('Input fields in form:', $('form input, form textarea, form select').length);
+
+                            // Check form action
+                            console.log('Form action:', $('form').attr('action'));
+                        }
+
                         // Inspect DOM after short delay to ensure it's rendered
                         setTimeout(inspectFields, 500);
                         
@@ -429,7 +435,7 @@ class Chatbot_Settings {
                             },
                             success: function(response) {
                                 if (response.success && response.data) {
-                                    console.log('OpenAI settings from database:', response.data);
+                                    console.log('AI integration settings from database:', response.data);
                                 }
                             }
                         });
@@ -447,11 +453,37 @@ class Chatbot_Settings {
             </form>
             
             <?php if ($active_tab === 'openai'): ?>
-                <div class="card" style="max-width: 800px; margin-top: 20px;">
-                    <h3><?php _e('OpenAI API Documentation', 'chatbot-plugin'); ?></h3>
-                    <p><?php _e('To use OpenAI integration, you need an API key from OpenAI. Visit <a href="https://platform.openai.com/signup" target="_blank">OpenAI</a> to create an account and get your API key.', 'chatbot-plugin'); ?></p>
-                    <p><?php _e('For more detailed information about the OpenAI API and how it\'s used in this plugin, please refer to our <a href="' . esc_url(plugin_dir_url(dirname(__FILE__)) . 'docs/openai-api-documentation.md') . '" target="_blank">documentation</a>.', 'chatbot-plugin'); ?></p>
-                </div>
+                <?php
+                // Check if AIPass is enabled
+                $aipass_enabled = get_option('chatbot_aipass_enabled', false);
+                $aipass_connected = false;
+                if (class_exists('Chatbot_AIPass')) {
+                    $aipass_connected = Chatbot_AIPass::get_instance()->is_connected();
+                }
+                ?>
+
+                <?php if ($aipass_enabled && $aipass_connected): ?>
+                    <!-- AIPass Documentation Card -->
+                    <div id="aipass-doc-card" class="card" style="max-width: 800px; margin-top: 20px; border-left: 4px solid #2196F3;">
+                        <h3 style="color: #2196F3;"><?php _e('AIPass Documentation', 'chatbot-plugin'); ?></h3>
+                        <p><?php _e('You are using AIPass for AI-powered features. AIPass provides seamless access to 161+ AI models without managing API keys.', 'chatbot-plugin'); ?></p>
+                        <p>
+                            <?php _e('Resources:', 'chatbot-plugin'); ?>
+                            <ul style="margin: 10px 0; padding-left: 20px;">
+                                <li><a href="https://aipass.one/" target="_blank" rel="noopener"><?php _e('AIPass Homepage', 'chatbot-plugin'); ?></a> - <?php _e('Learn about features and pricing', 'chatbot-plugin'); ?></li>
+                                <li><a href="https://aipass.one/dashboard" target="_blank" rel="noopener"><?php _e('AIPass Dashboard', 'chatbot-plugin'); ?></a> - <?php _e('View your usage and balance', 'chatbot-plugin'); ?></li>
+                                <li><a href="https://aipass.one/docs" target="_blank" rel="noopener"><?php _e('API Documentation', 'chatbot-plugin'); ?></a> - <?php _e('Developer resources', 'chatbot-plugin'); ?></li>
+                            </ul>
+                        </p>
+                    </div>
+                <?php else: ?>
+                    <!-- OpenAI Documentation Card -->
+                    <div id="openai-doc-card" class="card" style="max-width: 800px; margin-top: 20px; border-left: 4px solid #10a37f;">
+                        <h3 style="color: #10a37f;"><?php _e('OpenAI API Documentation', 'chatbot-plugin'); ?></h3>
+                        <p><?php _e('To use OpenAI integration, you need an API key from OpenAI. Visit <a href="https://platform.openai.com/signup" target="_blank">OpenAI</a> to create an account and get your API key.', 'chatbot-plugin'); ?></p>
+                        <p><?php _e('For more detailed information about the OpenAI API and how it\'s used in this plugin, please refer to our <a href="' . esc_url(plugin_dir_url(dirname(__FILE__)) . 'docs/openai-api-documentation.md') . '" target="_blank">documentation</a>.', 'chatbot-plugin'); ?></p>
+                    </div>
+                <?php endif; ?>
             <?php endif; ?>
             
             <?php if ($active_tab === 'notifications'): ?>

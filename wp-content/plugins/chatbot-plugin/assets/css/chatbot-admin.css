@@ -701,3 +701,251 @@
     display: table;
     clear: both;
 }
+
+/* Knowledge Sources UI */
+.chatbot-knowledge-sources-wrapper {
+    max-width: 600px;
+}
+
+.chatbot-knowledge-search {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 15px;
+}
+
+.chatbot-knowledge-search input {
+    flex: 1;
+}
+
+.chatbot-knowledge-search button .dashicons {
+    line-height: 1.6;
+}
+
+.chatbot-knowledge-search-results {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 15px;
+    background: #fff;
+}
+
+.chatbot-knowledge-results-list {
+    padding: 0;
+}
+
+.chatbot-knowledge-result-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.chatbot-knowledge-result-item:last-child {
+    border-bottom: none;
+}
+
+.chatbot-knowledge-result-item:hover {
+    background: #f5f5f5;
+}
+
+.chatbot-knowledge-result-item.selected {
+    background: #e8f4fc;
+}
+
+.chatbot-knowledge-result-item .item-type {
+    display: inline-block;
+    background: #e1e1e1;
+    color: #555;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-right: 10px;
+    min-width: 50px;
+    text-align: center;
+}
+
+.chatbot-knowledge-result-item .item-title {
+    flex: 1;
+    font-weight: 500;
+}
+
+.chatbot-knowledge-result-item .item-tokens {
+    color: #666;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+.chatbot-knowledge-selected h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #333;
+}
+
+.chatbot-selected-content-list {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fafafa;
+    min-height: 60px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.chatbot-selected-content-list .no-content-selected {
+    color: #666;
+    font-style: italic;
+    padding: 15px;
+    margin: 0;
+    text-align: center;
+}
+
+.chatbot-selected-item {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-bottom: 1px solid #eee;
+    background: #fff;
+}
+
+.chatbot-selected-item:last-child {
+    border-bottom: none;
+}
+
+.chatbot-selected-item .item-type {
+    display: inline-block;
+    background: #2271b1;
+    color: #fff;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-right: 10px;
+    min-width: 50px;
+    text-align: center;
+}
+
+.chatbot-selected-item .item-title {
+    flex: 1;
+    font-weight: 500;
+}
+
+.chatbot-selected-item .item-tokens {
+    color: #666;
+    font-size: 12px;
+    margin-left: 10px;
+    margin-right: 10px;
+}
+
+.chatbot-selected-item .remove-item {
+    color: #a00;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+}
+
+.chatbot-selected-item .remove-item:hover {
+    color: #d00;
+}
+
+.chatbot-selected-item .remove-item .dashicons {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* Token Counter */
+.chatbot-knowledge-token-counter {
+    margin-top: 15px;
+    padding: 12px;
+    background: #f5f5f5;
+    border-radius: 4px;
+}
+
+.token-bar-container {
+    height: 8px;
+    background: #e1e1e1;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.token-bar {
+    height: 100%;
+    background: #2271b1;
+    border-radius: 4px;
+    transition: width 0.3s ease, background 0.3s ease;
+}
+
+.token-bar.warning {
+    background: #dba617;
+}
+
+.token-bar.danger {
+    background: #d63638;
+}
+
+.token-info {
+    font-size: 13px;
+    color: #555;
+    text-align: right;
+}
+
+.token-info #chatbot_token_percentage {
+    color: #666;
+}
+
+/* Search Loading State */
+.chatbot-knowledge-search-results.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.chatbot-knowledge-search-results .spinner {
+    float: none;
+    margin: 0;
+}
+
+/* No Results Message */
+.chatbot-knowledge-no-results {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+/* Select2 Styling for Knowledge Sources */
+.chatbot-knowledge-sources-wrapper .select2-container {
+    max-width: 600px;
+}
+
+.chatbot-knowledge-sources-wrapper .select2-container--default .select2-selection--multiple {
+    border-color: #8c8f94;
+    min-height: 38px;
+}
+
+.chatbot-knowledge-sources-wrapper .select2-container--default .select2-selection--multiple .select2-selection__choice {
+    background-color: #2271b1;
+    border-color: #2271b1;
+    color: #fff;
+    padding: 2px 8px;
+}
+
+.chatbot-knowledge-sources-wrapper .select2-container--default .select2-selection--multiple .select2-selection__choice__remove {
+    color: #fff;
+    margin-right: 5px;
+}
+
+.chatbot-knowledge-sources-wrapper .select2-container--default .select2-selection--multiple .select2-selection__choice__remove:hover {
+    color: #f0f0f0;
+}
+
+.chatbot-knowledge-sources-wrapper .select2-dropdown {
+    border-color: #8c8f94;
+}
+
+.chatbot-knowledge-sources-wrapper .select2-container--default .select2-results__option--highlighted[aria-selected] {
+    background-color: #2271b1;
+}

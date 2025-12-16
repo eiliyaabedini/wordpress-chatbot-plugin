@@ -33,6 +33,8 @@ class Chatbot_Admin {
         add_action('wp_ajax_chatbot_reset_rate_limits', array($this, 'ajax_reset_rate_limits'));
         add_action('wp_ajax_chatbot_test_rate_limits', array($this, 'ajax_test_rate_limits'));
         add_action('wp_ajax_chatbot_test_ai_response', array($this, 'ajax_test_ai_response'));
+        add_action('wp_ajax_chatbot_search_content', array($this, 'ajax_search_content'));
+        add_action('wp_ajax_chatbot_get_post_tokens', array($this, 'ajax_get_post_tokens'));
 
         // Handle admin actions
         add_action('admin_init', array($this, 'handle_admin_actions'));
@@ -313,12 +315,65 @@ class Chatbot_Admin {
                                     <textarea name="chatbot_persona" id="chatbot_persona" class="large-text code" rows="7" data-original-value="<?php echo esc_attr($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?>"><?php echo esc_textarea($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?></textarea>
                                     <p class="description"><?php _e('Define the personality and tone for this chatbot. This controls how the AI responds to users.', 'chatbot-plugin'); ?></p>
                                     <p class="description"><?php _e('Important: The AI will read from the Knowledge Base when generating responses.', 'chatbot-plugin'); ?></p>
-                                    <button type="button" class="button" id="chatbot_improve_prompt" 
+                                    <button type="button" class="button" id="chatbot_improve_prompt"
                                         data-nonce-test="<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>"
                                         data-nonce-improve="<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>">
                                         <?php _e('Improve Persona with AI', 'chatbot-plugin'); ?>
                                     </button>
                                     <span id="chatbot_improve_prompt_status"></span>
+                                </td>
+                            </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="chatbot_knowledge_sources_select"><?php _e('WordPress Content Sources', 'chatbot-plugin'); ?></label>
+                                </th>
+                                <td>
+                                    <?php
+                                    // Get current knowledge sources
+                                    $knowledge_sources = $editing && isset($config->knowledge_sources) ? $config->knowledge_sources : '';
+                                    $selected_ids = !empty($knowledge_sources) ? json_decode($knowledge_sources, true) : array();
+                                    if (!is_array($selected_ids)) {
+                                        $selected_ids = array();
+                                    }
+
+                                    // Get all published posts for the select
+                                    $all_posts = get_posts(array(
+                                        'post_type' => array_values(array_diff(get_post_types(array('public' => true), 'names'), array('attachment'))),
+                                        'post_status' => 'publish',
+                                        'posts_per_page' => -1,
+                                        'orderby' => 'title',
+                                        'order' => 'ASC'
+                                    ));
+                                    ?>
+                                    <div class="chatbot-knowledge-sources-wrapper">
+                                        <select id="chatbot_knowledge_sources_select" class="chatbot-select2" multiple="multiple" style="width: 100%; max-width: 600px;">
+                                            <?php foreach ($all_posts as $post):
+                                                $post_type_obj = get_post_type_object($post->post_type);
+                                                $type_label = $post_type_obj ? $post_type_obj->labels->singular_name : 'Content';
+                                                $content = wp_strip_all_tags(strip_shortcodes($post->post_content));
+                                                $token_count = ceil(strlen($content) / 4);
+                                                $selected = in_array($post->ID, $selected_ids) ? 'selected' : '';
+                                            ?>
+                                                <option value="<?php echo esc_attr($post->ID); ?>" <?php echo $selected; ?> data-type="<?php echo esc_attr($type_label); ?>" data-tokens="<?php echo esc_attr($token_count); ?>">
+                                                    <?php echo esc_html($post->post_title); ?> (<?php echo esc_html($type_label); ?>) - ~<?php echo number_format_i18n($token_count); ?> tokens
+                                                </option>
+                                            <?php endforeach; ?>
+                                        </select>
+
+                                        <div class="chatbot-knowledge-token-counter" style="margin-top: 15px;">
+                                            <p style="margin: 0 0 8px 0; font-weight: 500;"><?php _e('Total System Prompt Size (Knowledge + Persona + WordPress Content):', 'chatbot-plugin'); ?></p>
+                                            <div class="token-bar-container">
+                                                <div class="token-bar" id="chatbot_token_bar" style="width: 0%;"></div>
+                                            </div>
+                                            <div class="token-info">
+                                                <span id="chatbot_token_count">0</span> / <span id="chatbot_token_max">100,000</span> <?php _e('tokens', 'chatbot-plugin'); ?>
+                                                <span id="chatbot_token_percentage">(0%)</span>
+                                            </div>
+                                        </div>
+
+                                        <input type="hidden" name="chatbot_knowledge_sources" id="chatbot_knowledge_sources" value="<?php echo esc_attr($knowledge_sources); ?>">
+                                    </div>
+                                    <p class="description"><?php _e('Select WordPress posts, pages, or products to use as additional knowledge for the AI. The content will be extracted and the AI can cite source URLs when responding.', 'chatbot-plugin'); ?></p>
                                     <!-- Direct inline backup script -->
                                     <script type="text/javascript">
                                     (function() {
@@ -457,7 +512,12 @@ class Chatbot_Admin {
                         <li><code>[chatbot name="Default"]</code> - <?php _e('Use a specific chatbot by name', 'chatbot-plugin'); ?></li>
                         <li><code>[chatbot]</code> - <?php _e('Uses the chatbot named "Default" if it exists', 'chatbot-plugin'); ?></li>
                         <li><code>[chatbot theme="dark"]</code> - <?php _e('Apply a dark theme to the chatbot', 'chatbot-plugin'); ?></li>
+                        <li><code>[chatbot mode="inline"]</code> - <?php _e('Display chatbot inline on the page (default is floating)', 'chatbot-plugin'); ?></li>
+                        <li><code>[chatbot height="550px"]</code> - <?php _e('Set a custom height for the chatbot', 'chatbot-plugin'); ?></li>
+                        <li><code>[chatbot skip_welcome="true"]</code> - <?php _e('Skip the welcome message when chatbot loads', 'chatbot-plugin'); ?></li>
                     </ul>
+                    <p style="margin-top: 15px;"><strong><?php _e('Combined example:', 'chatbot-plugin'); ?></strong></p>
+                    <code>[chatbot mode="inline" height="550px" skip_welcome="true"]</code>
                 </div>
             <?php endif; ?>
         </div>
@@ -1012,39 +1072,62 @@ class Chatbot_Admin {
     
     /**
      * Enqueue admin scripts and styles
-     * 
+     *
      * @param string $hook The current admin page
      */
     public function enqueue_admin_scripts($hook) {
         // Debug: Log the current hook for troubleshooting
         error_log('Chatbot Plugin Admin Hook: ' . $hook);
-        
+
         // Load on chatbot plugin pages or settings page
         if (
-            strpos($hook, 'chatbot-plugin') === false && 
-            strpos($hook, 'chatbot-conversations') === false && 
+            strpos($hook, 'chatbot-plugin') === false &&
+            strpos($hook, 'chatbot-conversations') === false &&
+            strpos($hook, 'chatbot-configurations') === false &&
             strpos($hook, 'page_chatbot-settings') === false &&
             $hook !== 'toplevel_page_chatbot-plugin'
         ) {
             return;
         }
-        
+
         wp_enqueue_style(
             'chatbot-admin-style',
             CHATBOT_PLUGIN_URL . 'assets/css/chatbot-admin.css',
             array(),
             CHATBOT_PLUGIN_VERSION
         );
-        
+
         // Explicitly enqueue WordPress media scripts and styles
         wp_enqueue_media();
-        
+
         // Enqueue jQuery
         wp_enqueue_script('jquery');
 
         // Ensure thickbox is loaded for modals
         wp_enqueue_script('thickbox');
         wp_enqueue_style('thickbox');
+
+        // Enqueue Select2 for enhanced dropdowns
+        // Check if selectWoo (WooCommerce's Select2) is available, otherwise use CDN
+        if (wp_script_is('selectWoo', 'registered')) {
+            wp_enqueue_script('selectWoo');
+            wp_enqueue_style('select2');
+        } else {
+            // Fallback to CDN Select2
+            wp_enqueue_style(
+                'select2',
+                'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css',
+                array(),
+                '4.1.0'
+            );
+            wp_enqueue_script(
+                'select2',
+                'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js',
+                array('jquery'),
+                '4.1.0',
+                true
+            );
+        }
 
         // Add DOMPurify for HTML sanitization
         wp_enqueue_script(
@@ -1054,7 +1137,7 @@ class Chatbot_Admin {
             '2.4.0',
             true
         );
-        
+
         // Add custom admin script
         wp_enqueue_script(
             'chatbot-admin-script',
@@ -1063,7 +1146,7 @@ class Chatbot_Admin {
             CHATBOT_PLUGIN_VERSION,
             true
         );
-        
+
         // Enqueue the filters script only on the conversations page
         if (isset($_GET['page']) && $_GET['page'] === 'chatbot-conversations') {
             error_log('Chatbot: DEBUG - enqueue_admin_scripts - Enqueuing chatbot-admin-filters.js on conversations page');
@@ -1075,7 +1158,7 @@ class Chatbot_Admin {
                 true
             );
         }
-        
+
         wp_localize_script(
             'chatbot-admin-script',
             'chatbotAdminVars',
@@ -1278,6 +1361,85 @@ class Chatbot_Admin {
     }
 
     /**
+     * AJAX handler for searching WordPress content for knowledge sources
+     */
+    public function ajax_search_content() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot-admin-nonce')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+            return;
+        }
+
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied.'));
+            return;
+        }
+
+        $search = isset($_POST['search']) ? sanitize_text_field($_POST['search']) : '';
+        $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 50;
+
+        $db = Chatbot_DB::get_instance();
+        $results = $db->search_posts_for_knowledge($search, $limit);
+
+        wp_send_json_success(array(
+            'posts' => $results,
+            'count' => count($results)
+        ));
+    }
+
+    /**
+     * AJAX handler for getting token counts for selected posts
+     */
+    public function ajax_get_post_tokens() {
+        // Verify nonce
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot-admin-nonce')) {
+            wp_send_json_error(array('message' => 'Security check failed.'));
+            return;
+        }
+
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Permission denied.'));
+            return;
+        }
+
+        $post_ids = isset($_POST['post_ids']) ? $_POST['post_ids'] : array();
+
+        if (!is_array($post_ids)) {
+            $post_ids = json_decode($post_ids, true);
+        }
+
+        if (empty($post_ids) || !is_array($post_ids)) {
+            wp_send_json_success(array('total_tokens' => 0, 'posts' => array()));
+            return;
+        }
+
+        $db = Chatbot_DB::get_instance();
+        $total_tokens = 0;
+        $post_data = array();
+
+        foreach ($post_ids as $post_id) {
+            $data = $db->extract_post_content(intval($post_id));
+            if ($data) {
+                $total_tokens += $data['token_count'];
+                $post_data[] = array(
+                    'id' => $data['id'],
+                    'title' => $data['title'],
+                    'type' => $data['type'],
+                    'token_count' => $data['token_count']
+                );
+            }
+        }
+
+        wp_send_json_success(array(
+            'total_tokens' => $total_tokens,
+            'posts' => $post_data,
+            'max_tokens' => 100000
+        ));
+    }
+
+    /**
      * AJAX handler for sending an admin message
      */
     public function admin_send_message() {
@@ -1471,7 +1633,16 @@ class Chatbot_Admin {
         $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
         $knowledge = isset($_POST['chatbot_knowledge']) ? sanitize_textarea_field($_POST['chatbot_knowledge']) : '';
         $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
-        
+        $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
+
+        // Validate knowledge_sources is valid JSON if provided
+        if (!empty($knowledge_sources)) {
+            $decoded = json_decode($knowledge_sources, true);
+            if (!is_array($decoded)) {
+                $knowledge_sources = ''; // Invalid JSON, reset to empty
+            }
+        }
+
         // Validate inputs
         if (empty($name)) {
             $redirect_url = add_query_arg(
@@ -1485,9 +1656,9 @@ class Chatbot_Admin {
             wp_safe_redirect($redirect_url);
             exit;
         }
-        
+
         $db = Chatbot_DB::get_instance();
-        
+
         // Check if name already exists
         if ($db->configuration_name_exists($name)) {
             $redirect_url = add_query_arg(
@@ -1501,39 +1672,40 @@ class Chatbot_Admin {
             wp_safe_redirect($redirect_url);
             exit;
         }
-        
+
         // Set default knowledge if empty
         if (empty($knowledge)) {
             $knowledge = "This is a WordPress website. WordPress is a popular content management system used " .
                          "to create websites, blogs, and online stores. The website may contain blog posts, " .
                          "pages, products, or other content types common to WordPress sites.";
         }
-        
+
         // Set default persona if empty
         if (empty($persona)) {
             $persona = "You are a helpful, friendly, and professional assistant. You should respond in a " .
-                       "conversational tone while maintaining accuracy and being concise. Aim to be " . 
+                       "conversational tone while maintaining accuracy and being concise. Aim to be " .
                        "informative but not overly technical unless specifically asked for technical details. " .
                        "Be patient and considerate in your responses. If you don't know something, admit it " .
                        "rather than making up information.";
         }
-        
+
         // For backwards compatibility, update system prompt if it's empty or if we're using the new fields
         if (empty($system_prompt) || (!empty($knowledge) && !empty($persona))) {
             // Construct a system prompt that combines knowledge and persona
             $system_prompt = $this->build_system_prompt($knowledge, $persona);
         }
-        
+
         // Log what we're attempting to add
         chatbot_log('DEBUG', 'process_add_configuration', 'Adding configuration with separate fields', array(
             'name' => $name,
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
-            'system_prompt_length' => strlen($system_prompt)
+            'system_prompt_length' => strlen($system_prompt),
+            'knowledge_sources' => $knowledge_sources
         ));
-        
+
         // Add the configuration
-        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona);
+        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources);
         
         if ($result) {
             // Success
@@ -1607,7 +1779,16 @@ class Chatbot_Admin {
         $system_prompt = isset($_POST['chatbot_system_prompt']) ? sanitize_textarea_field($_POST['chatbot_system_prompt']) : '';
         $knowledge = isset($_POST['chatbot_knowledge']) ? sanitize_textarea_field($_POST['chatbot_knowledge']) : '';
         $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
-        
+        $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
+
+        // Validate knowledge_sources is valid JSON if provided
+        if (!empty($knowledge_sources)) {
+            $decoded = json_decode($knowledge_sources, true);
+            if (!is_array($decoded)) {
+                $knowledge_sources = ''; // Invalid JSON, reset to empty
+            }
+        }
+
         // Validate inputs
         if (empty($id) || empty($name)) {
             $redirect_url = add_query_arg(
@@ -1622,9 +1803,9 @@ class Chatbot_Admin {
             wp_safe_redirect($redirect_url);
             exit;
         }
-        
+
         $db = Chatbot_DB::get_instance();
-        
+
         // Check if name already exists for a different configuration
         if ($db->configuration_name_exists($name, $id)) {
             $redirect_url = add_query_arg(
@@ -1639,24 +1820,25 @@ class Chatbot_Admin {
             wp_safe_redirect($redirect_url);
             exit;
         }
-        
+
         // For backwards compatibility, update system prompt if it's empty or if we're using the new fields
         if (empty($system_prompt) || (!empty($knowledge) && !empty($persona))) {
             // Construct a system prompt that combines knowledge and persona
             $system_prompt = $this->build_system_prompt($knowledge, $persona);
         }
-        
+
         // Log what we're attempting to update
         chatbot_log('DEBUG', 'process_update_configuration', 'Updating configuration with separate fields', array(
             'id' => $id,
             'name' => $name,
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
-            'system_prompt_length' => strlen($system_prompt)
+            'system_prompt_length' => strlen($system_prompt),
+            'knowledge_sources' => $knowledge_sources
         ));
-        
+
         // Update the configuration
-        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona);
+        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources);
         
         if ($result) {
             // Success

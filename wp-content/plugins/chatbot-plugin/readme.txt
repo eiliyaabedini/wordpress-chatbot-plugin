@@ -3,7 +3,7 @@ Contributors: eiliyaabedini
 Tags: chatbot, ai, chat, support, openai, gpt, assistant, artificial intelligence
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.0.0
+Stable tag: 1.2.0
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -81,6 +81,27 @@ Yes, the AI models can respond in multiple languages. The plugin interface is pr
 
 == Changelog ==
 
+= 1.2.0 =
+* Added WordPress posts/pages as knowledge sources for chatbot configurations
+* New UI: Send button moved inside input field for cleaner design
+* New UI: End Chat button moved to header (floating mode)
+* New UI: Auto-play toggle redesigned with switch and label
+* New UI: Character counter repositioned below input
+* New typing indicator with animated dots inside chat (like iMessage/WhatsApp)
+* Input disabled while AI is generating response to prevent spam
+* Added shortcode documentation for mode, height, and skip_welcome attributes
+* Various CSS improvements and dark theme updates
+
+= 1.1.0 =
+* Added AIPass integration for managed API access (OAuth2 + PKCE)
+* Added support for 161+ AI models including Gemini
+* Added automatic token refresh mechanism
+* Added rate limiting for abuse prevention
+* Added data retention and automatic cleanup
+* Improved security (XSS/SQL injection protection)
+* Added dynamic model loading from AIPass
+* Added user balance tracking
+
 = 1.0.0 =
 * Initial release
 * OpenAI integration for AI-powered responses
@@ -96,6 +117,12 @@ Yes, the AI models can respond in multiple languages. The plugin interface is pr
 * Knowledge base customization
 
 == Upgrade Notice ==
+
+= 1.2.0 =
+UI/UX improvements including new typing indicator, cleaner input design, and WordPress content as knowledge sources feature.
+
+= 1.1.0 =
+Major update with AIPass integration for managed API access, support for 161+ AI models, automatic token refresh, rate limiting, and improved security.
 
 = 1.0.0 =
 Initial release of the AI Chat Bot plugin. Includes OpenAI integration, conversation management, and customizable appearance.
