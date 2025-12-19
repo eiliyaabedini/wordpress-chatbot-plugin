@@ -213,7 +213,7 @@ class Chatbot_Handler {
             $using_aipass = false;
             if (class_exists('Chatbot_AIPass')) {
                 $aipass = Chatbot_AIPass::get_instance();
-                $using_aipass = get_option('chatbot_aipass_enabled', false) && $aipass->is_connected();
+                $using_aipass = get_option('chatbot_aipass_enabled', true) && $aipass->is_connected();
             }
 
             if ($is_openai_class_loaded) {

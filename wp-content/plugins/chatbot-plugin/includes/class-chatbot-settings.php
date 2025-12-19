@@ -47,6 +47,15 @@ class Chatbot_Settings {
      * Register settings
      */
     public function register_settings() {
+        // Register AIPass settings for general settings form
+        register_setting('chatbot_settings', 'chatbot_aipass_enabled', array(
+            'type' => 'boolean',
+            'default' => true,
+        ));
+        register_setting('chatbot_settings', 'chatbot_aipass_access_token');
+        register_setting('chatbot_settings', 'chatbot_aipass_refresh_token');
+        register_setting('chatbot_settings', 'chatbot_aipass_token_expiry');
+
         // Register general settings
         register_setting('chatbot_settings', 'chatbot_welcome_message');
         register_setting('chatbot_settings', 'chatbot_chat_greeting');
@@ -96,6 +105,23 @@ class Chatbot_Settings {
             'sanitize_callback' => array($this, 'sanitize_notify_events')
         ));
         
+        // Add AIPass connection section (first, at the top)
+        add_settings_section(
+            'chatbot_aipass_general_section',
+            __('AI Connection', 'chatbot-plugin'),
+            array($this, 'render_aipass_general_section'),
+            'chatbot_settings'
+        );
+
+        // Add AIPass connection field
+        add_settings_field(
+            'chatbot_aipass_connection_general',
+            __('AIPass', 'chatbot-plugin'),
+            array($this, 'render_aipass_connection_field'),
+            'chatbot_settings',
+            'chatbot_aipass_general_section'
+        );
+
         // Add general settings section
         add_settings_section(
             'chatbot_general_settings',
@@ -455,7 +481,7 @@ class Chatbot_Settings {
             <?php if ($active_tab === 'openai'): ?>
                 <?php
                 // Check if AIPass is enabled
-                $aipass_enabled = get_option('chatbot_aipass_enabled', false);
+                $aipass_enabled = get_option('chatbot_aipass_enabled', true);
                 $aipass_connected = false;
                 if (class_exists('Chatbot_AIPass')) {
                     $aipass_connected = Chatbot_AIPass::get_instance()->is_connected();
@@ -497,6 +523,115 @@ class Chatbot_Settings {
         <?php
     }
     
+    /**
+     * Render AIPass general section description
+     */
+    public function render_aipass_general_section() {
+        echo '<p>' . __('Connect your chatbot to AI services. AIPass is the recommended way to power your chatbot with AI.', 'chatbot-plugin') . '</p>';
+    }
+
+    /**
+     * Render AIPass connection field for General Settings tab
+     * Shows only the connection status - toggle switch is in AI Integration tab
+     */
+    public function render_aipass_connection_field() {
+        // Check if AIPass class exists
+        if (!class_exists('Chatbot_AIPass')) {
+            echo '<p class="description">' . __('AIPass integration is not available.', 'chatbot-plugin') . '</p>';
+            return;
+        }
+
+        $aipass = Chatbot_AIPass::get_instance();
+        $is_connected = $aipass->is_connected();
+
+        echo '<div class="chatbot-aipass-general-container" style="padding: 15px; background: #f9f9f9; border-radius: 5px; border: 1px solid #ddd;">';
+
+        // Hidden inputs to preserve token and enabled values when form is saved
+        $aipass_enabled = get_option('chatbot_aipass_enabled', true);
+        $access_token = get_option('chatbot_aipass_access_token', '');
+        $refresh_token = get_option('chatbot_aipass_refresh_token', '');
+        $token_expiry = get_option('chatbot_aipass_token_expiry', 0);
+        echo '<input type="hidden" name="chatbot_aipass_enabled" value="' . ($aipass_enabled ? '1' : '0') . '" />';
+        echo '<input type="hidden" name="chatbot_aipass_access_token" value="' . esc_attr($access_token) . '" />';
+        echo '<input type="hidden" name="chatbot_aipass_refresh_token" value="' . esc_attr($refresh_token) . '" />';
+        echo '<input type="hidden" name="chatbot_aipass_token_expiry" value="' . esc_attr($token_expiry) . '" />';
+
+        if ($is_connected) {
+            // Connected state
+            echo '<div class="aipass-status-general" style="display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">';
+
+            // AIPass logo - clickable to dashboard
+            echo '<a href="https://aipass.one/panel/dashboard.html" target="_blank" rel="noopener" style="text-decoration: none;" title="' . esc_attr__('Open AIPass Dashboard', 'chatbot-plugin') . '">';
+            echo '<div style="display: inline-flex; align-items: center; background: white; padding: 5px 10px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer; transition: box-shadow 0.2s;" onmouseover="this.style.boxShadow=\'0 4px 8px rgba(0,0,0,0.15)\'" onmouseout="this.style.boxShadow=\'0 2px 4px rgba(0,0,0,0.1)\'">';
+            echo '<div style="background: #8A4FFF; color: white; font-weight: bold; padding: 5px 7px; border-radius: 5px 0 5px 5px; margin-right: 5px;">AI</div>';
+            echo '<div style="color: #8A4FFF; font-weight: bold;">Pass</div>';
+            echo '<div style="margin-left: 10px; background: #4CAF50; color: white; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;">CONNECTED</div>';
+            echo '</div>';
+            echo '</a>';
+
+            // Balance info - clickable to dashboard
+            echo '<a href="https://aipass.one/panel/dashboard.html" target="_blank" rel="noopener" id="aipass-balance-info-general" style="padding: 5px 10px; background: #f0f0f0; border-radius: 4px; text-decoration: none; color: inherit;" title="' . esc_attr__('View balance in AIPass Dashboard', 'chatbot-plugin') . '">';
+            echo '<span style="font-style: italic; color: #666; font-size: 13px;">' . __('Loading balance...', 'chatbot-plugin') . '</span>';
+            echo '</a>';
+
+            echo '<button type="button" id="chatbot-aipass-disconnect-general" class="button button-secondary">' . __('Disconnect', 'chatbot-plugin') . '</button>';
+            echo '</div>';
+        } else {
+            // Not connected state
+            echo '<div class="aipass-status-general">';
+            echo '<button type="button" id="chatbot-aipass-connect-general" class="button button-primary" style="display: inline-flex; align-items: center; padding: 5px 15px;">';
+            echo '<span style="display: inline-flex; align-items: center; background: white; padding: 3px 8px; border-radius: 5px; margin-right: 10px;">';
+            echo '<span style="background: #8A4FFF; color: white; font-weight: bold; padding: 3px 5px; border-radius: 4px 0 4px 4px; margin-right: 3px; font-size: 12px;">AI</span>';
+            echo '<span style="color: #8A4FFF; font-weight: bold; font-size: 12px;">Pass</span>';
+            echo '</span>';
+            echo '<span>' . __('Connect with AIPass', 'chatbot-plugin') . '</span>';
+            echo '</button>';
+            echo '</div>';
+        }
+
+        echo '<p class="description" style="margin-top: 12px;">' . __('AIPass provides access to 161+ AI models including GPT-4 and Gemini - no API key needed!', 'chatbot-plugin') . '</p>';
+        echo '<p class="description">' . sprintf(
+            __('For advanced AI settings, visit the %s tab.', 'chatbot-plugin'),
+            '<a href="' . admin_url('admin.php?page=chatbot-settings&tab=openai') . '">' . __('AI Integration', 'chatbot-plugin') . '</a>'
+        ) . '</p>';
+
+        echo '</div>';
+
+        // Balance loading is handled via inline script (aipass-integration.js handles connect/disconnect)
+        ?>
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            // Load balance info on page load (if connected)
+            <?php if ($is_connected): ?>
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'chatbot_aipass_get_balance',
+                    nonce: '<?php echo wp_create_nonce('chatbot_aipass_nonce'); ?>'
+                },
+                success: function(response) {
+                    if (response.success && response.data && response.data.balance) {
+                        var balance = response.data.balance;
+                        var remaining = parseFloat(balance.remainingBudget || 0).toFixed(2);
+                        $('#aipass-balance-info-general').html(
+                            '<span style="font-size: 13px;">Balance: <strong style="color: #8A4FFF;">$' + remaining + '</strong></span>'
+                        );
+                    } else {
+                        $('#aipass-balance-info-general').html('<span style="color: #666; font-size: 13px;">Balance unavailable</span>');
+                    }
+                },
+                error: function() {
+                    $('#aipass-balance-info-general').html('<span style="color: #d32f2f; font-size: 13px;">Error loading balance</span>');
+                }
+            });
+            <?php endif; ?>
+            // Note: Connect and Disconnect button handlers are in aipass-integration.js
+        });
+        </script>
+        <?php
+    }
+
     /**
      * Render general settings section
      */

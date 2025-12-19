@@ -106,7 +106,7 @@ class Chatbot_OpenAI {
      */
     public function refresh_settings() {
         // Check if AIPass is enabled and available
-        $aipass_enabled = get_option('chatbot_aipass_enabled', false);
+        $aipass_enabled = get_option('chatbot_aipass_enabled', true);
         $this->use_aipass = false;
 
         // Debug logging for AIPass detection
@@ -383,7 +383,7 @@ class Chatbot_OpenAI {
 
         if (class_exists('Chatbot_AIPass')) {
             $aipass = Chatbot_AIPass::get_instance();
-            $aipass_enabled = get_option('chatbot_aipass_enabled', false);
+            $aipass_enabled = get_option('chatbot_aipass_enabled', true);
             $aipass_connected = $aipass->is_connected();
         }
 
@@ -778,7 +778,15 @@ class Chatbot_OpenAI {
 
                     return $result['content'];
                 } else {
-                    chatbot_log('ERROR', 'generate_response', 'AIPass API Error: ' . $result['error']);
+                    chatbot_log('ERROR', 'generate_response', 'AIPass API Error: ' . $result['error'], array(
+                        'error_type' => isset($result['error_type']) ? $result['error_type'] : null
+                    ));
+
+                    // Check for budget exceeded error and return specific message
+                    if (isset($result['error_type']) && $result['error_type'] === 'budget_exceeded') {
+                        return "I'm sorry, but the AI service balance is too low to continue. Please contact the site administrator to add funds.";
+                    }
+
                     return $this->get_error_response();
                 }
             } else {

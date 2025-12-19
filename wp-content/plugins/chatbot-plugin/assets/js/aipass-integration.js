@@ -44,6 +44,19 @@
             });
 
             console.log('✓ AIPass SDK initialized successfully');
+
+            // Listen for budget exceeded events from the SDK
+            if (AiPass.on) {
+                AiPass.on('budgetExceeded', function(data) {
+                    console.log('Budget exceeded event received:', data);
+                    handleBudgetExceeded(data);
+                });
+
+                AiPass.on('balanceUpdated', function(data) {
+                    console.log('Balance updated event received:', data);
+                    updateBalanceInfo();
+                });
+            }
         } catch (error) {
             console.error('✗ Failed to initialize AIPass SDK:', error);
             console.error('Error details:', error.message, error.stack);
@@ -191,13 +204,20 @@
                 }, 500);
             }
 
-            // Setup event listeners for the buttons
+            // Setup event listeners for the buttons (both AI Integration tab and General Settings tab)
             console.log('Looking for connect button:', $('#chatbot-aipass-connect').length);
+            console.log('Looking for connect button (general):', $('#chatbot-aipass-connect-general').length);
             console.log('Looking for disconnect button:', $('#chatbot-aipass-disconnect').length);
+            console.log('Looking for disconnect button (general):', $('#chatbot-aipass-disconnect-general').length);
 
+            // AI Integration tab buttons
             $('#chatbot-aipass-connect').on('click', handleConnect);
             $('#chatbot-aipass-disconnect').on('click', handleDisconnect);
             $('#chatbot-aipass-refresh-models').on('click', handleRefreshModels);
+
+            // General Settings tab buttons (same handlers)
+            $('#chatbot-aipass-connect-general').on('click', handleConnect);
+            $('#chatbot-aipass-disconnect-general').on('click', handleDisconnect);
 
             console.log('Event handlers attached');
         } else {
@@ -420,13 +440,44 @@
         });
     }
 
+    // Handle budget exceeded event from SDK
+    function handleBudgetExceeded(data) {
+        console.log('Handling budget exceeded:', data);
+
+        // The SDK will show its own modal with payment options
+        // We can also update our UI to reflect the low balance
+        const $balanceInfo = $('#aipass-balance-info, #aipass-balance-info-general');
+        if ($balanceInfo.length) {
+            $balanceInfo.html(
+                '<div class="balance-error" style="color: #d32f2f;">' +
+                '<strong>⚠️ Insufficient Balance</strong> - ' +
+                '<a href="https://aipass.one/panel/dashboard.html" target="_blank" style="color: #8A4FFF;">Add funds →</a>' +
+                '</div>'
+            );
+        }
+
+        // Show a notice in admin if we're on a settings page
+        if ($('.wrap h1').length) {
+            const noticeHtml = '<div class="notice notice-error is-dismissible" id="aipass-budget-notice">' +
+                '<p><strong>AIPass Budget Exceeded:</strong> Your AIPass balance is too low to continue. ' +
+                '<a href="https://aipass.one/panel/dashboard.html" target="_blank">Add funds to your account →</a></p>' +
+                '</div>';
+
+            // Only add if not already present
+            if (!$('#aipass-budget-notice').length) {
+                $('.wrap h1').after(noticeHtml);
+            }
+        }
+    }
+
     // Expose functions to global scope
     window.chatbotAIPass = {
         init: initAIPass,
         updateBalanceInfo: updateBalanceInfo,
         connect: handleConnect,
         disconnect: handleDisconnect,
-        refreshModels: handleRefreshModels
+        refreshModels: handleRefreshModels,
+        handleBudgetExceeded: handleBudgetExceeded
     };
 
 })(jQuery);

@@ -87,7 +87,7 @@ class Chatbot_AIPass {
         register_setting('chatbot_openai_settings', 'chatbot_aipass_token_expiry');
         register_setting('chatbot_openai_settings', 'chatbot_aipass_enabled', array(
             'type' => 'boolean',
-            'default' => false,
+            'default' => true, // AIPass is the default integration method
         ));
 
         // Add AIPass settings field to AI Integration tab
@@ -104,7 +104,7 @@ class Chatbot_AIPass {
      * Render AIPass integration field
      */
     public function render_aipass_field() {
-        $aipass_enabled = get_option('chatbot_aipass_enabled', false);
+        $aipass_enabled = get_option('chatbot_aipass_enabled', true);
         $is_connected = $this->is_connected();
 
         echo '<div class="chatbot-aipass-container">';
@@ -132,16 +132,20 @@ class Chatbot_AIPass {
         if ($is_connected) {
             // Show connected state with disconnect button
             echo '<div class="aipass-status connected">';
+
+            // AIPass logo - clickable to dashboard
+            echo '<a href="https://aipass.one/panel/dashboard.html" target="_blank" rel="noopener" class="aipass-logo-link" title="' . esc_attr__('Open AIPass Dashboard', 'chatbot-plugin') . '">';
             echo '<div class="aipass-logo">';
             echo '<div class="aipass-logo-icon">AI</div>';
             echo '<div class="aipass-logo-text">Pass</div>';
             echo '<div class="aipass-connected">CONNECTED</div>';
             echo '</div>';
+            echo '</a>';
 
-            // Add balance info placeholder
-            echo '<div id="aipass-balance-info" class="aipass-balance-info">';
+            // Add balance info placeholder - clickable to dashboard
+            echo '<a href="https://aipass.one/panel/dashboard.html" target="_blank" rel="noopener" id="aipass-balance-info" class="aipass-balance-info" title="' . esc_attr__('View balance in AIPass Dashboard', 'chatbot-plugin') . '">';
             echo '<span class="balance-loading">' . __('Loading balance...', 'chatbot-plugin') . '</span>';
-            echo '</div>';
+            echo '</a>';
 
             echo '<button type="button" id="chatbot-aipass-test" class="button button-secondary" style="margin-right: 8px;">' . __('Test Connection', 'chatbot-plugin') . '</button>';
             echo '<span id="aipass-test-result" style="margin-right: 8px;"></span>';
@@ -231,6 +235,13 @@ class Chatbot_AIPass {
             vertical-align: middle;
             font-weight: 500;
         }
+        .aipass-logo-link {
+            text-decoration: none;
+            margin-right: 15px;
+        }
+        .aipass-logo-link:hover .aipass-logo {
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
         .aipass-logo {
             display: flex;
             align-items: center;
@@ -238,8 +249,9 @@ class Chatbot_AIPass {
             padding: 5px 10px;
             border-radius: 8px 0 8px 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-right: 15px;
             display: inline-flex;
+            transition: box-shadow 0.2s;
+            cursor: pointer;
         }
         .aipass-logo-icon {
             background: #8A4FFF;
@@ -280,6 +292,14 @@ class Chatbot_AIPass {
             background: #f0f0f0;
             border-radius: 4px;
             flex-grow: 1;
+            text-decoration: none;
+            color: inherit;
+            transition: background-color 0.2s;
+            cursor: pointer;
+            display: block;
+        }
+        .aipass-balance-info:hover {
+            background: #e5e5e5;
         }
         .balance-summary {
             font-size: 14px;
@@ -1243,7 +1263,7 @@ class Chatbot_AIPass {
 
         wp_send_json_success(array(
             'connected' => $this->is_connected(),
-            'enabled' => get_option('chatbot_aipass_enabled', false),
+            'enabled' => get_option('chatbot_aipass_enabled', true),
             'token_exists' => !empty($this->access_token)
         ));
     }
@@ -1719,23 +1739,42 @@ class Chatbot_AIPass {
         if ($response_code !== 200) {
             // Handle error - could be string or array (OpenAI format: {"error": {"message": "...", "type": "..."}})
             $error_message = 'Unknown error';
+            $error_type = null;
+
             if (isset($response_body['error'])) {
                 if (is_array($response_body['error'])) {
                     // OpenAI-style error format
                     $error_message = isset($response_body['error']['message'])
                         ? $response_body['error']['message']
                         : json_encode($response_body['error']);
+
+                    // Capture error type (e.g., 'budget_exceeded')
+                    if (isset($response_body['error']['type'])) {
+                        $error_type = $response_body['error']['type'];
+                    }
                 } else {
                     // Simple string error
                     $error_message = $response_body['error'];
                 }
             }
+
+            // Check for budget/balance related errors
+            if ($error_type === 'budget_exceeded' ||
+                stripos($error_message, 'budget') !== false ||
+                stripos($error_message, 'balance') !== false ||
+                stripos($error_message, 'insufficient') !== false) {
+                $error_type = 'budget_exceeded';
+            }
+
             chatbot_log('ERROR', 'generate_completion', 'API Error: ' . $error_message, array(
-                'status_code' => $response_code
+                'status_code' => $response_code,
+                'error_type' => $error_type
             ));
+
             return array(
                 'success' => false,
-                'error' => $error_message
+                'error' => $error_message,
+                'error_type' => $error_type
             );
         }
 

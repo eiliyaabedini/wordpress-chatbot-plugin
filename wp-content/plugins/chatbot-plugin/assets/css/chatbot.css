@@ -665,6 +665,30 @@
     box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 
+/* Budget/Balance Error Message */
+.chatbot-budget-error {
+    background-color: #fff3cd !important;
+    border: 1px solid #ffc107;
+    color: #856404 !important;
+    max-width: 90% !important;
+}
+
+.chatbot-budget-error a {
+    color: #8A4FFF;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.chatbot-budget-error a:hover {
+    text-decoration: underline;
+}
+
+.chatbot-container.dark .chatbot-budget-error {
+    background-color: #3d3d00 !important;
+    border-color: #665500;
+    color: #ffc107 !important;
+}
+
 .chatbot-container.dark .chatbot-new-chat-btn {
     background-color: #4a90e2;
 }

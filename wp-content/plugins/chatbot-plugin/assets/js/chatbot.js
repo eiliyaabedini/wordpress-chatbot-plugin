@@ -660,22 +660,39 @@
                     } else {
                         // Hide typing indicator and show error
                         hideTypingIndicator();
-                        chatbotMessages.append('<div class="chatbot-system-message">Error sending message. Please try again.</div>');
-                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-                        
-                        // If conversation is not active, notify the user
-                        if (response.data && response.data.message === 'Conversation is not active.') {
+
+                        var errorMessage = response.data && response.data.message ? response.data.message : '';
+                        var errorType = response.data && response.data.error_type ? response.data.error_type : '';
+
+                        // Check for budget exceeded / insufficient balance errors
+                        if (errorType === 'budget_exceeded' ||
+                            errorMessage.toLowerCase().includes('budget') ||
+                            errorMessage.toLowerCase().includes('balance') ||
+                            errorMessage.toLowerCase().includes('insufficient')) {
+                            chatbotMessages.append(
+                                '<div class="chatbot-system-message chatbot-budget-error">' +
+                                '<strong>⚠️ Insufficient Balance</strong><br>' +
+                                'The AI service balance is too low to continue. Please contact the site administrator or ' +
+                                '<a href="https://aipass.one/panel/dashboard.html" target="_blank" style="color: #8A4FFF;">add funds to AIPass →</a>' +
+                                '</div>'
+                            );
+                        } else if (errorMessage === 'Conversation is not active.') {
+                            // If conversation is not active, notify the user
                             chatbotMessages.append('<div class="chatbot-system-message">This conversation has been ended. Please start a new conversation.</div>');
                             chatbotInput.prop('disabled', true);
                             chatbotSendBtn.prop('disabled', true);
                             chatbotEndBtn.prop('disabled', true);
-                            
+
                             // Show option to start a new chat
                             chatbotMessages.append('<div class="chatbot-system-message"><button class="chatbot-new-chat-btn">Start New Chat</button></div>');
-                            
+
                             // Add event listener for new chat button
                             $('.chatbot-new-chat-btn').on('click', resetChat);
+                        } else {
+                            chatbotMessages.append('<div class="chatbot-system-message">Error sending message. Please try again.</div>');
                         }
+
+                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                     }
                 },
                 error: function() {
