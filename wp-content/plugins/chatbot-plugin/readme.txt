@@ -3,7 +3,7 @@ Contributors: eiliyaabedini
 Tags: chatbot, ai, chat, support, openai, gpt, assistant, artificial intelligence
 Requires at least: 5.0
 Tested up to: 6.8
-Stable tag: 1.2.0
+Stable tag: 1.3.0
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -81,6 +81,15 @@ Yes, the AI models can respond in multiple languages. The plugin interface is pr
 
 == Changelog ==
 
+= 1.3.0 =
+* Simplified welcome flow - name input now uses regular chat input instead of separate form
+* Welcome message appears as a chat bubble for cleaner, more intuitive UX
+* Fixed system messages incorrectly appearing in chat history
+* Fixed chat auto-refreshing issue caused by message count mismatch
+* Removed ~130 lines of unnecessary CSS for better performance
+* End Chat now immediately resets to welcome screen without confirmation
+* Improved inline mode layout with proper flex positioning
+
 = 1.2.0 =
 * Added WordPress posts/pages as knowledge sources for chatbot configurations
 * New UI: Send button moved inside input field for cleaner design
@@ -117,6 +126,9 @@ Yes, the AI models can respond in multiple languages. The plugin interface is pr
 * Knowledge base customization
 
 == Upgrade Notice ==
+
+= 1.3.0 =
+Simplified welcome experience - users now enter their name directly in the chat input. Bug fixes for system messages and auto-refresh issues.
 
 = 1.2.0 =
 UI/UX improvements including new typing indicator, cleaner input design, and WordPress content as knowledge sources feature.

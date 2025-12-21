@@ -3,7 +3,7 @@
  * Plugin Name: AI Chat Bot
  * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
  * Description: A powerful AI chatbot plugin for WordPress
- * Version: 1.2.0
+ * Version: 1.3.0
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -18,7 +18,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.2.0');
+define('CHATBOT_PLUGIN_VERSION', '1.3.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -37,6 +37,7 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-rate-limiter.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-data-retention.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-telegram.php';
 
 /**
  * Helper function for standardized logging
@@ -204,7 +205,9 @@ function create_chatbot_database_tables() {
         is_active tinyint(1) DEFAULT 1 NOT NULL,
         ended_at datetime DEFAULT NULL,
         archived_at datetime DEFAULT NULL,
-        PRIMARY KEY  (id)
+        telegram_chat_id bigint(20) DEFAULT NULL,
+        PRIMARY KEY  (id),
+        KEY telegram_chat_id (telegram_chat_id)
     ) $charset_collate;";
     
     // Table for messages
@@ -230,6 +233,7 @@ function create_chatbot_database_tables() {
         knowledge text,
         persona text,
         knowledge_sources text,
+        telegram_bot_token varchar(100) DEFAULT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id),
@@ -420,6 +424,57 @@ function update_chatbot_database_tables() {
 
             chatbot_log('INFO', 'update_tables', 'Added knowledge_sources column to configurations table');
         }
+
+        // Check for telegram_bot_token column (for Telegram bot integration)
+        $check_telegram_token_column = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+                DB_NAME,
+                $table_configurations,
+                'telegram_bot_token'
+            )
+        );
+
+        if (empty($check_telegram_token_column)) {
+            chatbot_log('INFO', 'update_tables', 'Adding telegram_bot_token column to configurations table');
+
+            $alter_query = sprintf(
+                "ALTER TABLE `%s` ADD COLUMN `telegram_bot_token` varchar(100) DEFAULT NULL AFTER `knowledge_sources`",
+                $wpdb->prefix . 'chatbot_configurations'
+            );
+            $wpdb->query($alter_query);
+
+            chatbot_log('INFO', 'update_tables', 'Added telegram_bot_token column to configurations table');
+        }
+    }
+
+    // Check for telegram_chat_id column in conversations table
+    $check_telegram_chat_id_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_conversations',
+            'telegram_chat_id'
+        )
+    );
+
+    if (empty($check_telegram_chat_id_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding telegram_chat_id column to conversations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `telegram_chat_id` bigint(20) DEFAULT NULL",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        // Add index for telegram_chat_id
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD INDEX `telegram_chat_id` (`telegram_chat_id`)",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        chatbot_log('INFO', 'update_tables', 'Added telegram_chat_id column to conversations table');
     }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');

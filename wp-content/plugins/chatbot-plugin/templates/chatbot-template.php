@@ -130,16 +130,25 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
 </div>
 
 <!-- Chatbot container -->
+<?php
+// Determine the chatbot display name
+$chatbot_display_name = 'AI Assistant'; // Default
+if (isset($atts['config']) && isset($atts['config']->name) && !empty($atts['config']->name) && $atts['config']->name !== 'Default') {
+    $chatbot_display_name = $atts['config']->name;
+}
+?>
 <div class="chatbot-container <?php echo esc_attr($theme); ?><?php echo $is_inline ? ' inline active' : ''; ?>"
      id="chatbot-container"
      <?php if (isset($atts['name']) && !empty($atts['name'])): ?>data-config-name="<?php echo esc_attr($atts['name']); ?>"<?php endif; ?>
+     data-chatbot-name="<?php echo esc_attr($chatbot_display_name); ?>"
      data-mode="<?php echo esc_attr($mode); ?>"
      <?php if ($skip_welcome): ?>data-skip-welcome="true"<?php endif; ?>
      <?php if ($is_inline): ?>style="height: <?php echo esc_attr($height); ?>;"<?php endif; ?>>
-    <!-- Header only shown in chat mode, not in welcome screen -->
-    <div class="chatbot-header" style="display:none;">
+    <!-- Header - always visible now (welcome is inside chat) -->
+    <div class="chatbot-header">
         <div class="chatbot-header-content">
-            <div class="chatbot-header-title">Chat Support</div>
+            <div class="chatbot-header-title"><?php echo esc_html($chatbot_display_name); ?></div>
+            <?php if (!$is_inline): ?>
             <div class="chatbot-header-branding">
                 <span class="powered-by-text">Powered by</span>
                 <a href="https://aipass.one" target="_blank" rel="noopener noreferrer" class="aipass-logo-link">
@@ -149,35 +158,25 @@ $primary_color_dark = adjustBrightness($primary_color, -20);
                     </div>
                 </a>
             </div>
+            <?php endif; ?>
         </div>
         <div class="chatbot-header-actions">
             <button class="chatbot-end-btn" title="End this conversation">End Chat</button>
+            <?php if (!$is_inline): ?>
             <span class="chatbot-close" id="chatbot-close">✕</span>
+            <?php endif; ?>
         </div>
     </div>
     
     <div class="chatbot-messages" id="chatbot-messages">
-        <!-- Messages will be dynamically added here -->
-        
         <!-- Loading indicator (shown while initializing) -->
-        <div class="chatbot-loading" id="chatbot-loading">
+        <div class="chatbot-loading" id="chatbot-loading" style="display:none;">
             <div class="chatbot-loading-spinner"></div>
             <div class="chatbot-loading-text">Initializing chat...</div>
         </div>
     </div>
-    
-    
-    <div class="chatbot-welcome-screen">
-        <span class="chatbot-close welcome-close" id="welcome-close" style="position: absolute; top: 15px; right: 15px; cursor: pointer; font-size: 22px; color: #4a6cf7;">✕</span>
-        <h3>Welcome to our chat!</h3>
-        <p><?php echo esc_html(get_option('chatbot_welcome_message', 'Please enter your name to start chatting with us.')); ?></p>
-        <div class="chatbot-name-container">
-            <input type="text" class="chatbot-name-input" placeholder="Your name...">
-            <button class="chatbot-start-btn">Start Chat</button>
-        </div>
-    </div>
-    
-    <div class="chatbot-input-container" style="display:none;">
+
+    <div class="chatbot-input-container">
         <div class="chatbot-input-row">
             <!-- Input wrapper with send button inside -->
             <div class="chatbot-input-wrapper">

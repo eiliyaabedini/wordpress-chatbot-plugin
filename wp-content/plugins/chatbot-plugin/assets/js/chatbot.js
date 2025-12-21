@@ -13,9 +13,6 @@
         const chatbotInput = $('.chatbot-input');
         const chatbotSendBtn = $('.chatbot-send-btn');
         const chatbotEndBtn = $('.chatbot-end-btn');
-        const chatbotWelcomeScreen = $('.chatbot-welcome-screen');
-        const chatbotNameInput = $('.chatbot-name-input');
-        const chatbotStartBtn = $('.chatbot-start-btn');
         const chatbotInputContainer = $('.chatbot-input-container');
 
         // Detect inline mode from data attribute
@@ -321,20 +318,12 @@
                         chatButton.addClass('hidden-mobile');
                     }
 
-                    // If conversation already exists, focus on input field, otherwise focus on name input
-                    if (conversationId) {
-                        chatbotInput.focus();
-                        chatbotWelcomeScreen.hide();
-                        $('.chatbot-header').show();
-                        chatbotMessages.show();
-                        chatbotInputContainer.show();
-                    } else {
-                        // Show welcome screen and focus on name input
-                        chatbotWelcomeScreen.show();
-                        $('.chatbot-header').hide();
-                        chatbotMessages.hide();
-                        chatbotNameInput.focus();
+                    // Show welcome message if no conversation
+                    if (!conversationId) {
+                        showWelcomeMessage();
                     }
+
+                    chatbotInput.focus();
                 }
             });
         }
@@ -348,19 +337,6 @@
                     chatButton.removeClass('hidden-mobile');
                 }
             });
-
-            // Close welcome screen
-            $('#welcome-close').on('click', function() {
-                chatbotContainer.removeClass('active');
-                // If on mobile, show the chat button again when welcome screen is closed
-                if (isMobile) {
-                    chatButton.removeClass('hidden-mobile');
-                }
-            });
-        } else {
-            // In inline mode, hide the close buttons
-            chatbotClose.hide();
-            $('#welcome-close').hide();
         }
         
         let conversationId = null;
@@ -436,12 +412,9 @@
             // Add sender label for AI and admin messages
             if (senderType === 'ai' || senderType === 'admin') {
                 const senderLabel = $('<div class="chatbot-message-sender"></div>');
-                senderLabel.text(senderType === 'ai' ? 'AI Assistant' : 'Admin');
+                const chatbotName = chatbotContainer.data('chatbot-name') || 'AI Assistant';
+                senderLabel.text(chatbotName);
                 messageWrapper.append(senderLabel);
-            } else if (senderType === 'system') {
-                const senderLabel = $('<div class="chatbot-message-sender"></div>');
-                senderLabel.text('System');
-                messageElement.append(senderLabel);
             }
 
             // Add message text - render markdown for AI/admin messages, plain text for user
@@ -534,7 +507,8 @@
             setTimeout(function() {
                 // Only show message if still waiting
                 if (window.typingIndicatorShown) {
-                    chatbotMessages.append('<div class="chatbot-system-message">Our assistant is still thinking. Please wait a moment...</div>');
+                    const botName = chatbotContainer.data('chatbot-name') || 'Our assistant';
+                    chatbotMessages.append('<div class="chatbot-system-message">' + botName + ' is still thinking. Please wait a moment...</div>');
                     chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                 }
             }, 15000); // Show message after 15 seconds if no response
@@ -552,34 +526,40 @@
             chatbotInput.focus();
         }
         
+        // Flag to track if we're waiting for name
+        let waitingForName = true;
+
+        // Function to show welcome message asking for name
+        function showWelcomeMessage() {
+            if (conversationId) return; // Already have a conversation
+
+            // Clear messages and show welcome
+            chatbotMessages.find('.chatbot-message').remove();
+            chatbotMessages.find('.chatbot-system-message').remove();
+
+            const welcomeText = chatbotPluginVars.welcomeMessage || 'Hi there! What\'s your name?';
+            addMessage(welcomeText, 'admin', false);
+
+            // Update placeholder
+            chatbotInput.attr('placeholder', 'Enter your name...');
+            waitingForName = true;
+        }
+
         // Function to start a new conversation
         function startConversation(name) {
             if (name.trim() === '') {
-                alert('Please enter your name to start the chat.');
                 return;
             }
 
             visitorName = name.trim();
+            waitingForName = false;
 
-            // Hide welcome screen, show messages area and chat interface with loading animation
-            chatbotWelcomeScreen.hide();
-            // Only show header in floating mode (inline mode hides it via CSS)
-            if (!isInlineMode) {
-                $('.chatbot-header').show();
-            }
-            chatbotMessages.show(); // Show messages area
-            chatbotInputContainer.show();
-            $('#chatbot-loading').show();
-            setLoadingTimeout(); // Set timeout to hide loading indicator
+            // Update placeholder to normal
+            chatbotInput.attr('placeholder', 'Type your message...');
 
-            // Show connection status directly in chat
-            chatbotMessages.append('<div class="chatbot-system-message">Connecting to AI assistant...</div>');
-            
             // Get config name from data attribute if available
             const configName = $('.chatbot-container').attr('data-config-name') || 'Default';
-            
-            // Starting conversation with configuration
-            
+
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,
                 type: 'POST',
@@ -592,31 +572,21 @@
                 success: function(response) {
                     if (response.success) {
                         conversationId = response.data.conversation_id;
-                        
-                        // Hide loading animation
-                        $('#chatbot-loading').hide();
-                        
-                        // Clear any existing messages and add welcome message from admin
-                        chatbotMessages.empty().show();
-                        
-                        // This is explicitly an admin message, not an AI response
-                        // Use the chat greeting from settings with visitor name
+
+                        // Save to localStorage
+                        localStorage.setItem('chatbot_conversation_id', conversationId);
+                        localStorage.setItem('chatbot_visitor_name', visitorName);
+                        localStorage.setItem('chatbot_config_name', configName);
+
+                        // Show greeting message
                         const defaultGreeting = 'Hello %s! How can I help you today?';
                         let greeting = chatbotPluginVars.chatGreeting || defaultGreeting;
                         greeting = greeting.replace('%s', visitorName);
                         addMessage(greeting, 'admin', false);
-                        
+
                         // Start polling for new messages
                         startPolling();
-                    } else {
-                        chatbotMessages.append('<div class="chatbot-system-message">Error starting conversation. Please try again.</div>');
-                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-                        $('#chatbot-loading').hide();
                     }
-                },
-                error: function() {
-                    // Just hide loading animation without showing error message
-                    $('#chatbot-loading').hide();
                 }
             });
         }
@@ -707,60 +677,21 @@
             if (!conversationId) {
                 return;
             }
-            
-            // Confirm before ending the chat
-            if (!confirm('Are you sure you want to end this conversation? You won\'t be able to continue it later.')) {
-                return;
-            }
-            
-            // Show end chat message
-            chatbotMessages.append('<div class="chatbot-system-message">Ending conversation...</div>');
-            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-            
+
+            // Store conversation ID to end on server
+            const convIdToEnd = conversationId;
+
+            // Immediately reset to welcome screen
+            resetChat();
+
+            // End conversation on server in background (no need to wait)
             $.ajax({
                 url: chatbotPluginVars.ajaxUrl,
                 type: 'POST',
                 data: {
                     action: 'chatbot_end_conversation',
-                    conversation_id: conversationId,
+                    conversation_id: convIdToEnd,
                     nonce: chatbotPluginVars.nonce
-                },
-                success: function(response) {
-                    if (response.success) {
-                        // Clear conversation data from localStorage
-                        localStorage.removeItem('chatbot_conversation_id');
-                        localStorage.removeItem('chatbot_visitor_name');
-                        localStorage.removeItem('chatbot_config_name');
-                        
-                        // Show success message and disable input
-                        chatbotMessages.append('<div class="chatbot-system-message">This conversation has ended. Thank you for chatting with us!</div>');
-                        
-                        // Add button to start a new chat
-                        chatbotMessages.append('<div class="chatbot-system-message"><button class="chatbot-new-chat-btn">Start New Chat</button></div>');
-                        
-                        // Disable input and buttons
-                        chatbotInput.prop('disabled', true);
-                        chatbotSendBtn.prop('disabled', true);
-                        chatbotEndBtn.prop('disabled', true);
-                        
-                        // Add event listener for new chat button
-                        $('.chatbot-new-chat-btn').on('click', resetChat);
-                        
-                        // Scroll to bottom
-                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-                        
-                        // Stop polling for new messages
-                        if (pollInterval) {
-                            clearInterval(pollInterval);
-                            pollInterval = null;
-                        }
-                    } else {
-                        chatbotMessages.append('<div class="chatbot-system-message">Error ending conversation. Please try again.</div>');
-                        chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-                    }
-                },
-                error: function() {
-                    // Silent error handling without showing any message
                 }
             });
         }
@@ -770,30 +701,30 @@
             // Reset conversation variables
             conversationId = null;
             visitorName = '';
-            
+            waitingForName = true;
+
             // Clear localStorage
             localStorage.removeItem('chatbot_conversation_id');
             localStorage.removeItem('chatbot_visitor_name');
             localStorage.removeItem('chatbot_config_name');
-            
-            // Reset UI
-            chatbotWelcomeScreen.show();
-            $('.chatbot-header').hide();
-            chatbotMessages.hide().empty();
-            chatbotInputContainer.hide();
-            
-            // Reset input and buttons
-            chatbotInput.prop('disabled', false);
+
+            // Clear messages
+            chatbotMessages.empty();
+
+            // Reset input
+            chatbotInput.prop('disabled', false).val('');
             chatbotSendBtn.prop('disabled', false);
             chatbotEndBtn.prop('disabled', false);
-            chatbotInput.val('');
-            chatbotNameInput.val('').focus();
-            
+
             // Stop polling
             if (pollInterval) {
                 clearInterval(pollInterval);
                 pollInterval = null;
             }
+
+            // Show welcome message
+            showWelcomeMessage();
+            chatbotInput.focus();
         }
         
         // Function to poll for new messages
@@ -844,8 +775,7 @@
                         
                         // Get the current message count to detect new messages
                         const currentMessageCount = $('.chatbot-message').length;
-                        const hasNewMessages = response.data.messages.length > currentMessageCount;
-                        
+
                         // Check if conversation is no longer active
                         if (response.data.conversation_status !== 'active' && 
                             chatbotInput.prop('disabled') === false) {
@@ -891,16 +821,24 @@
                             return;
                         }
                         
+                        // Filter out system messages first
+                        const displayableMessages = response.data.messages.filter(function(msg) {
+                            return msg.sender_type !== 'system';
+                        });
+
+                        // Check if there are new messages (comparing displayable counts)
+                        const hasNewMessages = displayableMessages.length > currentMessageCount;
+
                         // Only update when there are new messages or on first load
                         if (hasNewMessages || currentMessageCount === 0) {
-                            // Clear messages area and repopulate with all messages
+                            // Clear messages area and repopulate
                             chatbotMessages.empty();
 
                             // Find the last AI message index (for auto-play TTS)
                             let lastAiMessageIndex = -1;
                             if (hasNewMessages) {
-                                for (let i = response.data.messages.length - 1; i >= 0; i--) {
-                                    const sType = response.data.messages[i].sender_type;
+                                for (let i = displayableMessages.length - 1; i >= 0; i--) {
+                                    const sType = displayableMessages[i].sender_type;
                                     if (sType === 'bot' || sType === 'ai' || sType === 'admin') {
                                         lastAiMessageIndex = i;
                                         break;
@@ -908,9 +846,8 @@
                                 }
                             }
 
-                            // Add all messages
-                            response.data.messages.forEach(function(msg, index) {
-                                // Determine if the message is from AI or admin
+                            // Add all displayable messages
+                            displayableMessages.forEach(function(msg, index) {
                                 let senderType = msg.sender_type;
                                 if (senderType === 'bot') {
                                     senderType = 'ai';
@@ -941,21 +878,6 @@
                 }
             });
         }
-        
-        // Handle start button click
-        chatbotStartBtn.on('click', function() {
-            const name = chatbotNameInput.val().trim();
-            startConversation(name);
-        });
-        
-        // Handle name input enter key
-        chatbotNameInput.on('keypress', function(e) {
-            if (e.which === 13) {
-                const name = chatbotNameInput.val().trim();
-                startConversation(name);
-                e.preventDefault();
-            }
-        });
         
         // Add character counter to input options row
         const charCounter = $('<div class="chatbot-char-counter"></div>');
@@ -994,22 +916,35 @@
         // Initialize counter
         updateCharCounter();
 
-        // Handle send button click
-        chatbotSendBtn.on('click', function() {
+        // Handle user input (both send button and enter key)
+        function handleUserInput() {
             const message = chatbotInput.val().trim();
+            if (message === '') return;
+
             const maxLength = chatbotPluginVars.maxMessageLength || 500;
 
-            if (message !== '' && message.length <= maxLength) {
-                addMessage(message, 'user', false);
-                chatbotInput.val('');
-                sendMessage(message);
-                updateCharCounter();
-            } else if (message.length > maxLength) {
-                // Show error message if too long
+            if (message.length > maxLength) {
                 chatbotMessages.append('<div class="chatbot-system-message">Your message is too long. Maximum ' + maxLength + ' characters allowed.</div>');
                 chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                return;
             }
-        });
+
+            chatbotInput.val('');
+            updateCharCounter();
+
+            // If waiting for name, start conversation
+            if (waitingForName) {
+                addMessage(message, 'user', false);
+                startConversation(message);
+            } else {
+                // Normal message
+                addMessage(message, 'user', false);
+                sendMessage(message);
+            }
+        }
+
+        // Handle send button click
+        chatbotSendBtn.on('click', handleUserInput);
 
         // Handle end chat button click
         chatbotEndBtn.on('click', function() {
@@ -1019,21 +954,8 @@
         // Handle enter key press in input
         chatbotInput.on('keypress', function(e) {
             if (e.which === 13) {
-                const message = chatbotInput.val().trim();
-                const maxLength = chatbotPluginVars.maxMessageLength || 500;
-
-                if (message !== '' && message.length <= maxLength) {
-                    addMessage(message, 'user', false);
-                    chatbotInput.val('');
-                    sendMessage(message);
-                    updateCharCounter();
-                } else if (message.length > maxLength) {
-                    // Show error message if too long
-                    chatbotMessages.append('<div class="chatbot-system-message">Your message is too long. Maximum ' + maxLength + ' characters allowed.</div>');
-                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
-                }
-
                 e.preventDefault();
+                handleUserInput();
             }
         });
         
@@ -1052,23 +974,13 @@
             // Resume conversation
             conversationId = storedConversationId;
             visitorName = storedVisitorName;
+            waitingForName = false;
 
-            // Hide welcome screen, show messages and chat interface
-            chatbotWelcomeScreen.hide();
-            // Only show header in floating mode (inline mode hides it via CSS)
-            if (!isInlineMode) {
-                $('.chatbot-header').show();
-            }
-            chatbotMessages.show(); // Show messages area
-            chatbotInputContainer.show();
-
-            // Show loading animation and set a timeout to hide it
-            $('#chatbot-loading').show();
-            setLoadingTimeout();
+            // Update placeholder
+            chatbotInput.attr('placeholder', 'Type your message...');
 
             // Show reconnection message
-            chatbotMessages.append('<div class="chatbot-system-message">Reconnecting to previous session...</div>');
-            chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+            chatbotMessages.append('<div class="chatbot-system-message">Reconnecting...</div>');
 
             // Start polling for new messages
             startPolling();
@@ -1096,27 +1008,14 @@
 
         // Inline mode initialization
         if (isInlineMode) {
-            // Container is already visible (has .active class from PHP)
-            // Check if we should restore a previous conversation
             if (shouldRestore) {
-                // Already handled above - conversation restored
-                console.log('Inline mode: Restored previous conversation');
+                // Already handled above
             } else if (skipWelcome) {
-                // Skip welcome screen and start conversation immediately with "Guest"
-                console.log('Inline mode: Skipping welcome, auto-starting conversation');
-                chatbotWelcomeScreen.hide();
-                chatbotMessages.show();
-                chatbotInputContainer.show();
-
-                // Auto-start conversation with "Guest" name
+                // Skip welcome and start with "Guest"
                 startConversation('Guest');
             } else {
-                // Show welcome screen as usual
-                console.log('Inline mode: Showing welcome screen');
-                chatbotWelcomeScreen.show();
-                chatbotMessages.hide();
-                chatbotInputContainer.hide();
-                chatbotNameInput.focus();
+                // Show welcome message
+                showWelcomeMessage();
             }
         }
     });

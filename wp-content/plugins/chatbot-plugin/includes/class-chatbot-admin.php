@@ -439,6 +439,287 @@ class Chatbot_Admin {
                                     <input type="hidden" name="chatbot_system_prompt" id="chatbot_system_prompt" value="<?php echo esc_attr($system_prompt); ?>" />
                                 </td>
                             </tr>
+                            <tr>
+                                <th scope="row">
+                                    <label for="chatbot_telegram_bot_token"><?php _e('Telegram Integration', 'chatbot-plugin'); ?></label>
+                                </th>
+                                <td>
+                                    <?php
+                                    // Get current Telegram bot token
+                                    $telegram_bot_token = $editing && isset($config->telegram_bot_token) ? $config->telegram_bot_token : '';
+                                    $telegram_connected = !empty($telegram_bot_token);
+
+                                    // Get bot info if connected
+                                    $telegram_bot_info = null;
+                                    $telegram = Chatbot_Telegram::get_instance();
+                                    $is_localhost = $telegram->is_localhost();
+                                    if ($telegram_connected) {
+                                        $telegram_bot_info = $telegram->validate_token($telegram_bot_token);
+                                    }
+                                    ?>
+
+                                    <?php
+                                    // Check if polling mode is enabled for this config
+                                    $polling_mode = $editing ? get_option("chatbot_telegram_polling_{$config->id}", false) : false;
+                                    ?>
+                                    <div class="chatbot-telegram-wrapper" style="max-width: 600px;">
+                                        <?php if ($is_localhost && !$telegram_connected): ?>
+                                            <!-- Localhost info -->
+                                            <div class="telegram-localhost-info" style="background: #e3f2fd; border: 1px solid #2196f3; padding: 12px 15px; border-radius: 4px; margin-bottom: 15px;">
+                                                <strong style="color: #1565c0;">&#x1F4BB; Local Development Mode</strong>
+                                                <p style="margin: 8px 0 0 0; color: #1565c0; font-size: 13px;">
+                                                    <?php _e('Your site is running locally. Telegram will use polling mode instead of webhooks for testing.', 'chatbot-plugin'); ?>
+                                                </p>
+                                                <p style="margin: 8px 0 0 0; color: #1565c0; font-size: 13px;">
+                                                    <?php _e('Use the "Poll Now" button to manually check for new messages after connecting.', 'chatbot-plugin'); ?>
+                                                </p>
+                                            </div>
+                                        <?php endif; ?>
+                                        <?php if ($telegram_connected && $telegram_bot_info): ?>
+                                            <!-- Connected state -->
+                                            <?php if ($polling_mode): ?>
+                                                <!-- Polling mode (localhost) -->
+                                                <div class="telegram-status connected" style="background: #e3f2fd; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                                        <span style="color: #1565c0; font-size: 20px;">&#x2713;</span>
+                                                        <div>
+                                                            <strong style="color: #1565c0;"><?php _e('Connected', 'chatbot-plugin'); ?></strong>
+                                                            <span style="color: #666; margin-left: 10px;">@<?php echo esc_html($telegram_bot_info['username']); ?></span>
+                                                            <span style="background: #fff3e0; color: #e65100; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 8px;"><?php _e('Polling Mode', 'chatbot-plugin'); ?></span>
+                                                        </div>
+                                                    </div>
+                                                    <p style="margin: 10px 0 0 0; color: #555; font-size: 13px;">
+                                                        <?php _e('Click "Poll Now" to check for new Telegram messages. This is for local testing only.', 'chatbot-plugin'); ?>
+                                                    </p>
+                                                </div>
+                                            <?php else: ?>
+                                                <!-- Webhook mode (production) -->
+                                                <div class="telegram-status connected" style="background: #e8f5e9; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                                                    <div style="display: flex; align-items: center; gap: 10px;">
+                                                        <span style="color: #2e7d32; font-size: 20px;">&#x2713;</span>
+                                                        <div>
+                                                            <strong style="color: #2e7d32;"><?php _e('Connected', 'chatbot-plugin'); ?></strong>
+                                                            <span style="color: #666; margin-left: 10px;">@<?php echo esc_html($telegram_bot_info['username']); ?></span>
+                                                            <span style="background: #e3f2fd; color: #1565c0; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-left: 8px;"><?php _e('Webhook Active', 'chatbot-plugin'); ?></span>
+                                                        </div>
+                                                    </div>
+                                                    <p style="margin: 10px 0 0 0; color: #555; font-size: 13px;">
+                                                        <?php _e('Telegram will instantly send messages to your site. Users can message this bot on Telegram.', 'chatbot-plugin'); ?>
+                                                    </p>
+                                                </div>
+                                            <?php endif; ?>
+                                            <input type="hidden" name="chatbot_telegram_bot_token" id="chatbot_telegram_bot_token" value="<?php echo esc_attr($telegram_bot_token); ?>">
+                                            <?php if ($polling_mode): ?>
+                                            <button type="button" id="chatbot_telegram_poll" class="button button-secondary" data-config-id="<?php echo esc_attr($editing ? $config->id : 0); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_telegram_poll'); ?>">
+                                                <?php _e('Start Auto-Poll', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <?php endif; ?>
+                                            <button type="button" id="chatbot_telegram_disconnect" class="button" data-config-id="<?php echo esc_attr($editing ? $config->id : 0); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_telegram_disconnect'); ?>" style="color: #d32f2f;">
+                                                <?php _e('Disconnect Telegram', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <span id="chatbot_telegram_poll_status" style="margin-left: 10px;"></span>
+                                        <?php else: ?>
+                                            <!-- Disconnected state -->
+                                            <div class="telegram-input-group" style="margin-bottom: 10px;">
+                                                <label for="chatbot_telegram_bot_token_input" style="display: block; margin-bottom: 5px;">
+                                                    <?php _e('Bot Token', 'chatbot-plugin'); ?>
+                                                </label>
+                                                <input type="text" id="chatbot_telegram_bot_token_input" class="regular-text" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" style="width: 100%;">
+                                                <input type="hidden" name="chatbot_telegram_bot_token" id="chatbot_telegram_bot_token" value="">
+                                            </div>
+                                            <?php if ($editing): ?>
+                                            <button type="button" id="chatbot_telegram_connect" class="button button-primary" data-config-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_telegram_connect'); ?>">
+                                                <?php _e('Connect Telegram Bot', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <button type="button" id="chatbot_telegram_test" class="button" data-nonce="<?php echo wp_create_nonce('chatbot_telegram_test'); ?>">
+                                                <?php _e('Test Token', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <span id="chatbot_telegram_status" style="margin-left: 10px;"></span>
+                                            <?php else: ?>
+                                            <p class="description" style="color: #666;">
+                                                <?php _e('Save the chatbot first, then you can connect Telegram.', 'chatbot-plugin'); ?>
+                                            </p>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                    <p class="description" style="margin-top: 10px;">
+                                        <?php _e('Connect a Telegram bot to allow users to chat via Telegram. Get your bot token from', 'chatbot-plugin'); ?>
+                                        <a href="https://t.me/BotFather" target="_blank">@BotFather</a>.
+                                    </p>
+
+                                    <!-- Telegram connection JavaScript -->
+                                    <script type="text/javascript">
+                                    (function($) {
+                                        $(document).ready(function() {
+                                            // Test token button
+                                            $('#chatbot_telegram_test').on('click', function() {
+                                                var token = $('#chatbot_telegram_bot_token_input').val();
+                                                var status = $('#chatbot_telegram_status');
+
+                                                if (!token) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter a bot token', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+
+                                                status.html('<span><?php _e('Testing...', 'chatbot-plugin'); ?></span>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_telegram_test',
+                                                        bot_token: token,
+                                                        nonce: $(this).data('nonce')
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            status.html('<span style="color: green;"><?php _e('Valid!', 'chatbot-plugin'); ?> @' + response.data.bot_info.username + '</span>');
+                                                        } else {
+                                                            status.html('<span style="color: red;">' + (response.data.message || '<?php _e('Invalid token', 'chatbot-plugin'); ?>') + '</span>');
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        status.html('<span style="color: red;"><?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                                    }
+                                                });
+                                            });
+
+                                            // Connect button
+                                            $('#chatbot_telegram_connect').on('click', function() {
+                                                var token = $('#chatbot_telegram_bot_token_input').val();
+                                                var configId = $(this).data('config-id');
+                                                var status = $('#chatbot_telegram_status');
+                                                var button = $(this);
+
+                                                if (!token) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter a bot token', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+
+                                                button.prop('disabled', true);
+                                                status.html('<span><?php _e('Connecting...', 'chatbot-plugin'); ?></span>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_telegram_connect',
+                                                        config_id: configId,
+                                                        bot_token: token,
+                                                        nonce: $(this).data('nonce')
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            status.html('<span style="color: green;"><?php _e('Connected! Reloading...', 'chatbot-plugin'); ?></span>');
+                                                            setTimeout(function() {
+                                                                window.location.reload();
+                                                            }, 1000);
+                                                        } else {
+                                                            status.html('<span style="color: red;">' + (response.data.message || '<?php _e('Connection failed', 'chatbot-plugin'); ?>') + '</span>');
+                                                            button.prop('disabled', false);
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        status.html('<span style="color: red;"><?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                                        button.prop('disabled', false);
+                                                    }
+                                                });
+                                            });
+
+                                            // Disconnect button
+                                            $('#chatbot_telegram_disconnect').on('click', function() {
+                                                if (!confirm('<?php _e('Are you sure you want to disconnect this Telegram bot?', 'chatbot-plugin'); ?>')) {
+                                                    return;
+                                                }
+
+                                                var configId = $(this).data('config-id');
+                                                var button = $(this);
+
+                                                button.prop('disabled', true).text('<?php _e('Disconnecting...', 'chatbot-plugin'); ?>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_telegram_disconnect',
+                                                        config_id: configId,
+                                                        nonce: $(this).data('nonce')
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            window.location.reload();
+                                                        } else {
+                                                            alert(response.data.message || '<?php _e('Disconnect failed', 'chatbot-plugin'); ?>');
+                                                            button.prop('disabled', false).text('<?php _e('Disconnect Telegram', 'chatbot-plugin'); ?>');
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        alert('<?php _e('Connection error', 'chatbot-plugin'); ?>');
+                                                        button.prop('disabled', false).text('<?php _e('Disconnect Telegram', 'chatbot-plugin'); ?>');
+                                                    }
+                                                });
+                                            });
+
+                                            // Auto-polling for local development
+                                            var pollingInterval = null;
+                                            var isPolling = false;
+                                            var totalProcessed = 0;
+
+                                            function doPoll() {
+                                                var configId = $('#chatbot_telegram_poll').data('config-id');
+                                                var nonce = $('#chatbot_telegram_poll').data('nonce');
+                                                var status = $('#chatbot_telegram_poll_status');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_telegram_poll',
+                                                        config_id: configId,
+                                                        nonce: nonce
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success && response.data.messages_processed > 0) {
+                                                            totalProcessed += response.data.messages_processed;
+                                                            status.html('<span style="color: green;">&#x2714; ' + totalProcessed + ' <?php _e('message(s) processed', 'chatbot-plugin'); ?></span>');
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        // Silent fail, will retry on next poll
+                                                    }
+                                                });
+                                            }
+
+                                            // Start/Stop auto-polling button
+                                            $('#chatbot_telegram_poll').on('click', function() {
+                                                var button = $(this);
+                                                var status = $('#chatbot_telegram_poll_status');
+
+                                                if (isPolling) {
+                                                    // Stop polling
+                                                    clearInterval(pollingInterval);
+                                                    pollingInterval = null;
+                                                    isPolling = false;
+                                                    button.text('<?php _e('Start Auto-Poll', 'chatbot-plugin'); ?>').removeClass('button-primary').addClass('button-secondary');
+                                                    status.html('<span style="color: #666;"><?php _e('Polling stopped', 'chatbot-plugin'); ?></span>');
+                                                } else {
+                                                    // Start polling
+                                                    isPolling = true;
+                                                    totalProcessed = 0;
+                                                    button.text('<?php _e('Stop Polling', 'chatbot-plugin'); ?>').removeClass('button-secondary').addClass('button-primary');
+                                                    status.html('<span style="color: #1565c0;"><?php _e('Polling every 2 seconds...', 'chatbot-plugin'); ?></span>');
+
+                                                    // Poll immediately, then every 2 seconds
+                                                    doPoll();
+                                                    pollingInterval = setInterval(doPoll, 2000);
+                                                }
+                                            });
+
+                                        });
+                                    })(jQuery);
+                                    </script>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                     
@@ -1603,10 +1884,22 @@ class Chatbot_Admin {
             add_settings_error('chatbot_plugin', 'delete-error', __('Invalid configuration ID.', 'chatbot-plugin'), 'error');
             return;
         }
-        
+
         $db = Chatbot_DB::get_instance();
+
+        // Get configuration before deleting to check for Telegram integration
+        $config = $db->get_configuration($id);
+        if ($config && !empty($config->telegram_bot_token)) {
+            // Unregister Telegram webhook before deleting configuration
+            $telegram = Chatbot_Telegram::get_instance();
+            $telegram->unregister_webhook($id, $config->telegram_bot_token);
+            // Delete the secret token option
+            delete_option('chatbot_telegram_secret_' . $id);
+            chatbot_log('INFO', 'handle_delete_configuration', 'Unregistered Telegram webhook for config', array('config_id' => $id));
+        }
+
         $result = $db->delete_configuration($id);
-        
+
         if ($result) {
             add_settings_error('chatbot_plugin', 'delete-success', __('Chatbot deleted successfully.', 'chatbot-plugin'), 'updated');
         } else {
@@ -1634,6 +1927,7 @@ class Chatbot_Admin {
         $knowledge = isset($_POST['chatbot_knowledge']) ? sanitize_textarea_field($_POST['chatbot_knowledge']) : '';
         $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
         $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
+        $telegram_bot_token = isset($_POST['chatbot_telegram_bot_token']) ? sanitize_text_field($_POST['chatbot_telegram_bot_token']) : '';
 
         // Validate knowledge_sources is valid JSON if provided
         if (!empty($knowledge_sources)) {
@@ -1701,11 +1995,12 @@ class Chatbot_Admin {
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
             'system_prompt_length' => strlen($system_prompt),
-            'knowledge_sources' => $knowledge_sources
+            'knowledge_sources' => $knowledge_sources,
+            'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty'
         ));
 
         // Add the configuration
-        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources);
+        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token);
         
         if ($result) {
             // Success
@@ -1780,6 +2075,7 @@ class Chatbot_Admin {
         $knowledge = isset($_POST['chatbot_knowledge']) ? sanitize_textarea_field($_POST['chatbot_knowledge']) : '';
         $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
         $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
+        $telegram_bot_token = isset($_POST['chatbot_telegram_bot_token']) ? sanitize_text_field($_POST['chatbot_telegram_bot_token']) : '';
 
         // Validate knowledge_sources is valid JSON if provided
         if (!empty($knowledge_sources)) {
@@ -1834,11 +2130,12 @@ class Chatbot_Admin {
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
             'system_prompt_length' => strlen($system_prompt),
-            'knowledge_sources' => $knowledge_sources
+            'knowledge_sources' => $knowledge_sources,
+            'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty'
         ));
 
         // Update the configuration
-        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources);
+        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token);
         
         if ($result) {
             // Success

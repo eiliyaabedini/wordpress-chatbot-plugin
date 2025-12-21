@@ -746,19 +746,23 @@ class Chatbot_OpenAI {
             // Get conversation history to provide context, using custom system prompt if provided
             $messages = $this->get_conversation_history($conversation_id, $config);
 
+            // Ensure the latest message is included in the API call
+            if (!empty($latest_message)) {
+                $last_message = end($messages);
+                $latest_trimmed = trim($latest_message);
+
+                if (!$last_message || $last_message['role'] !== 'user' || trim($last_message['content']) !== $latest_trimmed) {
+                    $messages[] = array(
+                        'role' => 'user',
+                        'content' => $latest_message
+                    );
+                }
+            }
+
             // If using AIPass, use its API instead of direct OpenAI API
             if ($this->use_aipass && $this->aipass) {
-                chatbot_log('INFO', 'generate_response', 'Using AIPass for API request');
-
-                // Hardcode model for chatbot conversations
-                // For AIPass: Always use Gemini 2.5 Flash Lite (fastest & cheapest)
+                // Use Gemini 2.5 Flash Lite (fastest & cheapest)
                 $model = 'gemini/gemini-2.5-flash-lite';
-
-                chatbot_log('INFO', 'generate_response', 'Model selected', array(
-                    'original_model' => $this->model,
-                    'validated_model' => $model,
-                    'using_aipass' => true
-                ));
 
                 // Use AIPass to generate completion
                 $result = $this->aipass->generate_completion(

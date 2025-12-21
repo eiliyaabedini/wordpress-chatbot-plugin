@@ -418,6 +418,37 @@ class Chatbot_Handler {
             return $default_responses[array_rand($default_responses)];
         }
     }
+
+    /**
+     * Generate a response for a Telegram message
+     *
+     * This is a public wrapper around generate_response for external callers like Telegram
+     *
+     * @param string $message The user's message
+     * @param int $conversation_id The conversation ID
+     * @param int $config_id The chatbot configuration ID
+     * @return string The generated response
+     */
+    public function generate_telegram_response($message, $conversation_id, $config_id) {
+        $db = Chatbot_DB::get_instance();
+        $chatbot_config = $db->get_configuration($config_id);
+
+        if (!$chatbot_config) {
+            return "I'm sorry, I'm not configured properly. Please contact the administrator.";
+        }
+
+        if (!class_exists('Chatbot_OpenAI')) {
+            return "I'm sorry, AI integration is not available.";
+        }
+
+        $openai = Chatbot_OpenAI::get_instance();
+
+        if (!$openai->is_configured()) {
+            return "I'm sorry, the AI service is not configured. Please contact the administrator.";
+        }
+
+        return $openai->generate_response($conversation_id, $message, $chatbot_config);
+    }
 }
 
 // Initialize the handler

@@ -23,46 +23,53 @@ class Chatbot_DB {
     
     /**
      * Create a new conversation
-     * 
+     *
      * @param string $visitor_name The name of the visitor
      * @param int|null $chatbot_config_id Optional chatbot configuration ID
      * @param string|null $chatbot_config_name Optional chatbot configuration name
+     * @param int|null $telegram_chat_id Optional Telegram chat ID
      * @return int|false The conversation ID or false on failure
      */
-    public function create_conversation($visitor_name, $chatbot_config_id = null, $chatbot_config_name = null) {
+    public function create_conversation($visitor_name, $chatbot_config_id = null, $chatbot_config_name = null, $telegram_chat_id = null) {
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_conversations';
-        
+
         $data = array(
             'visitor_name' => sanitize_text_field($visitor_name),
             'status' => 'active'
         );
-        
+
         $formats = array('%s', '%s');
-        
+
         // Add chatbot configuration if provided
         if (!empty($chatbot_config_id)) {
             $data['chatbot_config_id'] = intval($chatbot_config_id);
             $formats[] = '%d';
         }
-        
+
         if (!empty($chatbot_config_name)) {
             $data['chatbot_config_name'] = sanitize_text_field($chatbot_config_name);
             $formats[] = '%s';
         }
-        
+
+        // Add Telegram chat ID if provided
+        if (!empty($telegram_chat_id)) {
+            $data['telegram_chat_id'] = intval($telegram_chat_id);
+            $formats[] = '%d';
+        }
+
         $result = $wpdb->insert(
             $table,
             $data,
             $formats
         );
-        
+
         if ($result === false) {
             chatbot_log('ERROR', 'create_conversation', 'Failed to create conversation', $wpdb->last_error);
             return false;
         }
-        
+
         return $wpdb->insert_id;
     }
     
@@ -216,23 +223,44 @@ class Chatbot_DB {
     
     /**
      * Get a single conversation by ID
-     * 
+     *
      * @param int $conversation_id The conversation ID
      * @return object|null The conversation object or null if not found
      */
     public function get_conversation($conversation_id) {
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_conversations';
-        
+
         $query = $wpdb->prepare(
             "SELECT * FROM $table WHERE id = %d",
             $conversation_id
         );
-        
+
         return $wpdb->get_row($query);
     }
-    
+
+    /**
+     * Get a conversation by Telegram chat ID and config ID
+     *
+     * @param int $telegram_chat_id The Telegram chat ID
+     * @param int $config_id The chatbot configuration ID
+     * @return object|null The conversation object or null if not found
+     */
+    public function get_conversation_by_telegram_chat($telegram_chat_id, $config_id) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'chatbot_conversations';
+
+        $query = $wpdb->prepare(
+            "SELECT * FROM $table WHERE telegram_chat_id = %d AND chatbot_config_id = %d AND status = 'active' ORDER BY updated_at DESC LIMIT 1",
+            $telegram_chat_id,
+            $config_id
+        );
+
+        return $wpdb->get_row($query);
+    }
+
     /**
      * Set a conversation's status
      * 
@@ -437,15 +465,16 @@ class Chatbot_DB {
     
     /**
      * Create a new chatbot configuration
-     * 
+     *
      * @param string $name Configuration name
      * @param string $system_prompt System prompt for the chatbot (for backward compatibility)
      * @param string $knowledge Knowledge base content for the chatbot
      * @param string $persona Personality and tone information for the chatbot
      * @param string $knowledge_sources JSON array of WordPress post IDs to use as knowledge
+     * @param string $telegram_bot_token Telegram bot token for this configuration
      * @return int|false The configuration ID or false on failure
      */
-    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '') {
+    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '') {
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_configurations';
@@ -465,7 +494,8 @@ class Chatbot_DB {
             'system_prompt_length' => strlen($system_prompt),
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
-            'knowledge_sources' => $knowledge_sources
+            'knowledge_sources' => $knowledge_sources,
+            'has_telegram_token' => !empty($telegram_bot_token)
         ));
 
         // Prepare data with sanitization
@@ -475,11 +505,12 @@ class Chatbot_DB {
             'knowledge' => sanitize_textarea_field($knowledge),
             'persona' => sanitize_textarea_field($persona),
             'knowledge_sources' => $knowledge_sources, // JSON string, no sanitization needed for valid JSON
+            'telegram_bot_token' => sanitize_text_field($telegram_bot_token),
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
 
-        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s');
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
         
         // Make sure the table exists
         // We can't parameterize table names in WordPress, but we can reduce risk
@@ -543,9 +574,10 @@ class Chatbot_DB {
      * @param string $knowledge Knowledge base content for the chatbot
      * @param string $persona Personality and tone information for the chatbot
      * @param string $knowledge_sources JSON array of WordPress post IDs to use as knowledge
+     * @param string $telegram_bot_token Telegram bot token for this configuration
      * @return bool Whether the update was successful
      */
-    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '') {
+    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '') {
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_configurations';
@@ -566,7 +598,8 @@ class Chatbot_DB {
             'system_prompt_length' => strlen($system_prompt),
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
-            'knowledge_sources' => $knowledge_sources
+            'knowledge_sources' => $knowledge_sources,
+            'has_telegram_token' => !empty($telegram_bot_token)
         ));
 
         $result = $wpdb->update(
@@ -577,10 +610,11 @@ class Chatbot_DB {
                 'knowledge' => sanitize_textarea_field($knowledge),
                 'persona' => sanitize_textarea_field($persona),
                 'knowledge_sources' => $knowledge_sources, // JSON string
+                'telegram_bot_token' => sanitize_text_field($telegram_bot_token),
                 'updated_at' => current_time('mysql')
             ),
             array('id' => $id),
-            array('%s', '%s', '%s', '%s', '%s', '%s'),
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s'),
             array('%d')
         );
 
