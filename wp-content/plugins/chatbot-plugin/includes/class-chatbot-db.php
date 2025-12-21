@@ -27,10 +27,12 @@ class Chatbot_DB {
      * @param string $visitor_name The name of the visitor
      * @param int|null $chatbot_config_id Optional chatbot configuration ID
      * @param string|null $chatbot_config_name Optional chatbot configuration name
-     * @param int|null $telegram_chat_id Optional Telegram chat ID
+     * @param int|null $telegram_chat_id Optional Telegram chat ID (legacy, use platform_type/platform_chat_id instead)
+     * @param string|null $platform_type Optional platform type ('telegram', 'whatsapp', etc.)
+     * @param string|null $platform_chat_id Optional platform-specific chat ID
      * @return int|false The conversation ID or false on failure
      */
-    public function create_conversation($visitor_name, $chatbot_config_id = null, $chatbot_config_name = null, $telegram_chat_id = null) {
+    public function create_conversation($visitor_name, $chatbot_config_id = null, $chatbot_config_name = null, $telegram_chat_id = null, $platform_type = null, $platform_chat_id = null) {
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_conversations';
@@ -53,10 +55,21 @@ class Chatbot_DB {
             $formats[] = '%s';
         }
 
-        // Add Telegram chat ID if provided
+        // Add Telegram chat ID if provided (legacy support)
         if (!empty($telegram_chat_id)) {
             $data['telegram_chat_id'] = intval($telegram_chat_id);
             $formats[] = '%d';
+        }
+
+        // Add platform type and chat ID for new messaging platforms
+        if (!empty($platform_type)) {
+            $data['platform_type'] = sanitize_text_field($platform_type);
+            $formats[] = '%s';
+        }
+
+        if (!empty($platform_chat_id)) {
+            $data['platform_chat_id'] = sanitize_text_field($platform_chat_id);
+            $formats[] = '%s';
         }
 
         $result = $wpdb->insert(
@@ -255,6 +268,29 @@ class Chatbot_DB {
         $query = $wpdb->prepare(
             "SELECT * FROM $table WHERE telegram_chat_id = %d AND chatbot_config_id = %d AND status = 'active' ORDER BY updated_at DESC LIMIT 1",
             $telegram_chat_id,
+            $config_id
+        );
+
+        return $wpdb->get_row($query);
+    }
+
+    /**
+     * Get a conversation by platform chat ID, platform type, and config ID
+     *
+     * @param string $platform_chat_id The platform-specific chat identifier
+     * @param string $platform_type The platform type ('telegram', 'whatsapp', etc.)
+     * @param int $config_id The chatbot configuration ID
+     * @return object|null The conversation object or null if not found
+     */
+    public function get_conversation_by_platform_chat($platform_chat_id, $platform_type, $config_id) {
+        global $wpdb;
+
+        $table = $wpdb->prefix . 'chatbot_conversations';
+
+        $query = $wpdb->prepare(
+            "SELECT * FROM $table WHERE platform_chat_id = %s AND platform_type = %s AND chatbot_config_id = %d AND status = 'active' ORDER BY updated_at DESC LIMIT 1",
+            $platform_chat_id,
+            $platform_type,
             $config_id
         );
 

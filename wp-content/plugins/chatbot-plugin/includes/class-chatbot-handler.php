@@ -430,6 +430,20 @@ class Chatbot_Handler {
      * @return string The generated response
      */
     public function generate_telegram_response($message, $conversation_id, $config_id) {
+        return $this->generate_platform_response($message, $conversation_id, $config_id);
+    }
+
+    /**
+     * Generate a response for any messaging platform
+     *
+     * This is a public wrapper around generate_response for external callers like Telegram, WhatsApp, etc.
+     *
+     * @param string $message The user's message
+     * @param int $conversation_id The conversation ID
+     * @param int $config_id The chatbot configuration ID
+     * @return string The generated response
+     */
+    public function generate_platform_response($message, $conversation_id, $config_id) {
         $db = Chatbot_DB::get_instance();
         $chatbot_config = $db->get_configuration($config_id);
 

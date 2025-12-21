@@ -488,6 +488,36 @@ By maintaining comprehensive logging, we create a reliable audit trail for troub
 **Issue**: Gemini/non-OpenAI models not working (Fixed 2025-11-09)
 **Solution**: Updated `validate_model()` to accept all models when using AIPass, only validate for direct OpenAI API
 
+## Versioning and Builds
+
+### Version Numbering
+- **Patch version** (1.3.0 → 1.3.1): Increment on every build/zip creation
+- **Minor version** (1.3.6 → 1.4.0): Only increment when explicitly requested by user
+- **Major version** (1.4.0 → 2.0.0): Only increment for breaking changes when requested
+
+### Version Locations
+Update version in TWO places in `chatbot-plugin.php`:
+1. Plugin header: `* Version: X.Y.Z`
+2. Constant: `define('CHATBOT_PLUGIN_VERSION', 'X.Y.Z');`
+
+### Creating a Build
+```bash
+cd /Users/eiliya/ai/app/idea/chatbot-plugin/wp-content/plugins
+rm -f chatbot-plugin.zip
+zip -r chatbot-plugin.zip chatbot-plugin \
+  -x "*.DS_Store" \
+  -x "*__MACOSX*" \
+  -x "chatbot-plugin/vendor/*" \
+  -x "chatbot-plugin/tests/*" \
+  -x "chatbot-plugin/bin/*" \
+  -x "chatbot-plugin/.git/*" \
+  -x "chatbot-plugin/docs/*" \
+  -x "chatbot-plugin/*.new" \
+  -x "chatbot-plugin/includes/*.new"
+```
+
+**IMPORTANT**: The zip should only contain the plugin files, NOT the entire WordPress repository.
+
 ## Development Reminder
 
 - Don't try to commit yourself, Commit just when I ask you!

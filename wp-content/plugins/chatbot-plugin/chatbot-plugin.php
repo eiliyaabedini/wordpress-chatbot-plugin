@@ -3,7 +3,7 @@
  * Plugin Name: AI Chat Bot
  * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
  * Description: A powerful AI chatbot plugin for WordPress
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -18,7 +18,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.3.0');
+define('CHATBOT_PLUGIN_VERSION', '1.3.1');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -37,6 +37,14 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-rate-limiter.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-data-retention.php';
+
+// Load new messaging platform architecture
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-messaging-platform.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-messaging-manager.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-platform-telegram.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-platform-whatsapp.php';
+
+// Keep legacy Telegram class for backward compatibility
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-telegram.php';
 
 /**
@@ -476,8 +484,63 @@ function update_chatbot_database_tables() {
 
         chatbot_log('INFO', 'update_tables', 'Added telegram_chat_id column to conversations table');
     }
+
+    // Check for platform_type and platform_chat_id columns (for new messaging platform architecture)
+    $check_platform_type_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_conversations',
+            'platform_type'
+        )
+    );
+
+    if (empty($check_platform_type_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding platform_type and platform_chat_id columns to conversations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `platform_type` varchar(20) DEFAULT 'web' AFTER `telegram_chat_id`",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `platform_chat_id` varchar(100) DEFAULT NULL AFTER `platform_type`",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        // Add index for platform lookups
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD INDEX `platform_lookup` (`platform_type`, `platform_chat_id`, `chatbot_config_id`)",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        chatbot_log('INFO', 'update_tables', 'Added platform columns to conversations table');
+    }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');
+
+/**
+ * Register messaging platforms with the manager
+ */
+function chatbot_register_messaging_platforms() {
+    $manager = Chatbot_Messaging_Manager::get_instance();
+
+    // Register built-in platforms
+    $manager->register_platform('telegram', 'Chatbot_Platform_Telegram');
+    $manager->register_platform('whatsapp', 'Chatbot_Platform_WhatsApp');
+
+    // Instantiate platforms immediately so their AJAX handlers are registered
+    // This is needed because platforms are lazy-loaded by default
+    $manager->get_platform('telegram');
+    $manager->get_platform('whatsapp');
+
+    // Allow other plugins/themes to register additional platforms
+    do_action('chatbot_register_messaging_platforms', $manager);
+}
+add_action('init', 'chatbot_register_messaging_platforms', 5);
 
 // Plugin deactivation
 function deactivate_chatbot_plugin() {

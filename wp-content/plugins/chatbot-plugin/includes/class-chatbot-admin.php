@@ -285,67 +285,188 @@ class Chatbot_Admin {
                         <input type="hidden" name="action" value="chatbot_add_configuration">
                         <?php wp_nonce_field('chatbot_add_configuration_nonce'); ?>
                     <?php endif; ?>
-                    
-                    <table class="form-table" role="presentation">
-                        <tbody>
-                            <tr>
-                                <th scope="row">
-                                    <label for="chatbot_config_name"><?php _e('Name', 'chatbot-plugin'); ?></label>
-                                </th>
-                                <td>
-                                    <input type="text" name="chatbot_config_name" id="chatbot_config_name" class="regular-text" value="<?php echo esc_attr($name); ?>" required>
-                                    <p class="description"><?php _e('Enter a unique name for this chatbot. This will be used in the shortcode.', 'chatbot-plugin'); ?></p>
-                                    <p class="description"><?php _e('Example shortcode: [chatbot name="product"]', 'chatbot-plugin'); ?></p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th scope="row">
-                                    <label for="chatbot_knowledge"><?php _e('Knowledge Base', 'chatbot-plugin'); ?></label>
-                                </th>
-                                <td>
-                                    <textarea name="chatbot_knowledge" id="chatbot_knowledge" class="large-text code" rows="10" data-original-value="<?php echo esc_attr($editing && isset($config->knowledge) ? $config->knowledge : $system_prompt); ?>"><?php echo esc_textarea($editing && isset($config->knowledge) ? $config->knowledge : $system_prompt); ?></textarea>
-                                    <p class="description"><?php _e('Define the domain-specific knowledge for this chatbot. This information is what the chatbot will use to answer questions.', 'chatbot-plugin'); ?></p>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th scope="row">
-                                    <label for="chatbot_persona"><?php _e('Persona', 'chatbot-plugin'); ?></label>
-                                </th>
-                                <td>
-                                    <textarea name="chatbot_persona" id="chatbot_persona" class="large-text code" rows="7" data-original-value="<?php echo esc_attr($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?>"><?php echo esc_textarea($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?></textarea>
-                                    <p class="description"><?php _e('Define the personality and tone for this chatbot. This controls how the AI responds to users.', 'chatbot-plugin'); ?></p>
-                                    <p class="description"><?php _e('Important: The AI will read from the Knowledge Base when generating responses.', 'chatbot-plugin'); ?></p>
-                                    <button type="button" class="button" id="chatbot_improve_prompt"
-                                        data-nonce-test="<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>"
-                                        data-nonce-improve="<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>">
-                                        <?php _e('Improve Persona with AI', 'chatbot-plugin'); ?>
-                                    </button>
-                                    <span id="chatbot_improve_prompt_status"></span>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th scope="row">
-                                    <label for="chatbot_knowledge_sources_select"><?php _e('WordPress Content Sources', 'chatbot-plugin'); ?></label>
-                                </th>
-                                <td>
-                                    <?php
-                                    // Get current knowledge sources
-                                    $knowledge_sources = $editing && isset($config->knowledge_sources) ? $config->knowledge_sources : '';
-                                    $selected_ids = !empty($knowledge_sources) ? json_decode($knowledge_sources, true) : array();
-                                    if (!is_array($selected_ids)) {
-                                        $selected_ids = array();
-                                    }
 
-                                    // Get all published posts for the select
-                                    $all_posts = get_posts(array(
-                                        'post_type' => array_values(array_diff(get_post_types(array('public' => true), 'names'), array('attachment'))),
-                                        'post_status' => 'publish',
-                                        'posts_per_page' => -1,
-                                        'orderby' => 'title',
-                                        'order' => 'ASC'
-                                    ));
-                                    ?>
-                                    <div class="chatbot-knowledge-sources-wrapper">
+                    <!-- Tabbed Interface -->
+                    <style>
+                        .chatbot-config-tabs {
+                            display: flex;
+                            gap: 0;
+                            border-bottom: 1px solid #c3c4c7;
+                            margin-bottom: 20px;
+                            background: #f0f0f1;
+                            padding: 0 10px;
+                        }
+                        .chatbot-config-tabs .nav-tab {
+                            padding: 10px 20px;
+                            cursor: pointer;
+                            border: 1px solid transparent;
+                            border-bottom: none;
+                            margin-bottom: -1px;
+                            background: transparent;
+                            color: #50575e;
+                            text-decoration: none;
+                            font-size: 14px;
+                            font-weight: 500;
+                            transition: all 0.2s;
+                        }
+                        .chatbot-config-tabs .nav-tab:hover {
+                            background: #fff;
+                            color: #2271b1;
+                        }
+                        .chatbot-config-tabs .nav-tab.nav-tab-active {
+                            background: #fff;
+                            border-color: #c3c4c7;
+                            border-bottom-color: #fff;
+                            color: #1d2327;
+                        }
+                        .chatbot-config-tabs .nav-tab .dashicons {
+                            font-size: 16px;
+                            width: 16px;
+                            height: 16px;
+                            margin-right: 5px;
+                            vertical-align: middle;
+                        }
+                        .chatbot-tab-content {
+                            display: none;
+                            background: #fff;
+                            padding: 20px;
+                            border: 1px solid #c3c4c7;
+                            border-top: none;
+                        }
+                        .chatbot-tab-content.active {
+                            display: block;
+                        }
+                        .chatbot-tab-content .form-table {
+                            margin-top: 0;
+                        }
+                        .chatbot-tab-content .form-table th {
+                            width: 200px;
+                            padding-left: 0;
+                        }
+                        .chatbot-integration-status {
+                            display: inline-block;
+                            padding: 2px 8px;
+                            border-radius: 3px;
+                            font-size: 11px;
+                            margin-left: 8px;
+                            vertical-align: middle;
+                        }
+                        .chatbot-integration-status.connected {
+                            background: #d4edda;
+                            color: #155724;
+                        }
+                        .chatbot-integration-status.disconnected {
+                            background: #f8f9fa;
+                            color: #6c757d;
+                        }
+                        @media (max-width: 1200px) {
+                            .integrations-grid {
+                                grid-template-columns: 1fr !important;
+                            }
+                        }
+                        .integration-card p.description {
+                            margin-top: 15px;
+                            padding-top: 15px;
+                            border-top: 1px solid #eee;
+                        }
+                    </style>
+
+                    <div class="chatbot-config-tabs">
+                        <a href="#" class="nav-tab nav-tab-active" data-tab="general">
+                            <span class="dashicons dashicons-admin-generic"></span><?php _e('General', 'chatbot-plugin'); ?>
+                        </a>
+                        <a href="#" class="nav-tab" data-tab="knowledge">
+                            <span class="dashicons dashicons-database"></span><?php _e('Knowledge', 'chatbot-plugin'); ?>
+                        </a>
+                        <a href="#" class="nav-tab" data-tab="integrations">
+                            <span class="dashicons dashicons-share"></span><?php _e('Integrations', 'chatbot-plugin'); ?>
+                            <?php
+                            // Show integration status badges
+                            $telegram_connected = $editing && !empty($config->telegram_bot_token);
+                            $whatsapp_connected = false;
+                            if ($editing && class_exists('Chatbot_Messaging_Manager')) {
+                                $manager = Chatbot_Messaging_Manager::get_instance();
+                                $whatsapp = $manager->get_platform('whatsapp');
+                                if ($whatsapp) {
+                                    $whatsapp_connected = $whatsapp->is_connected($config->id);
+                                }
+                            }
+                            $connected_count = ($telegram_connected ? 1 : 0) + ($whatsapp_connected ? 1 : 0);
+                            if ($connected_count > 0): ?>
+                                <span class="chatbot-integration-status connected"><?php echo $connected_count; ?> <?php _e('active', 'chatbot-plugin'); ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </div>
+
+                    <!-- General Tab -->
+                    <div id="tab-general" class="chatbot-tab-content active">
+                        <table class="form-table" role="presentation">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="chatbot_config_name"><?php _e('Name', 'chatbot-plugin'); ?></label>
+                                    </th>
+                                    <td>
+                                        <input type="text" name="chatbot_config_name" id="chatbot_config_name" class="regular-text" value="<?php echo esc_attr($name); ?>" required>
+                                        <p class="description"><?php _e('Enter a unique name for this chatbot. This will be used in the shortcode.', 'chatbot-plugin'); ?></p>
+                                        <p class="description"><?php _e('Example shortcode:', 'chatbot-plugin'); ?> <code>[chatbot name="<?php echo esc_attr($name ?: 'product'); ?>"]</code></p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="chatbot_persona"><?php _e('Persona', 'chatbot-plugin'); ?></label>
+                                    </th>
+                                    <td>
+                                        <textarea name="chatbot_persona" id="chatbot_persona" class="large-text code" rows="7" data-original-value="<?php echo esc_attr($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?>"><?php echo esc_textarea($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?></textarea>
+                                        <p class="description"><?php _e('Define the personality and tone for this chatbot. This controls how the AI responds to users.', 'chatbot-plugin'); ?></p>
+                                        <button type="button" class="button" id="chatbot_improve_prompt"
+                                            data-nonce-test="<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>"
+                                            data-nonce-improve="<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>">
+                                            <?php _e('Improve Persona with AI', 'chatbot-plugin'); ?>
+                                        </button>
+                                        <span id="chatbot_improve_prompt_status"></span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Knowledge Tab -->
+                    <div id="tab-knowledge" class="chatbot-tab-content">
+                        <table class="form-table" role="presentation">
+                            <tbody>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="chatbot_knowledge"><?php _e('Knowledge Base', 'chatbot-plugin'); ?></label>
+                                    </th>
+                                    <td>
+                                        <textarea name="chatbot_knowledge" id="chatbot_knowledge" class="large-text code" rows="12" data-original-value="<?php echo esc_attr($editing && isset($config->knowledge) ? $config->knowledge : $system_prompt); ?>"><?php echo esc_textarea($editing && isset($config->knowledge) ? $config->knowledge : $system_prompt); ?></textarea>
+                                        <p class="description"><?php _e('Define the domain-specific knowledge for this chatbot. This information is what the chatbot will use to answer questions.', 'chatbot-plugin'); ?></p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="chatbot_knowledge_sources_select"><?php _e('WordPress Content', 'chatbot-plugin'); ?></label>
+                                    </th>
+                                    <td>
+                                        <?php
+                                        // Get current knowledge sources
+                                        $knowledge_sources = $editing && isset($config->knowledge_sources) ? $config->knowledge_sources : '';
+                                        $selected_ids = !empty($knowledge_sources) ? json_decode($knowledge_sources, true) : array();
+                                        if (!is_array($selected_ids)) {
+                                            $selected_ids = array();
+                                        }
+
+                                        // Get all published posts for the select
+                                        $all_posts = get_posts(array(
+                                            'post_type' => array_values(array_diff(get_post_types(array('public' => true), 'names'), array('attachment'))),
+                                            'post_status' => 'publish',
+                                            'posts_per_page' => -1,
+                                            'orderby' => 'title',
+                                            'order' => 'ASC'
+                                        ));
+                                        ?>
+                                        <div class="chatbot-knowledge-sources-wrapper">
                                         <select id="chatbot_knowledge_sources_select" class="chatbot-select2" multiple="multiple" style="width: 100%; max-width: 600px;">
                                             <?php foreach ($all_posts as $post):
                                                 $post_type_obj = get_post_type_object($post->post_type);
@@ -439,24 +560,34 @@ class Chatbot_Admin {
                                     <input type="hidden" name="chatbot_system_prompt" id="chatbot_system_prompt" value="<?php echo esc_attr($system_prompt); ?>" />
                                 </td>
                             </tr>
-                            <tr>
-                                <th scope="row">
-                                    <label for="chatbot_telegram_bot_token"><?php _e('Telegram Integration', 'chatbot-plugin'); ?></label>
-                                </th>
-                                <td>
-                                    <?php
-                                    // Get current Telegram bot token
-                                    $telegram_bot_token = $editing && isset($config->telegram_bot_token) ? $config->telegram_bot_token : '';
-                                    $telegram_connected = !empty($telegram_bot_token);
+                            </tbody>
+                        </table>
+                    </div>
 
-                                    // Get bot info if connected
-                                    $telegram_bot_info = null;
-                                    $telegram = Chatbot_Telegram::get_instance();
-                                    $is_localhost = $telegram->is_localhost();
-                                    if ($telegram_connected) {
-                                        $telegram_bot_info = $telegram->validate_token($telegram_bot_token);
-                                    }
-                                    ?>
+                    <!-- Integrations Tab -->
+                    <div id="tab-integrations" class="chatbot-tab-content">
+                        <div class="integrations-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <!-- Telegram Section -->
+                            <div class="integration-card" style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px;">
+                                <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                    <span style="background: #0088cc; color: #fff; padding: 8px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+                                        <span class="dashicons dashicons-format-status" style="font-size: 20px; width: 20px; height: 20px;"></span>
+                                    </span>
+                                    <?php _e('Telegram', 'chatbot-plugin'); ?>
+                                </h3>
+                                <?php
+                                // Get current Telegram bot token
+                                $telegram_bot_token = $editing && isset($config->telegram_bot_token) ? $config->telegram_bot_token : '';
+                                $telegram_connected = !empty($telegram_bot_token);
+
+                                // Get bot info if connected
+                                $telegram_bot_info = null;
+                                $telegram = Chatbot_Telegram::get_instance();
+                                $is_localhost = $telegram->is_localhost();
+                                if ($telegram_connected) {
+                                    $telegram_bot_info = $telegram->validate_token($telegram_bot_token);
+                                }
+                                ?>
 
                                     <?php
                                     // Check if polling mode is enabled for this config
@@ -542,12 +673,12 @@ class Chatbot_Admin {
                                             <?php endif; ?>
                                         <?php endif; ?>
                                     </div>
-                                    <p class="description" style="margin-top: 10px;">
-                                        <?php _e('Connect a Telegram bot to allow users to chat via Telegram. Get your bot token from', 'chatbot-plugin'); ?>
-                                        <a href="https://t.me/BotFather" target="_blank">@BotFather</a>.
-                                    </p>
+                                <p class="description">
+                                    <?php _e('Connect a Telegram bot to allow users to chat via Telegram.', 'chatbot-plugin'); ?>
+                                    <a href="https://t.me/BotFather" target="_blank"><?php _e('Get your bot token from @BotFather', 'chatbot-plugin'); ?></a>
+                                </p>
 
-                                    <!-- Telegram connection JavaScript -->
+                                <!-- Telegram connection JavaScript -->
                                     <script type="text/javascript">
                                     (function($) {
                                         $(document).ready(function() {
@@ -718,12 +849,410 @@ class Chatbot_Admin {
                                         });
                                     })(jQuery);
                                     </script>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                    
-                    <p class="submit">
+                            </div>
+                            <!-- End Telegram Section -->
+
+                            <!-- WhatsApp Section -->
+                            <div class="integration-card" style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px;">
+                                <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                    <span style="background: #25D366; color: #fff; padding: 8px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+                                        <span class="dashicons dashicons-smartphone" style="font-size: 20px; width: 20px; height: 20px;"></span>
+                                    </span>
+                                    <?php _e('WhatsApp', 'chatbot-plugin'); ?>
+                                </h3>
+                                <?php
+                                // Get WhatsApp connection status
+                                $whatsapp_connected = false;
+                                $whatsapp_info = array();
+                                if ($editing && class_exists('Chatbot_Messaging_Manager')) {
+                                    $manager = Chatbot_Messaging_Manager::get_instance();
+                                    $whatsapp = $manager->get_platform('whatsapp');
+                                    if ($whatsapp) {
+                                        $whatsapp_connected = $whatsapp->is_connected($config->id);
+                                        if ($whatsapp_connected) {
+                                            $whatsapp_info = $whatsapp->get_stored_credentials($config->id);
+                                        }
+                                    }
+                                }
+                                ?>
+                                <div class="chatbot-whatsapp-wrapper">
+                                        <?php if ($whatsapp_connected && !empty($whatsapp_info['phone_info'])): ?>
+                                            <!-- Connected state -->
+                                            <div class="whatsapp-status connected" style="background: #e8f5e9; padding: 15px; border-radius: 4px; margin-bottom: 10px;">
+                                                <div style="display: flex; align-items: center; gap: 10px;">
+                                                    <span style="color: #2e7d32; font-size: 20px;">&#x2713;</span>
+                                                    <div>
+                                                        <strong style="color: #2e7d32;"><?php _e('Connected', 'chatbot-plugin'); ?></strong>
+                                                        <span style="color: #666; margin-left: 10px;">
+                                                            <?php echo esc_html($whatsapp_info['phone_info']['display_phone_number'] ?? ''); ?>
+                                                            <?php if (!empty($whatsapp_info['phone_info']['verified_name'])): ?>
+                                                                (<?php echo esc_html($whatsapp_info['phone_info']['verified_name']); ?>)
+                                                            <?php endif; ?>
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <p style="margin: 10px 0 0 0; color: #555; font-size: 13px;">
+                                                    <?php _e('WhatsApp Cloud API is connected. Users can message your WhatsApp Business number.', 'chatbot-plugin'); ?>
+                                                </p>
+                                            </div>
+                                            <button type="button" id="chatbot_whatsapp_send_test" class="button button-primary" data-config-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_whatsapp_send_test'); ?>">
+                                                <?php _e('Send Test Message', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <button type="button" id="chatbot_whatsapp_disconnect" class="button" data-config-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_whatsapp_disconnect'); ?>" style="color: #d32f2f; margin-left: 5px;">
+                                                <?php _e('Disconnect', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <button type="button" id="chatbot_whatsapp_show_webhook" class="button" style="margin-left: 5px;">
+                                                <?php _e('Webhook Info', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <span id="chatbot_whatsapp_status" style="margin-left: 10px;"></span>
+
+                                            <!-- Test Message Form (hidden by default) -->
+                                            <div id="whatsapp_test_form" style="display: none; margin-top: 15px; background: #f0f6fc; border: 1px solid #c5d9ed; padding: 15px; border-radius: 4px;">
+                                                <h4 style="margin: 0 0 10px 0; color: #1d2327;"><?php _e('Send Test Message', 'chatbot-plugin'); ?></h4>
+                                                <div style="margin-bottom: 10px;">
+                                                    <label for="whatsapp_test_number" style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('Recipient Phone Number', 'chatbot-plugin'); ?></label>
+                                                    <input type="text" id="whatsapp_test_number" class="regular-text" placeholder="+1234567890" style="width: 100%; max-width: 300px;">
+                                                    <p class="description" style="margin-top: 5px;"><?php _e('Include country code (e.g., +1 for US). Must be a number that has messaged your WhatsApp Business first.', 'chatbot-plugin'); ?></p>
+                                                </div>
+                                                <div style="margin-bottom: 10px;">
+                                                    <label for="whatsapp_test_message" style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('Message', 'chatbot-plugin'); ?></label>
+                                                    <input type="text" id="whatsapp_test_message" class="regular-text" value="Hello! This is a test message from your WordPress chatbot." style="width: 100%;">
+                                                </div>
+                                                <button type="button" id="chatbot_whatsapp_send_test_submit" class="button button-primary">
+                                                    <?php _e('Send Message', 'chatbot-plugin'); ?>
+                                                </button>
+                                                <button type="button" id="chatbot_whatsapp_send_test_cancel" class="button">
+                                                    <?php _e('Cancel', 'chatbot-plugin'); ?>
+                                                </button>
+                                                <span id="whatsapp_test_status" style="margin-left: 10px;"></span>
+                                            </div>
+
+                                            <div id="whatsapp_webhook_info" style="display: none; margin-top: 15px; background: #f5f5f5; padding: 15px; border-radius: 4px;">
+                                                <h4 style="margin: 0 0 10px 0;"><?php _e('Webhook Configuration', 'chatbot-plugin'); ?></h4>
+                                                <p><strong><?php _e('Callback URL:', 'chatbot-plugin'); ?></strong><br>
+                                                <code style="background: #fff; padding: 5px 10px; display: block; margin: 5px 0; word-break: break-all;"><?php echo esc_html(rest_url("chatbot-plugin/v1/webhook/whatsapp/{$config->id}")); ?></code></p>
+                                                <p><strong><?php _e('Verify Token:', 'chatbot-plugin'); ?></strong><br>
+                                                <code style="background: #fff; padding: 5px 10px; display: block; margin: 5px 0;"><?php echo esc_html($whatsapp_info['verify_token'] ?? ''); ?></code></p>
+                                                <p class="description"><?php _e('Use these values in your Meta App Dashboard under WhatsApp > Configuration > Webhook.', 'chatbot-plugin'); ?></p>
+                                            </div>
+                                        <?php elseif ($editing): ?>
+                                            <!-- Disconnected state - show connection form -->
+                                            <div style="margin-bottom: 15px;">
+                                                <button type="button" id="chatbot_whatsapp_help_toggle" class="button button-small" style="display: flex; align-items: center; gap: 5px;">
+                                                    <span class="dashicons dashicons-editor-help" style="font-size: 16px; width: 16px; height: 16px;"></span>
+                                                    <?php _e('How to get credentials', 'chatbot-plugin'); ?>
+                                                    <span class="dashicons dashicons-arrow-down-alt2" id="whatsapp_help_arrow" style="font-size: 14px; width: 14px; height: 14px;"></span>
+                                                </button>
+                                                <div id="chatbot_whatsapp_help_content" style="display: none; background: #f8f9fa; border: 1px solid #e2e4e7; border-radius: 4px; padding: 15px; margin-top: 10px;">
+                                                    <h4 style="margin: 0 0 12px 0; color: #1d2327;"><?php _e('Where to get your credentials', 'chatbot-plugin'); ?></h4>
+                                                    <ol style="margin: 0 0 15px 20px; padding: 0; color: #50575e;">
+                                                        <li style="margin-bottom: 8px;"><?php _e('Go to', 'chatbot-plugin'); ?> <a href="https://developers.facebook.com/" target="_blank">Meta for Developers</a></li>
+                                                        <li style="margin-bottom: 8px;"><?php _e('Create or select your App → Add WhatsApp product', 'chatbot-plugin'); ?></li>
+                                                        <li style="margin-bottom: 8px;"><?php _e('In <strong>WhatsApp → API Setup</strong>:', 'chatbot-plugin'); ?>
+                                                            <ul style="margin: 8px 0 0 20px; list-style-type: disc;">
+                                                                <li><strong><?php _e('Phone Number ID', 'chatbot-plugin'); ?></strong>: <?php _e('Shown under "From" phone number', 'chatbot-plugin'); ?></li>
+                                                                <li><strong><?php _e('Access Token', 'chatbot-plugin'); ?></strong>: <?php _e('Click "Generate" for a temporary token (24h) or create a permanent System User token', 'chatbot-plugin'); ?></li>
+                                                            </ul>
+                                                        </li>
+                                                    </ol>
+                                                    <h4 style="margin: 15px 0 12px 0; color: #1d2327;"><?php _e('After connecting', 'chatbot-plugin'); ?></h4>
+                                                    <p style="margin: 0 0 8px 0; color: #50575e;"><?php _e('Configure the webhook in Meta\'s dashboard:', 'chatbot-plugin'); ?></p>
+                                                    <ul style="margin: 0 0 15px 20px; padding: 0; color: #50575e; list-style-type: disc;">
+                                                        <li style="margin-bottom: 5px;"><strong><?php _e('Callback URL', 'chatbot-plugin'); ?></strong>: <?php _e('Will be shown after you connect', 'chatbot-plugin'); ?></li>
+                                                        <li style="margin-bottom: 5px;"><strong><?php _e('Verify Token', 'chatbot-plugin'); ?></strong>: <?php _e('Auto-generated by the plugin', 'chatbot-plugin'); ?></li>
+                                                    </ul>
+                                                    <div style="background: #fff8e5; border-left: 4px solid #ffb900; padding: 10px 12px; margin-top: 12px;">
+                                                        <strong style="color: #6d5200;"><?php _e('For production use:', 'chatbot-plugin'); ?></strong>
+                                                        <ul style="margin: 8px 0 0 20px; padding: 0; color: #6d5200; list-style-type: disc; font-size: 13px;">
+                                                            <li><?php _e('A verified Meta Business Account', 'chatbot-plugin'); ?></li>
+                                                            <li><?php _e('A registered WhatsApp Business phone number', 'chatbot-plugin'); ?></li>
+                                                            <li><?php _e('Subscribe to the "messages" webhook field', 'chatbot-plugin'); ?></li>
+                                                        </ul>
+                                                        <p style="margin: 8px 0 0 0; font-size: 13px; color: #6d5200;"><?php _e('For testing, Meta provides a test phone number in sandbox mode.', 'chatbot-plugin'); ?></p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="whatsapp-input-group" style="margin-bottom: 10px;">
+                                                <label for="chatbot_whatsapp_phone_id_input" style="display: block; margin-bottom: 5px;">
+                                                    <strong><?php _e('Phone Number ID', 'chatbot-plugin'); ?></strong>
+                                                </label>
+                                                <input type="text" id="chatbot_whatsapp_phone_id_input" class="regular-text" placeholder="123456789012345" style="width: 100%;">
+                                            </div>
+                                            <div class="whatsapp-input-group" style="margin-bottom: 10px;">
+                                                <label for="chatbot_whatsapp_token_input" style="display: block; margin-bottom: 5px;">
+                                                    <strong><?php _e('Access Token', 'chatbot-plugin'); ?></strong>
+                                                </label>
+                                                <input type="password" id="chatbot_whatsapp_token_input" class="regular-text" placeholder="EAAxxxxxxx..." style="width: 100%;">
+                                                <button type="button" class="button button-small" onclick="var f=document.getElementById('chatbot_whatsapp_token_input');f.type=f.type==='password'?'text':'password';" style="margin-top: 5px;">
+                                                    <?php _e('Show/Hide', 'chatbot-plugin'); ?>
+                                                </button>
+                                            </div>
+                                            <button type="button" id="chatbot_whatsapp_connect" class="button button-primary" data-config-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_whatsapp_connect'); ?>">
+                                                <?php _e('Connect WhatsApp', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <button type="button" id="chatbot_whatsapp_test" class="button" data-nonce="<?php echo wp_create_nonce('chatbot_whatsapp_test'); ?>">
+                                                <?php _e('Test Credentials', 'chatbot-plugin'); ?>
+                                            </button>
+                                            <span id="chatbot_whatsapp_status" style="margin-left: 10px;"></span>
+                                        <?php else: ?>
+                                            <p class="description" style="color: #666;">
+                                                <?php _e('Save the chatbot first, then you can connect WhatsApp.', 'chatbot-plugin'); ?>
+                                            </p>
+                                        <?php endif; ?>
+                                    </div>
+                                    <p class="description" style="margin-top: 10px;">
+                                        <?php _e('Connect WhatsApp Cloud API to allow users to chat via WhatsApp. Requires', 'chatbot-plugin'); ?>
+                                        <a href="https://business.facebook.com/" target="_blank"><?php _e('Meta Business Account', 'chatbot-plugin'); ?></a>.
+                                    </p>
+
+                                    <!-- WhatsApp connection JavaScript -->
+                                    <script type="text/javascript">
+                                    (function($) {
+                                        $(document).ready(function() {
+                                            // Show/hide webhook info
+                                            $('#chatbot_whatsapp_show_webhook').on('click', function() {
+                                                $('#whatsapp_webhook_info').slideToggle();
+                                            });
+
+                                            // Show/hide help content
+                                            $('#chatbot_whatsapp_help_toggle').on('click', function() {
+                                                var content = $('#chatbot_whatsapp_help_content');
+                                                var arrow = $('#whatsapp_help_arrow');
+                                                content.slideToggle(200, function() {
+                                                    if (content.is(':visible')) {
+                                                        arrow.removeClass('dashicons-arrow-down-alt2').addClass('dashicons-arrow-up-alt2');
+                                                    } else {
+                                                        arrow.removeClass('dashicons-arrow-up-alt2').addClass('dashicons-arrow-down-alt2');
+                                                    }
+                                                });
+                                            });
+
+                                            // Show/hide test message form
+                                            $('#chatbot_whatsapp_send_test').on('click', function() {
+                                                $('#whatsapp_test_form').slideToggle();
+                                                $('#whatsapp_webhook_info').slideUp();
+                                            });
+
+                                            $('#chatbot_whatsapp_send_test_cancel').on('click', function() {
+                                                $('#whatsapp_test_form').slideUp();
+                                                $('#whatsapp_test_status').html('');
+                                            });
+
+                                            // Send test message
+                                            $('#chatbot_whatsapp_send_test_submit').on('click', function() {
+                                                var phoneNumber = $('#whatsapp_test_number').val().replace(/\s+/g, '').replace(/^\+/, '');
+                                                var message = $('#whatsapp_test_message').val();
+                                                var configId = $('#chatbot_whatsapp_send_test').data('config-id');
+                                                var nonce = $('#chatbot_whatsapp_send_test').data('nonce');
+                                                var status = $('#whatsapp_test_status');
+                                                var button = $(this);
+
+                                                if (!phoneNumber) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter a phone number', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+
+                                                if (!message) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter a message', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+
+                                                button.prop('disabled', true);
+                                                status.html('<span><?php _e('Sending...', 'chatbot-plugin'); ?></span>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_whatsapp_send_test',
+                                                        config_id: configId,
+                                                        phone_number: phoneNumber,
+                                                        message: message,
+                                                        nonce: nonce
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            status.html('<span style="color: green;"><?php _e('Message sent successfully!', 'chatbot-plugin'); ?></span>');
+                                                        } else {
+                                                            status.html('<span style="color: red;">' + (response.data.message || '<?php _e('Failed to send message', 'chatbot-plugin'); ?>') + '</span>');
+                                                        }
+                                                        button.prop('disabled', false);
+                                                    },
+                                                    error: function() {
+                                                        status.html('<span style="color: red;"><?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                                        button.prop('disabled', false);
+                                                    }
+                                                });
+                                            });
+
+                                            // Test credentials button
+                                            $('#chatbot_whatsapp_test').on('click', function() {
+                                                var phoneId = $('#chatbot_whatsapp_phone_id_input').val();
+                                                var token = $('#chatbot_whatsapp_token_input').val();
+                                                var status = $('#chatbot_whatsapp_status');
+
+                                                if (!phoneId || !token) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter Phone Number ID and Access Token', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+
+                                                status.html('<span><?php _e('Testing...', 'chatbot-plugin'); ?></span>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_platform_test',
+                                                        platform: 'whatsapp',
+                                                        credentials: {
+                                                            phone_number_id: phoneId,
+                                                            access_token: token
+                                                        },
+                                                        nonce: $(this).data('nonce')
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            var info = response.data.info;
+                                                            status.html('<span style="color: green;"><?php _e('Valid!', 'chatbot-plugin'); ?> ' + (info.display_phone_number || '') + '</span>');
+                                                        } else {
+                                                            status.html('<span style="color: red;">' + (response.data.message || '<?php _e('Invalid credentials', 'chatbot-plugin'); ?>') + '</span>');
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        status.html('<span style="color: red;"><?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                                    }
+                                                });
+                                            });
+
+                                            // Connect button
+                                            $('#chatbot_whatsapp_connect').on('click', function() {
+                                                var phoneId = $('#chatbot_whatsapp_phone_id_input').val();
+                                                var token = $('#chatbot_whatsapp_token_input').val();
+                                                var configId = $(this).data('config-id');
+                                                var status = $('#chatbot_whatsapp_status');
+                                                var button = $(this);
+
+                                                if (!phoneId || !token) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter Phone Number ID and Access Token', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+
+                                                button.prop('disabled', true);
+                                                status.html('<span><?php _e('Connecting...', 'chatbot-plugin'); ?></span>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_platform_connect',
+                                                        platform: 'whatsapp',
+                                                        config_id: configId,
+                                                        credentials: {
+                                                            phone_number_id: phoneId,
+                                                            access_token: token
+                                                        },
+                                                        nonce: $(this).data('nonce')
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            status.html('<span style="color: green;"><?php _e('Connected! Reloading...', 'chatbot-plugin'); ?></span>');
+                                                            // Show webhook setup instructions
+                                                            if (response.data.setup_instructions) {
+                                                                var instructions = response.data.setup_instructions;
+                                                                alert('<?php _e('WhatsApp connected! Next step: Configure the webhook in your Meta App Dashboard.', 'chatbot-plugin'); ?>\n\n' +
+                                                                    '<?php _e('Callback URL:', 'chatbot-plugin'); ?> ' + instructions.webhook_url + '\n' +
+                                                                    '<?php _e('Verify Token:', 'chatbot-plugin'); ?> ' + instructions.verify_token);
+                                                            }
+                                                            setTimeout(function() {
+                                                                window.location.reload();
+                                                            }, 1000);
+                                                        } else {
+                                                            status.html('<span style="color: red;">' + (response.data.message || '<?php _e('Connection failed', 'chatbot-plugin'); ?>') + '</span>');
+                                                            button.prop('disabled', false);
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        status.html('<span style="color: red;"><?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                                        button.prop('disabled', false);
+                                                    }
+                                                });
+                                            });
+
+                                            // Disconnect button
+                                            $('#chatbot_whatsapp_disconnect').on('click', function() {
+                                                if (!confirm('<?php _e('Are you sure you want to disconnect WhatsApp?', 'chatbot-plugin'); ?>')) {
+                                                    return;
+                                                }
+
+                                                var configId = $(this).data('config-id');
+                                                var button = $(this);
+
+                                                button.prop('disabled', true).text('<?php _e('Disconnecting...', 'chatbot-plugin'); ?>');
+
+                                                $.ajax({
+                                                    url: ajaxurl,
+                                                    type: 'POST',
+                                                    data: {
+                                                        action: 'chatbot_platform_disconnect',
+                                                        platform: 'whatsapp',
+                                                        config_id: configId,
+                                                        nonce: $(this).data('nonce')
+                                                    },
+                                                    success: function(response) {
+                                                        if (response.success) {
+                                                            window.location.reload();
+                                                        } else {
+                                                            alert(response.data.message || '<?php _e('Disconnect failed', 'chatbot-plugin'); ?>');
+                                                            button.prop('disabled', false).text('<?php _e('Disconnect WhatsApp', 'chatbot-plugin'); ?>');
+                                                        }
+                                                    },
+                                                    error: function() {
+                                                        alert('<?php _e('Connection error', 'chatbot-plugin'); ?>');
+                                                        button.prop('disabled', false).text('<?php _e('Disconnect WhatsApp', 'chatbot-plugin'); ?>');
+                                                    }
+                                                });
+                                            });
+                                        });
+                                    })(jQuery);
+                                    </script>
+                            </div>
+                            <!-- End WhatsApp Section -->
+                        </div>
+                        <!-- End integrations-grid -->
+                    </div>
+                    <!-- End Integrations Tab -->
+
+                    <!-- Tab switching JavaScript -->
+                    <script type="text/javascript">
+                    (function($) {
+                        $(document).ready(function() {
+                            // Tab switching
+                            $('.chatbot-config-tabs .nav-tab').on('click', function(e) {
+                                e.preventDefault();
+                                var tabId = $(this).data('tab');
+
+                                // Update active tab
+                                $('.chatbot-config-tabs .nav-tab').removeClass('nav-tab-active');
+                                $(this).addClass('nav-tab-active');
+
+                                // Show corresponding content
+                                $('.chatbot-tab-content').removeClass('active');
+                                $('#tab-' + tabId).addClass('active');
+
+                                // Store active tab in session storage
+                                sessionStorage.setItem('chatbot_active_tab', tabId);
+                            });
+
+                            // Restore active tab from session storage
+                            var activeTab = sessionStorage.getItem('chatbot_active_tab');
+                            if (activeTab) {
+                                $('.chatbot-config-tabs .nav-tab[data-tab="' + activeTab + '"]').click();
+                            }
+                        });
+                    })(jQuery);
+                    </script>
+
+                    <p class="submit" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #c3c4c7;">
                         <?php if ($editing): ?>
                             <input type="submit" class="button button-primary" value="<?php esc_attr_e('Update Chatbot', 'chatbot-plugin'); ?>">
                         <?php else: ?>
