@@ -316,6 +316,9 @@ class Chatbot_Platform_WhatsApp extends Chatbot_Messaging_Platform {
     private function handle_incoming_message(WP_REST_Request $request, int $config_id): WP_REST_Response {
         $body = $request->get_json_params();
 
+        // Store webhook for debugging (last 10 webhooks)
+        $this->store_webhook_debug($config_id, $body);
+
         // Validate the webhook payload structure
         if (!isset($body['object']) || $body['object'] !== 'whatsapp_business_account') {
             return new WP_REST_Response(array('status' => 'ignored'), 200);
@@ -582,5 +585,52 @@ class Chatbot_Platform_WhatsApp extends Chatbot_Messaging_Platform {
         }
 
         return $body['data'][0] ?? false;
+    }
+
+    /**
+     * Store webhook data for debugging (viewable in admin)
+     *
+     * @param int $config_id The configuration ID
+     * @param array $data The webhook payload
+     */
+    private function store_webhook_debug(int $config_id, array $data): void {
+        $option_key = 'chatbot_whatsapp_webhook_debug_' . $config_id;
+        $webhooks = get_option($option_key, array());
+
+        // Add new webhook at the beginning
+        array_unshift($webhooks, array(
+            'time' => current_time('mysql'),
+            'timestamp' => time(),
+            'has_object' => isset($data['object']),
+            'object' => $data['object'] ?? 'not set',
+            'has_messages' => isset($data['entry'][0]['changes'][0]['value']['messages']),
+            'message_type' => $data['entry'][0]['changes'][0]['value']['messages'][0]['type'] ?? 'none',
+            'from' => $data['entry'][0]['changes'][0]['value']['messages'][0]['from'] ?? 'none',
+            'body_preview' => substr($data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body'] ?? '', 0, 50)
+        ));
+
+        // Keep only last 20 webhooks
+        $webhooks = array_slice($webhooks, 0, 20);
+
+        update_option($option_key, $webhooks);
+    }
+
+    /**
+     * Get stored webhook debug data
+     *
+     * @param int $config_id The configuration ID
+     * @return array
+     */
+    public function get_webhook_debug(int $config_id): array {
+        return get_option('chatbot_whatsapp_webhook_debug_' . $config_id, array());
+    }
+
+    /**
+     * Clear webhook debug data
+     *
+     * @param int $config_id The configuration ID
+     */
+    public function clear_webhook_debug(int $config_id): void {
+        delete_option('chatbot_whatsapp_webhook_debug_' . $config_id);
     }
 }

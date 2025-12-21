@@ -904,7 +904,42 @@ class Chatbot_Admin {
                                             <button type="button" id="chatbot_whatsapp_show_webhook" class="button" style="margin-left: 5px;">
                                                 <?php _e('Webhook Info', 'chatbot-plugin'); ?>
                                             </button>
+                                            <button type="button" id="chatbot_whatsapp_show_debug" class="button" style="margin-left: 5px;">
+                                                <?php _e('Webhook Log', 'chatbot-plugin'); ?>
+                                            </button>
                                             <span id="chatbot_whatsapp_status" style="margin-left: 10px;"></span>
+
+                                            <!-- Webhook Debug Log -->
+                                            <?php
+                                            $whatsapp_platform = Chatbot_Messaging_Manager::get_instance()->get_platform('whatsapp');
+                                            $webhook_debug = $whatsapp_platform ? $whatsapp_platform->get_webhook_debug($config->id) : array();
+                                            ?>
+                                            <div id="whatsapp_debug_log" style="display: none; margin-top: 15px; background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 4px;">
+                                                <h4 style="margin: 0 0 10px 0; color: #856404;"><?php _e('Recent Webhook Activity', 'chatbot-plugin'); ?></h4>
+                                                <?php if (empty($webhook_debug)): ?>
+                                                    <p style="color: #856404;"><?php _e('No webhooks received yet. Send a WhatsApp message to test.', 'chatbot-plugin'); ?></p>
+                                                <?php else: ?>
+                                                    <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                                                        <tr style="background: #fff;">
+                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('Time', 'chatbot-plugin'); ?></th>
+                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('From', 'chatbot-plugin'); ?></th>
+                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('Type', 'chatbot-plugin'); ?></th>
+                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('Message', 'chatbot-plugin'); ?></th>
+                                                        </tr>
+                                                        <?php foreach ($webhook_debug as $wh): ?>
+                                                        <tr>
+                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['time']); ?></td>
+                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['from']); ?></td>
+                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['message_type']); ?></td>
+                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['body_preview']); ?></td>
+                                                        </tr>
+                                                        <?php endforeach; ?>
+                                                    </table>
+                                                <?php endif; ?>
+                                                <p style="margin: 10px 0 0 0;">
+                                                    <button type="button" class="button button-small" onclick="location.reload();"><?php _e('Refresh', 'chatbot-plugin'); ?></button>
+                                                </p>
+                                            </div>
 
                                             <!-- Test Message Form (hidden by default) -->
                                             <div id="whatsapp_test_form" style="display: none; margin-top: 15px; background: #f0f6fc; border: 1px solid #c5d9ed; padding: 15px; border-radius: 4px;">
@@ -1012,6 +1047,13 @@ class Chatbot_Admin {
                                             // Show/hide webhook info
                                             $('#chatbot_whatsapp_show_webhook').on('click', function() {
                                                 $('#whatsapp_webhook_info').slideToggle();
+                                                $('#whatsapp_debug_log').slideUp();
+                                            });
+
+                                            // Show/hide debug log
+                                            $('#chatbot_whatsapp_show_debug').on('click', function() {
+                                                $('#whatsapp_debug_log').slideToggle();
+                                                $('#whatsapp_webhook_info').slideUp();
                                             });
 
                                             // Show/hide help content

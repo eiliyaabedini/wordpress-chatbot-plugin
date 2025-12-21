@@ -3,7 +3,7 @@
  * Plugin Name: AI Chat Bot
  * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
  * Description: A powerful AI chatbot plugin for WordPress
- * Version: 1.3.1
+ * Version: 1.3.3
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -18,7 +18,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.3.1');
+define('CHATBOT_PLUGIN_VERSION', '1.3.3');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
