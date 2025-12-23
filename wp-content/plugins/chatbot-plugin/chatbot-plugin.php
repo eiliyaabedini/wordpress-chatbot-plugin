@@ -3,7 +3,7 @@
  * Plugin Name: AI Chat Bot
  * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
  * Description: A powerful AI chatbot plugin for WordPress
- * Version: 1.3.3
+ * Version: 1.4.0
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -18,7 +18,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.3.3');
+define('CHATBOT_PLUGIN_VERSION', '1.4.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 
@@ -27,6 +27,9 @@ define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 // so that OpenAI can detect AIPass during initialization
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass-proxy.php';
+
+// Load n8n gateway BEFORE OpenAI so OpenAI can use it for function calling
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-n8n-gateway.php';
 
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-handler.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
@@ -519,8 +522,39 @@ function update_chatbot_database_tables() {
 
         chatbot_log('INFO', 'update_tables', 'Added platform columns to conversations table');
     }
+
+    // Check for n8n_settings column in configurations table (for n8n integration per chatbot)
+    $check_n8n_settings_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_configurations',
+            'n8n_settings'
+        )
+    );
+
+    if (empty($check_n8n_settings_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding n8n_settings column to configurations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `n8n_settings` text DEFAULT NULL AFTER `telegram_bot_token`",
+            $wpdb->prefix . 'chatbot_configurations'
+        );
+        $wpdb->query($alter_query);
+
+        chatbot_log('INFO', 'update_tables', 'Added n8n_settings column to configurations table');
+    }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');
+
+/**
+ * Initialize n8n gateway for AJAX handlers
+ */
+function chatbot_init_n8n_gateway() {
+    // Initialize n8n gateway to register AJAX handlers
+    Chatbot_N8N_Gateway::get_instance();
+}
+add_action('init', 'chatbot_init_n8n_gateway', 5);
 
 /**
  * Register messaging platforms with the manager

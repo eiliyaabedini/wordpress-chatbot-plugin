@@ -1261,6 +1261,636 @@ class Chatbot_Admin {
                             <!-- End WhatsApp Section -->
                         </div>
                         <!-- End integrations-grid -->
+
+                        <!-- n8n Workflow Automation Section (full width) -->
+                        <div class="integration-card" style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; margin-top: 20px;">
+                            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                <span style="background: #ff6d5a; color: #fff; padding: 8px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+                                    <span class="dashicons dashicons-admin-generic" style="font-size: 20px; width: 20px; height: 20px;"></span>
+                                </span>
+                                <?php _e('n8n Workflow Automation', 'chatbot-plugin'); ?>
+                            </h3>
+                            <?php
+                            // Get current n8n settings for this chatbot
+                            $n8n_settings_json = $editing && isset($config->n8n_settings) ? $config->n8n_settings : '';
+                            $n8n_settings = !empty($n8n_settings_json) ? json_decode($n8n_settings_json, true) : array();
+                            $n8n_enabled = isset($n8n_settings['enabled']) ? (bool) $n8n_settings['enabled'] : false;
+                            $n8n_webhook_url = isset($n8n_settings['webhook_url']) ? $n8n_settings['webhook_url'] : '';
+                            $n8n_webhook_secret = isset($n8n_settings['webhook_secret']) ? $n8n_settings['webhook_secret'] : '';
+                            $n8n_timeout = isset($n8n_settings['timeout']) ? (int) $n8n_settings['timeout'] : 30;
+                            $n8n_actions = isset($n8n_settings['actions']) ? $n8n_settings['actions'] : array();
+                            ?>
+
+                            <p style="color: #666; margin-bottom: 15px;">
+                                <?php _e('Connect to n8n or Zapier to enable AI-powered actions. The AI can execute actions like scheduling meetings, sending emails, or updating your CRM.', 'chatbot-plugin'); ?>
+                            </p>
+
+                            <div style="background: #e7f3ff; border-left: 4px solid #2196F3; padding: 12px; margin-bottom: 15px;">
+                                <strong><?php _e('How it works:', 'chatbot-plugin'); ?></strong>
+                                <span style="color: #555;"><?php _e('Define actions below. The AI decides when to call them during conversations, and n8n handles the integrations.', 'chatbot-plugin'); ?></span>
+                            </div>
+
+                            <!-- n8n Enable Checkbox -->
+                            <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 15px;">
+                                <input type="checkbox" name="chatbot_n8n_enabled" id="chatbot_n8n_enabled" value="1" <?php checked($n8n_enabled, true); ?>>
+                                <strong><?php _e('Enable n8n Integration', 'chatbot-plugin'); ?></strong>
+                            </label>
+
+                            <!-- n8n Settings (shown only when enabled) -->
+                            <div id="chatbot_n8n_config_container" style="<?php echo $n8n_enabled ? '' : 'display: none;'; ?>">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+                                <div>
+                                    <label for="chatbot_n8n_webhook_url" style="display: block; margin-bottom: 5px; font-weight: 500;">
+                                        <?php _e('Webhook URL', 'chatbot-plugin'); ?>
+                                    </label>
+                                    <input type="url" name="chatbot_n8n_webhook_url" id="chatbot_n8n_webhook_url" class="regular-text" style="width: 100%;" value="<?php echo esc_attr($n8n_webhook_url); ?>" placeholder="https://your-n8n.com/webhook/...">
+                                    <p class="description"><?php _e('The webhook URL from your n8n workflow.', 'chatbot-plugin'); ?></p>
+                                </div>
+                                <div>
+                                    <label for="chatbot_n8n_webhook_secret" style="display: block; margin-bottom: 5px; font-weight: 500; margin-top: 35px;">
+                                        <?php _e('Webhook Secret (Optional)', 'chatbot-plugin'); ?>
+                                    </label>
+                                    <input type="password" name="chatbot_n8n_webhook_secret" id="chatbot_n8n_webhook_secret" class="regular-text" style="width: 100%;" value="<?php echo esc_attr($n8n_webhook_secret); ?>" placeholder="<?php _e('Optional security secret', 'chatbot-plugin'); ?>">
+                                    <p class="description"><?php _e('If set, requests include HMAC signature for verification.', 'chatbot-plugin'); ?></p>
+                                </div>
+                            </div>
+
+                            <!-- Custom Headers -->
+                            <?php
+                            $n8n_headers = isset($n8n_settings['headers']) ? $n8n_settings['headers'] : array();
+                            ?>
+                            <div style="margin-bottom: 15px;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500;">
+                                    <?php _e('Custom Headers (Optional)', 'chatbot-plugin'); ?>
+                                </label>
+                                <p class="description" style="margin-bottom: 10px;"><?php _e('Add custom headers to send with webhook requests (e.g., Authorization, API keys).', 'chatbot-plugin'); ?></p>
+
+                                <input type="hidden" name="chatbot_n8n_headers" id="chatbot_n8n_headers" value="<?php echo esc_attr(wp_json_encode($n8n_headers)); ?>">
+
+                                <div id="chatbot_n8n_headers_list" style="margin-bottom: 10px;">
+                                    <!-- Headers rendered by JavaScript -->
+                                </div>
+
+                                <button type="button" id="chatbot_n8n_add_header" class="button button-small">
+                                    <?php _e('+ Add Header', 'chatbot-plugin'); ?>
+                                </button>
+                            </div>
+
+                            <!-- n8n Actions -->
+                            <h4 style="margin: 20px 0 10px 0; border-top: 1px solid #ddd; padding-top: 20px;">
+                                <?php _e('Configured Actions', 'chatbot-plugin'); ?>
+                            </h4>
+                            <p class="description" style="margin-bottom: 15px;">
+                                <?php _e('Each action becomes a "tool" that the AI can call when appropriate during conversations.', 'chatbot-plugin'); ?>
+                            </p>
+
+                            <!-- Hidden input to store actions JSON -->
+                            <input type="hidden" name="chatbot_n8n_actions" id="chatbot_n8n_actions" value="<?php echo esc_attr(wp_json_encode($n8n_actions)); ?>">
+
+                            <div id="chatbot_n8n_actions_list" style="margin-bottom: 15px;">
+                                <!-- Actions rendered by JavaScript -->
+                            </div>
+
+                            <button type="button" id="chatbot_n8n_add_action" class="button button-primary">
+                                <?php _e('+ Add Action', 'chatbot-plugin'); ?>
+                            </button>
+
+                            <!-- Action Editor Modal -->
+                            <div id="chatbot_n8n_action_modal" style="display: none; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 20px; margin-top: 15px;">
+                                <h4 id="chatbot_n8n_modal_title" style="margin-top: 0;"><?php _e('Add New Action', 'chatbot-plugin'); ?></h4>
+
+                                <div style="margin-bottom: 15px;">
+                                    <label for="chatbot_n8n_action_name" style="display: block; margin-bottom: 5px; font-weight: 500;">
+                                        <?php _e('Action Name', 'chatbot-plugin'); ?>
+                                    </label>
+                                    <input type="text" id="chatbot_n8n_action_name" class="regular-text" placeholder="schedule_meeting">
+                                    <p class="description"><?php _e('Unique identifier (lowercase, underscores allowed).', 'chatbot-plugin'); ?></p>
+                                </div>
+
+                                <div style="margin-bottom: 15px;">
+                                    <label for="chatbot_n8n_action_description" style="display: block; margin-bottom: 5px; font-weight: 500;">
+                                        <?php _e('Description', 'chatbot-plugin'); ?>
+                                    </label>
+                                    <textarea id="chatbot_n8n_action_description" class="large-text" rows="2" placeholder="<?php _e('Schedule a meeting with a customer. Use this when a user wants to book an appointment.', 'chatbot-plugin'); ?>"></textarea>
+                                    <p class="description"><?php _e('The AI uses this to decide when to call this action.', 'chatbot-plugin'); ?></p>
+                                </div>
+
+                                <div style="margin-bottom: 15px;">
+                                    <label style="display: block; margin-bottom: 5px; font-weight: 500;">
+                                        <?php _e('Parameters', 'chatbot-plugin'); ?>
+                                    </label>
+                                    <div id="chatbot_n8n_action_params">
+                                        <!-- Parameters added by JavaScript -->
+                                    </div>
+                                    <button type="button" id="chatbot_n8n_add_param" class="button button-small">
+                                        <?php _e('+ Add Parameter', 'chatbot-plugin'); ?>
+                                    </button>
+                                </div>
+
+                                <p>
+                                    <button type="button" id="chatbot_n8n_save_action" class="button button-primary"><?php _e('Save Action', 'chatbot-plugin'); ?></button>
+                                    <button type="button" id="chatbot_n8n_cancel_action" class="button"><?php _e('Cancel', 'chatbot-plugin'); ?></button>
+                                </p>
+                            </div>
+
+                            <!-- Test Action Modal -->
+                            <div id="chatbot_n8n_test_modal" style="display: none; background: #f0f7ff; border: 1px solid #2271b1; border-radius: 4px; padding: 20px; margin-top: 15px;">
+                                <h4 style="margin-top: 0; color: #2271b1;">
+                                    <?php _e('Test Action:', 'chatbot-plugin'); ?> <span id="chatbot_n8n_test_action_name"></span>
+                                </h4>
+                                <p class="description" style="margin-bottom: 15px;"><?php _e('Enter values for each parameter to test this action.', 'chatbot-plugin'); ?></p>
+
+                                <div id="chatbot_n8n_test_params" style="margin-bottom: 15px;">
+                                    <!-- Test parameter inputs rendered by JavaScript -->
+                                </div>
+
+                                <div id="chatbot_n8n_test_modal_result" style="display: none; margin-bottom: 15px; padding: 10px; border-radius: 4px;">
+                                    <!-- Test result shown here -->
+                                </div>
+
+                                <p>
+                                    <button type="button" id="chatbot_n8n_run_test" class="button button-primary"><?php _e('Run Test', 'chatbot-plugin'); ?></button>
+                                    <button type="button" id="chatbot_n8n_cancel_test" class="button"><?php _e('Close', 'chatbot-plugin'); ?></button>
+                                </p>
+                            </div>
+
+                            <!-- Timeout and Save/Test Buttons -->
+                            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; display: flex; align-items: center; flex-wrap: wrap; gap: 10px;">
+                                <label for="chatbot_n8n_timeout" style="font-weight: 500;">
+                                    <?php _e('Timeout (seconds):', 'chatbot-plugin'); ?>
+                                </label>
+                                <input type="number" name="chatbot_n8n_timeout" id="chatbot_n8n_timeout" class="small-text" value="<?php echo esc_attr($n8n_timeout); ?>" min="5" max="120">
+
+                                <?php if ($editing): ?>
+                                <button type="button" id="chatbot_n8n_test_connection" class="button button-secondary" style="margin-left: 10px;" data-nonce="<?php echo wp_create_nonce('chatbot_n8n_test'); ?>">
+                                    <?php _e('Test Connection', 'chatbot-plugin'); ?>
+                                </button>
+                                <button type="button" id="chatbot_n8n_save_settings" class="button button-primary" data-chatbot-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_n8n_save'); ?>">
+                                    <?php _e('Save Webhook Settings', 'chatbot-plugin'); ?>
+                                </button>
+                                <span id="chatbot_n8n_test_result"></span>
+                                <?php endif; ?>
+                            </div>
+                            </div><!-- End chatbot_n8n_config_container -->
+
+                            <!-- n8n JavaScript -->
+                            <script type="text/javascript">
+                            (function($) {
+                                $(document).ready(function() {
+                                    var currentActions = <?php echo wp_json_encode($n8n_actions); ?>;
+                                    var currentHeaders = <?php echo wp_json_encode($n8n_headers); ?>;
+                                    var editingIndex = -1;
+
+                                    // Toggle n8n config visibility based on checkbox
+                                    function toggleN8nConfig() {
+                                        if ($('#chatbot_n8n_enabled').is(':checked')) {
+                                            $('#chatbot_n8n_config_container').slideDown(200);
+                                        } else {
+                                            $('#chatbot_n8n_config_container').slideUp(200);
+                                        }
+                                    }
+
+                                    // Bind checkbox change event
+                                    $('#chatbot_n8n_enabled').on('change', toggleN8nConfig);
+
+                                    function escapeHtml(text) {
+                                        var div = document.createElement('div');
+                                        div.textContent = text || '';
+                                        return div.innerHTML;
+                                    }
+
+                                    // ========== Headers Management ==========
+                                    function renderHeaders() {
+                                        var $list = $('#chatbot_n8n_headers_list');
+                                        $list.empty();
+
+                                        if (!currentHeaders || currentHeaders.length === 0) {
+                                            $list.html('<p style="color: #888; font-style: italic; font-size: 12px;"><?php _e('No custom headers configured.', 'chatbot-plugin'); ?></p>');
+                                            return;
+                                        }
+
+                                        currentHeaders.forEach(function(header, index) {
+                                            var $row = $('<div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px; padding: 8px; background: #fff; border: 1px solid #e0e0e0; border-radius: 3px;">' +
+                                                '<input type="text" class="n8n-header-name" placeholder="Header-Name" value="' + escapeHtml(header.name || '') + '" style="flex: 1;">' +
+                                                '<input type="text" class="n8n-header-value" placeholder="Header Value" value="' + escapeHtml(header.value || '') + '" style="flex: 2;">' +
+                                                '<button type="button" class="button button-small n8n-remove-header" data-index="' + index + '">&times;</button>' +
+                                            '</div>');
+                                            $list.append($row);
+                                        });
+
+                                        // Update hidden input
+                                        $('#chatbot_n8n_headers').val(JSON.stringify(currentHeaders));
+                                    }
+
+                                    function updateHeadersFromUI() {
+                                        currentHeaders = [];
+                                        $('#chatbot_n8n_headers_list > div').each(function() {
+                                            var $row = $(this);
+                                            var name = $row.find('.n8n-header-name').val().trim();
+                                            var value = $row.find('.n8n-header-value').val().trim();
+                                            if (name) {
+                                                currentHeaders.push({ name: name, value: value });
+                                            }
+                                        });
+                                        $('#chatbot_n8n_headers').val(JSON.stringify(currentHeaders));
+                                    }
+
+                                    $('#chatbot_n8n_add_header').on('click', function() {
+                                        currentHeaders = currentHeaders || [];
+                                        currentHeaders.push({ name: '', value: '' });
+                                        renderHeaders();
+                                    });
+
+                                    $(document).on('click', '.n8n-remove-header', function() {
+                                        var index = $(this).data('index');
+                                        currentHeaders.splice(index, 1);
+                                        renderHeaders();
+                                    });
+
+                                    $(document).on('change blur', '.n8n-header-name, .n8n-header-value', function() {
+                                        updateHeadersFromUI();
+                                    });
+
+                                    // Initial render of headers
+                                    renderHeaders();
+
+                                    // ========== Actions Management ==========
+                                    function renderActions() {
+                                        var $list = $('#chatbot_n8n_actions_list');
+                                        $list.empty();
+
+                                        if (!currentActions || currentActions.length === 0) {
+                                            $list.html('<p style="color: #666; font-style: italic;"><?php _e('No actions configured yet.', 'chatbot-plugin'); ?></p>');
+                                            return;
+                                        }
+
+                                        currentActions.forEach(function(action, index) {
+                                            var paramCount = action.parameters ? action.parameters.length : 0;
+                                            var paramText = paramCount === 1 ? '1 parameter' : paramCount + ' parameters';
+
+                                            var $item = $('<div style="background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 12px; margin-bottom: 8px;">' +
+                                                '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                                                    '<div>' +
+                                                        '<strong style="color: #1d2327;">' + escapeHtml(action.name) + '</strong>' +
+                                                        '<span style="color: #888; margin-left: 10px; font-size: 12px;">' + paramText + '</span>' +
+                                                    '</div>' +
+                                                    '<div>' +
+                                                        '<button type="button" class="button button-small n8n-test-action" data-index="' + index + '" style="color: #2271b1;"><?php _e('Test', 'chatbot-plugin'); ?></button> ' +
+                                                        '<button type="button" class="button button-small n8n-edit-action" data-index="' + index + '"><?php _e('Edit', 'chatbot-plugin'); ?></button> ' +
+                                                        '<button type="button" class="button button-small n8n-delete-action" data-index="' + index + '" style="color: #d32f2f;"><?php _e('Delete', 'chatbot-plugin'); ?></button>' +
+                                                    '</div>' +
+                                                '</div>' +
+                                                '<p style="margin: 8px 0 0 0; color: #666; font-size: 13px;">' + escapeHtml(action.description) + '</p>' +
+                                                '<div class="n8n-action-test-result" data-index="' + index + '" style="display: none; margin-top: 10px; padding: 10px; border-radius: 4px; font-size: 12px;"></div>' +
+                                            '</div>');
+
+                                            $list.append($item);
+                                        });
+                                    }
+
+                                    function addParamRow(param) {
+                                        param = param || { name: '', type: 'string', description: '', required: false };
+                                        var $row = $('<div class="n8n-param-row" style="display: flex; gap: 8px; align-items: center; margin-bottom: 8px; padding: 8px; background: #fff; border: 1px solid #e0e0e0; border-radius: 3px;">' +
+                                            '<input type="text" class="n8n-param-name" placeholder="<?php _e('Name', 'chatbot-plugin'); ?>" value="' + escapeHtml(param.name) + '" style="flex: 1;">' +
+                                            '<select class="n8n-param-type" style="flex: 0 0 100px;">' +
+                                                '<option value="string"' + (param.type === 'string' ? ' selected' : '') + '>String</option>' +
+                                                '<option value="number"' + (param.type === 'number' ? ' selected' : '') + '>Number</option>' +
+                                                '<option value="boolean"' + (param.type === 'boolean' ? ' selected' : '') + '>Boolean</option>' +
+                                            '</select>' +
+                                            '<input type="text" class="n8n-param-desc" placeholder="<?php _e('Description', 'chatbot-plugin'); ?>" value="' + escapeHtml(param.description) + '" style="flex: 2;">' +
+                                            '<label style="flex: 0 0 auto; white-space: nowrap;"><input type="checkbox" class="n8n-param-required"' + (param.required ? ' checked' : '') + '> <?php _e('Req', 'chatbot-plugin'); ?></label>' +
+                                            '<button type="button" class="button button-small n8n-remove-param" style="flex: 0 0 auto;">&times;</button>' +
+                                        '</div>');
+                                        $('#chatbot_n8n_action_params').append($row);
+                                    }
+
+                                    function showModal(action, index) {
+                                        editingIndex = index;
+                                        action = action || { name: '', description: '', parameters: [] };
+
+                                        $('#chatbot_n8n_modal_title').text(index >= 0 ? '<?php _e('Edit Action', 'chatbot-plugin'); ?>' : '<?php _e('Add New Action', 'chatbot-plugin'); ?>');
+                                        $('#chatbot_n8n_action_name').val(action.name || '');
+                                        $('#chatbot_n8n_action_description').val(action.description || '');
+
+                                        $('#chatbot_n8n_action_params').empty();
+                                        if (action.parameters && action.parameters.length > 0) {
+                                            action.parameters.forEach(function(param) { addParamRow(param); });
+                                        }
+
+                                        $('#chatbot_n8n_action_modal').show();
+                                    }
+
+                                    function hideModal() {
+                                        editingIndex = -1;
+                                        $('#chatbot_n8n_action_modal').hide();
+                                    }
+
+                                    function getActionFromForm() {
+                                        var params = [];
+                                        $('#chatbot_n8n_action_params .n8n-param-row').each(function() {
+                                            var $row = $(this);
+                                            var name = $row.find('.n8n-param-name').val().trim();
+                                            if (name) {
+                                                params.push({
+                                                    name: name,
+                                                    type: $row.find('.n8n-param-type').val(),
+                                                    description: $row.find('.n8n-param-desc').val().trim(),
+                                                    required: $row.find('.n8n-param-required').is(':checked')
+                                                });
+                                            }
+                                        });
+
+                                        return {
+                                            name: $('#chatbot_n8n_action_name').val().trim().toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+                                            description: $('#chatbot_n8n_action_description').val().trim(),
+                                            parameters: params
+                                        };
+                                    }
+
+                                    function updateHiddenInput() {
+                                        $('#chatbot_n8n_actions').val(JSON.stringify(currentActions));
+                                    }
+
+                                    // Event handlers
+                                    $('#chatbot_n8n_add_action').on('click', function() { showModal(null, -1); });
+                                    $('#chatbot_n8n_add_param').on('click', function() { addParamRow(); });
+                                    $(document).on('click', '.n8n-remove-param', function() { $(this).closest('.n8n-param-row').remove(); });
+                                    $('#chatbot_n8n_cancel_action').on('click', function() { hideModal(); });
+
+                                    $('#chatbot_n8n_save_action').on('click', function() {
+                                        var action = getActionFromForm();
+                                        if (!action.name) { alert('<?php _e('Please enter an action name.', 'chatbot-plugin'); ?>'); return; }
+                                        if (!action.description) { alert('<?php _e('Please enter a description.', 'chatbot-plugin'); ?>'); return; }
+
+                                        if (editingIndex >= 0) {
+                                            currentActions[editingIndex] = action;
+                                        } else {
+                                            currentActions.push(action);
+                                        }
+
+                                        hideModal();
+                                        renderActions();
+                                        updateHiddenInput();
+                                    });
+
+                                    $(document).on('click', '.n8n-edit-action', function() {
+                                        var index = $(this).data('index');
+                                        showModal(currentActions[index], index);
+                                    });
+
+                                    $(document).on('click', '.n8n-delete-action', function() {
+                                        if (confirm('<?php _e('Delete this action?', 'chatbot-plugin'); ?>')) {
+                                            currentActions.splice($(this).data('index'), 1);
+                                            renderActions();
+                                            updateHiddenInput();
+                                        }
+                                    });
+
+                                    // ========== Test Action Modal ==========
+                                    var testingActionIndex = -1;
+
+                                    function showTestModal(action, index) {
+                                        testingActionIndex = index;
+                                        $('#chatbot_n8n_test_action_name').text(action.name);
+                                        $('#chatbot_n8n_test_modal_result').hide().html('');
+
+                                        // Build parameter input fields
+                                        var $params = $('#chatbot_n8n_test_params');
+                                        $params.empty();
+
+                                        if (!action.parameters || action.parameters.length === 0) {
+                                            $params.html('<p style="color: #666; font-style: italic;"><?php _e('This action has no parameters.', 'chatbot-plugin'); ?></p>');
+                                        } else {
+                                            action.parameters.forEach(function(param) {
+                                                var defaultValue = '';
+                                                var inputType = 'text';
+
+                                                switch(param.type) {
+                                                    case 'number':
+                                                    case 'integer':
+                                                        inputType = 'number';
+                                                        defaultValue = '';
+                                                        break;
+                                                    case 'boolean':
+                                                        inputType = 'checkbox';
+                                                        break;
+                                                    default:
+                                                        defaultValue = '';
+                                                }
+
+                                                var requiredLabel = param.required ? ' <span style="color: #d32f2f;">*</span>' : '';
+                                                var $row = $('<div style="margin-bottom: 10px;">' +
+                                                    '<label style="display: block; margin-bottom: 3px; font-weight: 500;">' +
+                                                        escapeHtml(param.name) + requiredLabel +
+                                                        '<span style="font-weight: normal; color: #888; margin-left: 8px;">(' + escapeHtml(param.type) + ')</span>' +
+                                                    '</label>' +
+                                                    (param.description ? '<p class="description" style="margin: 0 0 5px 0;">' + escapeHtml(param.description) + '</p>' : '') +
+                                                    (inputType === 'checkbox' ?
+                                                        '<label><input type="checkbox" class="n8n-test-param" data-name="' + escapeHtml(param.name) + '" data-type="boolean"> <?php _e('True', 'chatbot-plugin'); ?></label>' :
+                                                        '<input type="' + inputType + '" class="regular-text n8n-test-param" data-name="' + escapeHtml(param.name) + '" data-type="' + escapeHtml(param.type) + '" value="' + escapeHtml(defaultValue) + '" style="width: 100%;" placeholder="<?php _e('Enter value...', 'chatbot-plugin'); ?>">'
+                                                    ) +
+                                                '</div>');
+                                                $params.append($row);
+                                            });
+                                        }
+
+                                        $('#chatbot_n8n_action_modal').hide();
+                                        $('#chatbot_n8n_test_modal').show();
+                                    }
+
+                                    function hideTestModal() {
+                                        $('#chatbot_n8n_test_modal').hide();
+                                        testingActionIndex = -1;
+                                    }
+
+                                    // Open test modal when clicking Test button
+                                    $(document).on('click', '.n8n-test-action', function() {
+                                        var index = $(this).data('index');
+                                        var url = $('#chatbot_n8n_webhook_url').val();
+
+                                        if (!url) {
+                                            alert('<?php _e('Enter a webhook URL first.', 'chatbot-plugin'); ?>');
+                                            return;
+                                        }
+
+                                        showTestModal(currentActions[index], index);
+                                    });
+
+                                    // Close test modal
+                                    $('#chatbot_n8n_cancel_test').on('click', hideTestModal);
+
+                                    // Run the test
+                                    $('#chatbot_n8n_run_test').on('click', function() {
+                                        var $btn = $(this);
+                                        var $result = $('#chatbot_n8n_test_modal_result');
+                                        var action = currentActions[testingActionIndex];
+                                        var url = $('#chatbot_n8n_webhook_url').val();
+                                        var secret = $('#chatbot_n8n_webhook_secret').val();
+
+                                        // Collect parameter values
+                                        var testParams = {};
+                                        $('.n8n-test-param').each(function() {
+                                            var $input = $(this);
+                                            var name = $input.data('name');
+                                            var type = $input.data('type');
+                                            var value;
+
+                                            if (type === 'boolean') {
+                                                value = $input.is(':checked');
+                                            } else if (type === 'number' || type === 'integer') {
+                                                value = $input.val() !== '' ? parseFloat($input.val()) : null;
+                                            } else {
+                                                value = $input.val();
+                                            }
+
+                                            if (value !== null && value !== '') {
+                                                testParams[name] = value;
+                                            }
+                                        });
+
+                                        $btn.prop('disabled', true);
+                                        $result.show().css('background', '#f0f0f0').html('<span style="color: #666;"><?php _e('Testing action...', 'chatbot-plugin'); ?></span>');
+
+                                        $.ajax({
+                                            url: ajaxurl,
+                                            type: 'POST',
+                                            data: {
+                                                action: 'chatbot_n8n_test_action',
+                                                nonce: '<?php echo wp_create_nonce('chatbot_n8n_test'); ?>',
+                                                webhook_url: url,
+                                                webhook_secret: secret,
+                                                headers: $('#chatbot_n8n_headers').val(),
+                                                action_name: action.name,
+                                                action_params: JSON.stringify(testParams)
+                                            },
+                                            success: function(response) {
+                                                if (response.success) {
+                                                    var result = response.data.result;
+                                                    var resultStr = JSON.stringify(result, null, 2);
+                                                    var isDefaultResponse = result && result.message === 'Workflow was started';
+
+                                                    var resultHtml = '';
+                                                    if (isDefaultResponse) {
+                                                        resultHtml = '<strong style="color: #ed6c02;">&#x26A0; <?php _e('Webhook received (async mode)', 'chatbot-plugin'); ?></strong>';
+                                                        resultHtml += '<p style="margin: 8px 0; color: #666; font-size: 12px;"><?php _e('n8n is set to respond immediately. To see actual results, configure your Webhook node:', 'chatbot-plugin'); ?><br>';
+                                                        resultHtml += '&bull; <?php _e('Set "Respond" to "When Last Node Finishes", OR', 'chatbot-plugin'); ?><br>';
+                                                        resultHtml += '&bull; <?php _e('Add a "Respond to Webhook" node at the end of your workflow', 'chatbot-plugin'); ?></p>';
+                                                        $result.css('background', '#fff3e0');
+                                                    } else {
+                                                        resultHtml = '<strong style="color: #2e7d32;">&#x2713; <?php _e('Success!', 'chatbot-plugin'); ?></strong>';
+                                                        $result.css('background', '#e8f5e9');
+                                                    }
+
+                                                    resultHtml += '<div style="margin-top: 8px;"><strong style="font-size: 11px; color: #666;"><?php _e('Sent Parameters:', 'chatbot-plugin'); ?></strong></div>';
+                                                    resultHtml += '<pre style="margin: 4px 0 8px 0; padding: 8px; background: #e3f2fd; border-radius: 3px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px;">' + escapeHtml(JSON.stringify(testParams, null, 2)) + '</pre>';
+
+                                                    resultHtml += '<div><strong style="font-size: 11px; color: #666;"><?php _e('Response:', 'chatbot-plugin'); ?></strong></div>';
+                                                    resultHtml += '<pre style="margin: 4px 0 0 0; padding: 8px; background: #f5f5f5; border-radius: 3px; overflow-x: auto; white-space: pre-wrap; word-break: break-word; font-size: 11px;">' + escapeHtml(resultStr) + '</pre>';
+
+                                                    $result.html(resultHtml);
+                                                } else {
+                                                    $result.css('background', '#fef0f0').html('<span style="color: #d32f2f;">&#x2717; ' + escapeHtml(response.data ? response.data.message : '<?php _e('Failed', 'chatbot-plugin'); ?>') + '</span>');
+                                                }
+                                            },
+                                            error: function() {
+                                                $result.css('background', '#fef0f0').html('<span style="color: #d32f2f;">&#x2717; <?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                            },
+                                            complete: function() { $btn.prop('disabled', false); }
+                                        });
+                                    });
+
+                                    // Test connection
+                                    $('#chatbot_n8n_test_connection').on('click', function() {
+                                        var $btn = $(this);
+                                        var $result = $('#chatbot_n8n_test_result');
+                                        var url = $('#chatbot_n8n_webhook_url').val();
+                                        var secret = $('#chatbot_n8n_webhook_secret').val();
+
+                                        if (!url) { $result.html('<span style="color: red;"><?php _e('Enter a webhook URL first.', 'chatbot-plugin'); ?></span>'); return; }
+
+                                        $btn.prop('disabled', true);
+                                        $result.html('<span style="color: #666;"><?php _e('Testing...', 'chatbot-plugin'); ?></span>');
+
+                                        $.ajax({
+                                            url: ajaxurl,
+                                            type: 'POST',
+                                            data: {
+                                                action: 'chatbot_n8n_test_connection',
+                                                nonce: $btn.data('nonce'),
+                                                webhook_url: url,
+                                                webhook_secret: secret,
+                                                headers: $('#chatbot_n8n_headers').val()
+                                            },
+                                            success: function(response) {
+                                                if (response.success) {
+                                                    $result.html('<span style="color: green;">&#x2713; ' + response.data.message + '</span>');
+                                                } else {
+                                                    $result.html('<span style="color: red;">&#x2717; ' + (response.data ? response.data.message : '<?php _e('Failed', 'chatbot-plugin'); ?>') + '</span>');
+                                                }
+                                            },
+                                            error: function() {
+                                                $result.html('<span style="color: red;">&#x2717; <?php _e('Connection error', 'chatbot-plugin'); ?></span>');
+                                            },
+                                            complete: function() { $btn.prop('disabled', false); }
+                                        });
+                                    });
+
+                                    // Save webhook settings without full form submit
+                                    $('#chatbot_n8n_save_settings').on('click', function() {
+                                        var $btn = $(this);
+                                        var $result = $('#chatbot_n8n_test_result');
+                                        var chatbotId = $btn.data('chatbot-id');
+
+                                        // Collect current n8n settings
+                                        var n8nSettings = {
+                                            enabled: $('#chatbot_n8n_enabled').is(':checked'),
+                                            webhook_url: $('#chatbot_n8n_webhook_url').val(),
+                                            webhook_secret: $('#chatbot_n8n_webhook_secret').val(),
+                                            timeout: parseInt($('#chatbot_n8n_timeout').val()) || 30,
+                                            headers: JSON.parse($('#chatbot_n8n_headers').val() || '[]'),
+                                            actions: currentActions
+                                        };
+
+                                        $btn.prop('disabled', true);
+                                        $result.html('<span style="color: #666;"><?php _e('Saving...', 'chatbot-plugin'); ?></span>');
+
+                                        $.ajax({
+                                            url: ajaxurl,
+                                            type: 'POST',
+                                            data: {
+                                                action: 'chatbot_n8n_save_settings',
+                                                nonce: $btn.data('nonce'),
+                                                chatbot_id: chatbotId,
+                                                n8n_settings: JSON.stringify(n8nSettings)
+                                            },
+                                            success: function(response) {
+                                                if (response.success) {
+                                                    $result.html('<span style="color: green;">&#x2713; ' + response.data.message + '</span>');
+                                                    // Clear message after 3 seconds
+                                                    setTimeout(function() { $result.html(''); }, 3000);
+                                                } else {
+                                                    $result.html('<span style="color: red;">&#x2717; ' + (response.data ? response.data.message : '<?php _e('Failed', 'chatbot-plugin'); ?>') + '</span>');
+                                                }
+                                            },
+                                            error: function() {
+                                                $result.html('<span style="color: red;">&#x2717; <?php _e('Save error', 'chatbot-plugin'); ?></span>');
+                                            },
+                                            complete: function() { $btn.prop('disabled', false); }
+                                        });
+                                    });
+
+                                    // Initial render
+                                    renderActions();
+                                });
+                            })(jQuery);
+                            </script>
+
+                            <p class="description" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                                <a href="https://n8n.io/" target="_blank"><?php _e('Learn more about n8n', 'chatbot-plugin'); ?></a> |
+                                <a href="https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.webhook/" target="_blank"><?php _e('Webhook Documentation', 'chatbot-plugin'); ?></a>
+                            </p>
+                        </div>
+                        <!-- End n8n Section -->
                     </div>
                     <!-- End Integrations Tab -->
 
@@ -1587,6 +2217,31 @@ class Chatbot_Admin {
                     <?php echo esc_html($conversation->chatbot_config_name); ?>
                 </span>
                 <?php endif; ?>
+
+                <?php
+                // Show platform badge for Telegram/WhatsApp conversations
+                $platform = '';
+                if (!empty($conversation->platform_type)) {
+                    $platform = $conversation->platform_type;
+                } elseif (!empty($conversation->telegram_chat_id)) {
+                    $platform = 'telegram';
+                }
+                if ($platform): ?>
+                <span class="chatbot-admin-platform-badge chatbot-admin-platform-<?php echo esc_attr($platform); ?>">
+                    <?php
+                    switch ($platform) {
+                        case 'telegram':
+                            echo '📱 Telegram';
+                            break;
+                        case 'whatsapp':
+                            echo '💬 WhatsApp';
+                            break;
+                        default:
+                            echo esc_html(ucfirst($platform));
+                    }
+                    ?>
+                </span>
+                <?php endif; ?>
             </h1>
             
             <p>
@@ -1632,6 +2287,9 @@ class Chatbot_Admin {
                                                     break;
                                                 case 'system':
                                                     _e('System', 'chatbot-plugin');
+                                                    break;
+                                                case 'function':
+                                                    _e('🔧 Function Call', 'chatbot-plugin');
                                                     break;
                                                 default:
                                                     echo esc_html(ucfirst($message->sender_type));
@@ -1710,7 +2368,23 @@ class Chatbot_Admin {
                             <input type="checkbox" name="conversation_ids[]" value="<?php echo esc_attr($conversation->id); ?>">
                         </th>
                         <?php endif; ?>
-                        <td><?php echo esc_html($conversation->visitor_name); ?></td>
+                        <td>
+                            <?php echo esc_html($conversation->visitor_name); ?>
+                            <?php
+                            // Show platform icon for Telegram/WhatsApp
+                            $platform = '';
+                            if (!empty($conversation->platform_type)) {
+                                $platform = $conversation->platform_type;
+                            } elseif (!empty($conversation->telegram_chat_id)) {
+                                $platform = 'telegram';
+                            }
+                            if ($platform === 'telegram') {
+                                echo ' <span class="chatbot-admin-platform-badge chatbot-admin-platform-telegram" title="Telegram">📱</span>';
+                            } elseif ($platform === 'whatsapp') {
+                                echo ' <span class="chatbot-admin-platform-badge chatbot-admin-platform-whatsapp" title="WhatsApp">💬</span>';
+                            }
+                            ?>
+                        </td>
                         <td>
                             <?php 
                             if (!empty($conversation->chatbot_config_name)) {
@@ -2017,6 +2691,7 @@ class Chatbot_Admin {
             array(
                 'ajaxUrl' => admin_url('admin-ajax.php'),
                 'nonce' => wp_create_nonce('chatbot-admin-nonce'),
+                'frontendNonce' => wp_create_nonce('chatbot-plugin-nonce'), // For frontend actions like get_messages
                 'sendingText' => __('Sending...', 'chatbot-plugin'),
                 'sentText' => __('Message sent', 'chatbot-plugin'),
                 'errorText' => __('Error sending message', 'chatbot-plugin'),
@@ -2323,11 +2998,45 @@ class Chatbot_Admin {
         
         // Add the message to the database
         $message_id = $db->add_message($conversation_id, 'admin', $message);
-        
+
         if (!$message_id) {
             wp_send_json_error(array('message' => 'Error saving message.'));
         }
-        
+
+        // Check if this is a platform conversation (Telegram, WhatsApp, etc.) and send message to platform
+        $platform_sent = false;
+        $platform_error = null;
+
+        if (!empty($conversation->platform_type) && !empty($conversation->platform_chat_id)) {
+            // Get chatbot config for bot token
+            $config = $db->get_configuration($conversation->chatbot_config_id);
+
+            if ($conversation->platform_type === 'telegram' && $config && !empty($config->telegram_bot_token)) {
+                // Send to Telegram
+                $platform_sent = $this->send_telegram_message($config->telegram_bot_token, $conversation->platform_chat_id, $message);
+                if (!$platform_sent) {
+                    $platform_error = 'Failed to send message to Telegram';
+                }
+            } elseif ($conversation->platform_type === 'whatsapp' && class_exists('Chatbot_Platform_WhatsApp')) {
+                // Send to WhatsApp
+                $whatsapp = Chatbot_Platform_WhatsApp::get_instance();
+                $platform_sent = $whatsapp->send_message($conversation->chatbot_config_id, $conversation->platform_chat_id, $message);
+                if (!$platform_sent) {
+                    $platform_error = 'Failed to send message to WhatsApp';
+                }
+            }
+        } elseif (!empty($conversation->telegram_chat_id)) {
+            // Legacy Telegram support
+            $config = $db->get_configuration($conversation->chatbot_config_id);
+
+            if ($config && !empty($config->telegram_bot_token)) {
+                $platform_sent = $this->send_telegram_message($config->telegram_bot_token, $conversation->telegram_chat_id, $message);
+                if (!$platform_sent) {
+                    $platform_error = 'Failed to send message to Telegram';
+                }
+            }
+        }
+
         // Get the updated message object
         $message_obj = (object) array(
             'id' => $message_id,
@@ -2336,12 +3045,65 @@ class Chatbot_Admin {
             'message' => $message,
             'timestamp' => current_time('mysql')
         );
-        
-        wp_send_json_success(array(
+
+        $response_data = array(
             'message_id' => $message_id,
             'message' => $message_obj,
             'formatted_time' => date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($message_obj->timestamp))
+        );
+
+        // Add platform info to response
+        if (!empty($conversation->platform_type) || !empty($conversation->telegram_chat_id)) {
+            $response_data['platform_sent'] = $platform_sent;
+            if ($platform_error) {
+                $response_data['platform_error'] = $platform_error;
+            }
+        }
+
+        wp_send_json_success($response_data);
+    }
+
+    /**
+     * Send a message to Telegram
+     *
+     * @param string $bot_token The Telegram bot token
+     * @param string $chat_id The Telegram chat ID
+     * @param string $message The message to send
+     * @return bool Whether the message was sent successfully
+     */
+    private function send_telegram_message($bot_token, $chat_id, $message) {
+        $api_url = "https://api.telegram.org/bot{$bot_token}/sendMessage";
+
+        $response = wp_remote_post($api_url, array(
+            'body' => array(
+                'chat_id' => $chat_id,
+                'text' => $message,
+                'parse_mode' => 'HTML'
+            ),
+            'timeout' => 30
         ));
+
+        if (is_wp_error($response)) {
+            chatbot_log('ERROR', 'admin_send_telegram', 'Failed to send Telegram message', array(
+                'error' => $response->get_error_message()
+            ));
+            return false;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!isset($body['ok']) || !$body['ok']) {
+            chatbot_log('ERROR', 'admin_send_telegram', 'Telegram API error', array(
+                'response' => $body
+            ));
+            return false;
+        }
+
+        chatbot_log('INFO', 'admin_send_telegram', 'Message sent to Telegram', array(
+            'chat_id' => $chat_id
+        ));
+
+        return true;
     }
     
     /**
@@ -2648,6 +3410,65 @@ class Chatbot_Admin {
         $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
         $telegram_bot_token = isset($_POST['chatbot_telegram_bot_token']) ? sanitize_text_field($_POST['chatbot_telegram_bot_token']) : '';
 
+        // Build n8n settings JSON
+        $n8n_enabled = isset($_POST['chatbot_n8n_enabled']) && $_POST['chatbot_n8n_enabled'] === '1';
+        $n8n_webhook_url = isset($_POST['chatbot_n8n_webhook_url']) ? esc_url_raw($_POST['chatbot_n8n_webhook_url']) : '';
+        $n8n_webhook_secret = isset($_POST['chatbot_n8n_webhook_secret']) ? sanitize_text_field($_POST['chatbot_n8n_webhook_secret']) : '';
+        $n8n_timeout = isset($_POST['chatbot_n8n_timeout']) ? absint($_POST['chatbot_n8n_timeout']) : 30;
+        $n8n_actions_raw = isset($_POST['chatbot_n8n_actions']) ? wp_unslash($_POST['chatbot_n8n_actions']) : '[]';
+
+        // Sanitize n8n actions
+        $n8n_actions = array();
+        $decoded_actions = json_decode($n8n_actions_raw, true);
+        if (is_array($decoded_actions)) {
+            foreach ($decoded_actions as $action) {
+                $sanitized_action = array(
+                    'name' => isset($action['name']) ? sanitize_key($action['name']) : '',
+                    'description' => isset($action['description']) ? sanitize_text_field($action['description']) : '',
+                    'parameters' => array()
+                );
+                if (isset($action['parameters']) && is_array($action['parameters'])) {
+                    foreach ($action['parameters'] as $param) {
+                        $sanitized_action['parameters'][] = array(
+                            'name' => isset($param['name']) ? sanitize_key($param['name']) : '',
+                            'type' => isset($param['type']) ? sanitize_key($param['type']) : 'string',
+                            'description' => isset($param['description']) ? sanitize_text_field($param['description']) : '',
+                            'required' => isset($param['required']) ? (bool) $param['required'] : false
+                        );
+                    }
+                }
+                if (!empty($sanitized_action['name'])) {
+                    $n8n_actions[] = $sanitized_action;
+                }
+            }
+        }
+
+        // Sanitize n8n headers
+        $n8n_headers_raw = isset($_POST['chatbot_n8n_headers']) ? wp_unslash($_POST['chatbot_n8n_headers']) : '[]';
+        $n8n_headers = array();
+        $decoded_headers = json_decode($n8n_headers_raw, true);
+        if (is_array($decoded_headers)) {
+            foreach ($decoded_headers as $header) {
+                $header_name = isset($header['name']) ? sanitize_text_field($header['name']) : '';
+                $header_value = isset($header['value']) ? sanitize_text_field($header['value']) : '';
+                if (!empty($header_name)) {
+                    $n8n_headers[] = array(
+                        'name' => $header_name,
+                        'value' => $header_value
+                    );
+                }
+            }
+        }
+
+        $n8n_settings = wp_json_encode(array(
+            'enabled' => $n8n_enabled,
+            'webhook_url' => $n8n_webhook_url,
+            'webhook_secret' => $n8n_webhook_secret,
+            'timeout' => $n8n_timeout,
+            'headers' => $n8n_headers,
+            'actions' => $n8n_actions
+        ));
+
         // Validate knowledge_sources is valid JSON if provided
         if (!empty($knowledge_sources)) {
             $decoded = json_decode($knowledge_sources, true);
@@ -2702,11 +3523,13 @@ class Chatbot_Admin {
             'persona_length' => strlen($persona),
             'system_prompt_length' => strlen($system_prompt),
             'knowledge_sources' => $knowledge_sources,
-            'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty'
+            'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty',
+            'n8n_enabled' => $n8n_enabled ? 'yes' : 'no',
+            'n8n_action_count' => count($n8n_actions)
         ));
 
         // Update the configuration
-        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token);
+        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $n8n_settings);
         
         if ($result) {
             // Success

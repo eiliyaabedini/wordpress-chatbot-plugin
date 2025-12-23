@@ -602,6 +602,25 @@
     color: #0288d1;
 }
 
+.chatbot-admin-platform-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: normal;
+    margin-left: 10px;
+}
+
+.chatbot-admin-platform-telegram {
+    background-color: #e3f2fd;
+    color: #0088cc;
+}
+
+.chatbot-admin-platform-whatsapp {
+    background-color: #e8f5e9;
+    color: #25d366;
+}
+
 .chatbot-name-badge {
     display: inline-block;
     padding: 4px 8px;
@@ -657,6 +676,38 @@
 .chatbot-admin-message-admin {
     background-color: #f0f0f0;
     float: left;
+}
+
+.chatbot-admin-message-ai {
+    background-color: #e8f4e8;
+    float: left;
+}
+
+.chatbot-admin-message-system {
+    background-color: #fff3cd;
+    float: none;
+    margin: 10px auto;
+    max-width: 90%;
+    text-align: center;
+    font-style: italic;
+}
+
+.chatbot-admin-message-function {
+    background-color: #e7f3ff;
+    border-left: 4px solid #0073aa;
+    float: none;
+    margin: 10px 0;
+    max-width: 100%;
+    font-family: monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+.chatbot-admin-message-function .chatbot-admin-message-content {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 4px;
+    overflow-x: auto;
 }
 
 .chatbot-admin-message-meta {

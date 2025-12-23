@@ -395,7 +395,7 @@
         let playedTTSMessages = new Set();
 
         // Function to add a new message to the chat
-        function addMessage(message, senderType, preventScroll, messageId) {
+        function addMessage(message, senderType, preventScroll, messageId, isPending) {
             // Remove loading animation if it exists
             $('#chatbot-loading').hide();
 
@@ -405,6 +405,16 @@
             }
 
             const messageElement = $('<div class="chatbot-message ' + senderType + '"></div>');
+
+            // Add message ID as data attribute for tracking (prevents duplicate additions)
+            if (messageId) {
+                messageElement.attr('data-message-id', messageId);
+            }
+
+            // Mark as pending if we're waiting for the server to return the ID
+            if (isPending) {
+                messageElement.attr('data-pending', 'true');
+            }
 
             // Create wrapper for message content (for flex layout with speaker button)
             const messageWrapper = $('<div class="chatbot-message-wrapper"></div>');
@@ -480,13 +490,39 @@
             // Remove any existing typing bubble
             $('.chatbot-typing-bubble').remove();
 
-            // Create typing bubble with dots animation
+            // Clear any existing status rotation
+            if (window.typingStatusInterval) {
+                clearInterval(window.typingStatusInterval);
+            }
+
+            const botName = chatbotContainer.data('chatbot-name') || 'Assistant';
+
+            // Status messages that rotate
+            const statusMessages = [
+                'Thinking',
+                'Processing',
+                'Analyzing',
+                'Working on it'
+            ];
+
+            // Extended messages for longer waits
+            const extendedMessages = [
+                'Still working',
+                'Almost there',
+                'Just a moment',
+                'Complex request'
+            ];
+
+            // Create typing bubble with dots and status text
             const typingBubble = $(`
                 <div class="chatbot-typing-bubble">
-                    <div class="chatbot-typing-dots">
-                        <span class="dot"></span>
-                        <span class="dot"></span>
-                        <span class="dot"></span>
+                    <div class="chatbot-typing-content">
+                        <div class="chatbot-typing-dots">
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                            <span class="dot"></span>
+                        </div>
+                        <span class="chatbot-typing-status">${statusMessages[0]}</span>
                     </div>
                 </div>
             `);
@@ -503,20 +539,42 @@
             // Set flag to track typing state
             window.typingIndicatorShown = true;
 
-            // Set a safety timeout to show message if it takes too long
-            setTimeout(function() {
-                // Only show message if still waiting
-                if (window.typingIndicatorShown) {
-                    const botName = chatbotContainer.data('chatbot-name') || 'Our assistant';
-                    chatbotMessages.append('<div class="chatbot-system-message">' + botName + ' is still thinking. Please wait a moment...</div>');
-                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+            // Rotate status messages every 3 seconds
+            let messageIndex = 0;
+            let useExtended = false;
+            window.typingStatusInterval = setInterval(function() {
+                if (!window.typingIndicatorShown) {
+                    clearInterval(window.typingStatusInterval);
+                    return;
                 }
-            }, 15000); // Show message after 15 seconds if no response
+
+                messageIndex++;
+                const messages = useExtended ? extendedMessages : statusMessages;
+
+                if (messageIndex >= messages.length) {
+                    messageIndex = 0;
+                    if (!useExtended) {
+                        useExtended = true; // Switch to extended messages after first cycle
+                    }
+                }
+
+                const newStatus = messages[messageIndex];
+                $('.chatbot-typing-status').fadeOut(150, function() {
+                    $(this).text(newStatus).fadeIn(150);
+                });
+            }, 3000);
         }
 
         // Function to hide typing indicator
         function hideTypingIndicator() {
             window.typingIndicatorShown = false;
+
+            // Clear status rotation interval
+            if (window.typingStatusInterval) {
+                clearInterval(window.typingStatusInterval);
+                window.typingStatusInterval = null;
+            }
+
             $('.chatbot-typing-bubble').remove();
 
             // Re-enable input
@@ -578,14 +636,11 @@
                         localStorage.setItem('chatbot_visitor_name', visitorName);
                         localStorage.setItem('chatbot_config_name', configName);
 
-                        // Show greeting message
-                        const defaultGreeting = 'Hello %s! How can I help you today?';
-                        let greeting = chatbotPluginVars.chatGreeting || defaultGreeting;
-                        greeting = greeting.replace('%s', visitorName);
-                        addMessage(greeting, 'admin', false);
-
-                        // Start polling for new messages
+                        // Start polling for new messages (greeting is already in DB from PHP)
                         startPolling();
+
+                        // Fetch messages immediately to show the greeting
+                        fetchMessages();
                     }
                 }
             });
@@ -618,14 +673,20 @@
                     }
                     
                     if (response.success) {
-                        // Check if we need to add the message (it might already be added by polling)
-                        if (!response.data.message_already_displayed) {
-                            // The message might be already added by the user,
-                            // but we're ensuring it's in the chat
-                            addMessage(message, 'user', false);
-                            
-                            // Show typing indicator again after adding the user message
-                            showTypingIndicator();
+                        // Update the pending user message with its ID (prevents duplicates if polling runs)
+                        if (response.data.message_id) {
+                            const pendingUserMsg = $('.chatbot-message.user[data-pending="true"]').last();
+                            if (pendingUserMsg.length) {
+                                pendingUserMsg.attr('data-message-id', response.data.message_id);
+                                pendingUserMsg.removeAttr('data-pending');
+                            }
+                        }
+
+                        // If we got an AI response, display it immediately
+                        if (response.data.ai_response) {
+                            hideTypingIndicator();
+                            // Pass the AI message ID to prevent duplicates when polling runs
+                            addMessage(response.data.ai_response, response.data.ai_sender_type || 'ai', false, response.data.ai_message_id);
                         }
                     } else {
                         // Hide typing indicator and show error
@@ -666,8 +727,10 @@
                     }
                 },
                 error: function() {
-                    // Just hide typing indicator without showing error message
+                    // Hide typing indicator
                     hideTypingIndicator();
+                    // Remove pending flag from user message so polling can recover
+                    $('.chatbot-message.user[data-pending="true"]').removeAttr('data-pending');
                 }
             });
         }
@@ -821,53 +884,67 @@
                             return;
                         }
                         
-                        // Filter out system messages first
+                        // Filter out system and function messages (only show user/admin/ai messages)
                         const displayableMessages = response.data.messages.filter(function(msg) {
-                            return msg.sender_type !== 'system';
+                            return msg.sender_type !== 'system' && msg.sender_type !== 'function';
                         });
 
-                        // Check if there are new messages (comparing displayable counts)
-                        const hasNewMessages = displayableMessages.length > currentMessageCount;
+                        // Get the highest message ID currently displayed
+                        let lastDisplayedId = 0;
+                        $('.chatbot-message[data-message-id]').each(function() {
+                            const msgId = parseInt($(this).attr('data-message-id')) || 0;
+                            if (msgId > lastDisplayedId) {
+                                lastDisplayedId = msgId;
+                            }
+                        });
 
-                        // Only update when there are new messages or on first load
-                        if (hasNewMessages || currentMessageCount === 0) {
-                            // Clear messages area and repopulate
-                            chatbotMessages.empty();
+                        // Check if there's a pending user message (we're waiting for AJAX response)
+                        const hasPendingUserMessage = $('.chatbot-message.user[data-pending="true"]').length > 0;
 
-                            // Find the last AI message index (for auto-play TTS)
-                            let lastAiMessageIndex = -1;
-                            if (hasNewMessages) {
-                                for (let i = displayableMessages.length - 1; i >= 0; i--) {
-                                    const sType = displayableMessages[i].sender_type;
-                                    if (sType === 'bot' || sType === 'ai' || sType === 'admin') {
-                                        lastAiMessageIndex = i;
-                                        break;
+                        // Find new messages (messages with ID > lastDisplayedId)
+                        // Skip user messages if we have a pending one to prevent race condition duplicates
+                        const newMessages = displayableMessages.filter(function(msg) {
+                            if (parseInt(msg.id) <= lastDisplayedId) {
+                                return false;
+                            }
+                            // Skip user messages if there's a pending one (prevents duplicates during AJAX)
+                            if (hasPendingUserMessage && msg.sender_type === 'user') {
+                                return false;
+                            }
+                            return true;
+                        });
+
+                        // Only update if there are new messages
+                        if (newMessages.length > 0 || currentMessageCount === 0) {
+                            // If first load, add all messages
+                            if (currentMessageCount === 0) {
+                                displayableMessages.forEach(function(msg) {
+                                    let senderType = msg.sender_type;
+                                    if (senderType === 'bot') {
+                                        senderType = 'ai';
                                     }
-                                }
+                                    addMessage(msg.message, senderType, true, msg.id);
+                                });
+                            } else {
+                                // Only add new messages
+                                newMessages.forEach(function(msg, index) {
+                                    let senderType = msg.sender_type;
+                                    if (senderType === 'bot') {
+                                        senderType = 'ai';
+                                    }
+                                    // Auto-play TTS only for the last new AI message
+                                    const isLastNewAiMessage = (index === newMessages.length - 1) &&
+                                        (senderType === 'ai' || senderType === 'admin');
+                                    addMessage(msg.message, senderType, !isLastNewAiMessage, msg.id);
+                                });
                             }
 
-                            // Add all displayable messages
-                            displayableMessages.forEach(function(msg, index) {
-                                let senderType = msg.sender_type;
-                                if (senderType === 'bot') {
-                                    senderType = 'ai';
-                                }
-                                // Only allow TTS auto-play for the last AI message when there are new messages
-                                const isLastAiMessage = hasNewMessages && index === lastAiMessageIndex;
-                                const preventTTS = !isLastAiMessage;
-                                addMessage(msg.message, senderType, preventTTS, msg.id);
+                            // Hide typing indicator if we received an AI message
+                            const hasNewAiMessage = newMessages.some(function(msg) {
+                                return (msg.sender_type === 'bot' || msg.sender_type === 'ai');
                             });
-
-                            // If there are new messages from the AI, hide the typing indicator
-                            if (hasNewMessages) {
-                                // Check if we received an AI message
-                                const hasNewAiMessage = response.data.messages.some(function(msg) {
-                                    return (msg.sender_type === 'bot' || msg.sender_type === 'ai');
-                                });
-
-                                if (hasNewAiMessage) {
-                                    hideTypingIndicator();
-                                }
+                            if (hasNewAiMessage) {
+                                hideTypingIndicator();
                             }
                         }
                     }
@@ -937,8 +1014,8 @@
                 addMessage(message, 'user', false);
                 startConversation(message);
             } else {
-                // Normal message
-                addMessage(message, 'user', false);
+                // Normal message - mark as pending until we get the ID back
+                addMessage(message, 'user', false, null, true);
                 sendMessage(message);
             }
         }

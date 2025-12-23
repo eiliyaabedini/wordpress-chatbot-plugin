@@ -1129,7 +1129,7 @@ You should maintain the same analytical context throughout the conversation, ref
             $wpdb->insert(
                 $metrics_table,
                 $metrics,
-                array('%s', '%d', '%d', '%d', '%d', '%d', '%f', '%d', '%f')
+                array('%d', '%d', '%d', '%d', '%d', '%d', '%f', '%f', '%s')
             );
         }
     }

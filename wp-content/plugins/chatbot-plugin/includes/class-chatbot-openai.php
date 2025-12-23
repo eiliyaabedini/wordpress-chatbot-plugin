@@ -715,6 +715,7 @@ class Chatbot_OpenAI {
     
     /**
      * Generate a response using OpenAI API or AIPass based on conversation history
+     * Now supports function calling via n8n gateway for executing external actions
      *
      * @param int $conversation_id The conversation ID
      * @param string $latest_message The latest user message
@@ -725,12 +726,26 @@ class Chatbot_OpenAI {
         // Ensure we have the latest settings
         $this->refresh_settings();
 
+        // Check if n8n gateway is configured for this chatbot's function calling
+        $n8n_gateway = null;
+        $tools = null;
+
+        // Check if n8n gateway is configured for function calling
+        if (class_exists('Chatbot_N8N_Gateway') && $config !== null) {
+            $n8n_gateway = Chatbot_N8N_Gateway::get_instance();
+            if ($n8n_gateway->is_configured_for_chatbot($config)) {
+                $tools = $n8n_gateway->build_function_definitions_for_chatbot($config);
+                chatbot_log('INFO', 'generate_response', 'n8n gateway configured with ' . count($tools) . ' actions');
+            }
+        }
+
         // Add detailed logging to help diagnose API issues
         chatbot_log('INFO', 'generate_response', 'Attempting to generate AI response', array(
             'using_aipass' => $this->use_aipass ? 'Yes' : 'No',
             'api_key_exists' => !empty($this->api_key) ? 'Yes' : 'No',
             'model' => $this->model,
-            'conversation_id' => $conversation_id
+            'conversation_id' => $conversation_id,
+            'n8n_enabled' => !empty($tools) ? 'Yes' : 'No'
         ));
 
         // If no API key and AIPass is not configured, return a default response
@@ -764,13 +779,75 @@ class Chatbot_OpenAI {
                 // Use Gemini 2.5 Flash Lite (fastest & cheapest)
                 $model = 'gemini/gemini-2.5-flash-lite';
 
-                // Use AIPass to generate completion
+                // Use AIPass to generate completion with optional tools
                 $result = $this->aipass->generate_completion(
                     $messages,
                     $model,
                     (int) $this->max_tokens,
-                    (float) $this->temperature
+                    (float) $this->temperature,
+                    $tools // Pass tools for function calling
                 );
+
+                // Handle function calling loop
+                $max_iterations = 10; // Prevent infinite loops
+                $iteration = 0;
+
+                while ($result['success'] && isset($result['tool_calls']) && !empty($result['tool_calls']) && $iteration < $max_iterations) {
+                    $iteration++;
+                    chatbot_log('INFO', 'generate_response', "Processing tool calls (iteration {$iteration})", array(
+                        'tool_count' => count($result['tool_calls'])
+                    ));
+
+                    // Add assistant message with tool calls
+                    $messages[] = array(
+                        'role' => 'assistant',
+                        'content' => isset($result['content']) ? $result['content'] : null,
+                        'tool_calls' => $result['tool_calls']
+                    );
+
+                    // Execute each tool call via n8n gateway
+                    foreach ($result['tool_calls'] as $tool_call) {
+                        $function_name = $tool_call['function']['name'];
+                        $function_args = json_decode($tool_call['function']['arguments'], true);
+                        $tool_call_id = $tool_call['id'];
+
+                        chatbot_log('INFO', 'generate_response', "Executing n8n action: {$function_name}", array(
+                            'args' => $function_args
+                        ));
+
+                        // Execute the action via n8n for this chatbot
+                        $action_result = $n8n_gateway->execute_action_for_chatbot($config, $function_name, $function_args, array(
+                            'conversation_id' => $conversation_id
+                        ));
+
+                        // Check if error
+                        $is_error = is_wp_error($action_result);
+
+                        // Convert result to string for the tool response
+                        $result_content = $is_error
+                            ? json_encode(array('error' => $action_result->get_error_message()))
+                            : json_encode($action_result);
+
+                        // Log function call to conversation for visibility in admin
+                        $this->log_function_call($conversation_id, $function_name, $function_args, $action_result, $is_error);
+
+                        // Add tool result to messages
+                        $messages[] = array(
+                            'role' => 'tool',
+                            'tool_call_id' => $tool_call_id,
+                            'content' => $result_content
+                        );
+                    }
+
+                    // Call AI again with tool results
+                    $result = $this->aipass->generate_completion(
+                        $messages,
+                        $model,
+                        (int) $this->max_tokens,
+                        (float) $this->temperature,
+                        $tools
+                    );
+                }
 
                 if ($result['success']) {
                     // Trigger action for analytics to track API usage
@@ -809,6 +886,12 @@ class Chatbot_OpenAI {
                     'messages' => $messages,
                 );
 
+                // Add tools for function calling if n8n is configured
+                if (!empty($tools)) {
+                    $request_body['tools'] = $tools;
+                    $request_body['tool_choice'] = 'auto'; // Let AI decide when to use tools
+                }
+
                 // O4 models use different parameters
                 if (strpos($model, 'o4') === 0) {
                     $request_body['max_completion_tokens'] = (int) $this->max_tokens;
@@ -819,37 +902,100 @@ class Chatbot_OpenAI {
                     $request_body['temperature'] = (float) $this->temperature;
                 }
 
-                $response = wp_remote_post($api_url, array(
-                    'headers' => array(
-                        'Authorization' => 'Bearer ' . $this->api_key,
-                        'Content-Type' => 'application/json',
-                    ),
-                    'body' => json_encode($request_body),
-                    'timeout' => 30,
-                    'data_format' => 'body',
-                ));
+                // Function calling loop for direct OpenAI API
+                $max_iterations = 10;
+                $iteration = 0;
 
-                if (is_wp_error($response)) {
-                    chatbot_log('ERROR', 'generate_response', 'OpenAI API Error: ' . $response->get_error_message());
-                    return $this->get_error_response();
-                }
+                while ($iteration < $max_iterations) {
+                    $iteration++;
 
-                $response_code = wp_remote_retrieve_response_code($response);
-                $response_body = json_decode(wp_remote_retrieve_body($response), true);
+                    $response = wp_remote_post($api_url, array(
+                        'headers' => array(
+                            'Authorization' => 'Bearer ' . $this->api_key,
+                            'Content-Type' => 'application/json',
+                        ),
+                        'body' => json_encode($request_body),
+                        'timeout' => 60, // Increased timeout for function calling
+                        'data_format' => 'body',
+                    ));
 
-                if ($response_code !== 200) {
-                    // Log sanitized error information
-                    chatbot_log('ERROR', 'generate_response', 'OpenAI API Error: Status ' . $response_code .
-                            (isset($response_body['error']['type']) ? ', Type: ' . $response_body['error']['type'] : '') .
-                            (isset($response_body['error']['code']) ? ', Code: ' . $response_body['error']['code'] : ''));
-                    return $this->get_error_response();
-                }
+                    if (is_wp_error($response)) {
+                        chatbot_log('ERROR', 'generate_response', 'OpenAI API Error: ' . $response->get_error_message());
+                        return $this->get_error_response();
+                    }
 
-                if (isset($response_body['choices'][0]['message']['content'])) {
-                    // Trigger action for analytics to track API usage
-                    do_action('chatbot_openai_api_request_complete', $model, $response_body, $conversation_id);
+                    $response_code = wp_remote_retrieve_response_code($response);
+                    $response_body = json_decode(wp_remote_retrieve_body($response), true);
 
-                    return $response_body['choices'][0]['message']['content'];
+                    if ($response_code !== 200) {
+                        // Log sanitized error information
+                        chatbot_log('ERROR', 'generate_response', 'OpenAI API Error: Status ' . $response_code .
+                                (isset($response_body['error']['type']) ? ', Type: ' . $response_body['error']['type'] : '') .
+                                (isset($response_body['error']['code']) ? ', Code: ' . $response_body['error']['code'] : ''));
+                        return $this->get_error_response();
+                    }
+
+                    $choice = isset($response_body['choices'][0]) ? $response_body['choices'][0] : null;
+                    if (!$choice) {
+                        return $this->get_error_response();
+                    }
+
+                    $message = $choice['message'];
+                    $finish_reason = isset($choice['finish_reason']) ? $choice['finish_reason'] : 'stop';
+
+                    // Check if AI wants to call tools
+                    if ($finish_reason === 'tool_calls' && isset($message['tool_calls']) && !empty($message['tool_calls'])) {
+                        chatbot_log('INFO', 'generate_response', "Processing OpenAI tool calls (iteration {$iteration})", array(
+                            'tool_count' => count($message['tool_calls'])
+                        ));
+
+                        // Add assistant message with tool calls to conversation
+                        $messages[] = array(
+                            'role' => 'assistant',
+                            'content' => isset($message['content']) ? $message['content'] : null,
+                            'tool_calls' => $message['tool_calls']
+                        );
+
+                        // Execute each tool call via n8n gateway
+                        foreach ($message['tool_calls'] as $tool_call) {
+                            $function_name = $tool_call['function']['name'];
+                            $function_args = json_decode($tool_call['function']['arguments'], true);
+                            $tool_call_id = $tool_call['id'];
+
+                            chatbot_log('INFO', 'generate_response', "Executing n8n action: {$function_name}");
+
+                            // Execute the action via n8n for this chatbot
+                            $action_result = $n8n_gateway->execute_action_for_chatbot($config, $function_name, $function_args, array(
+                                'conversation_id' => $conversation_id
+                            ));
+
+                            // Convert result to string for the tool response
+                            $result_content = is_wp_error($action_result)
+                                ? json_encode(array('error' => $action_result->get_error_message()))
+                                : json_encode($action_result);
+
+                            // Add tool result to messages
+                            $messages[] = array(
+                                'role' => 'tool',
+                                'tool_call_id' => $tool_call_id,
+                                'content' => $result_content
+                            );
+                        }
+
+                        // Update request body with new messages for next iteration
+                        $request_body['messages'] = $messages;
+                        continue; // Loop again to get AI's response to tool results
+                    }
+
+                    // No more tool calls, return the content
+                    if (isset($message['content'])) {
+                        // Trigger action for analytics to track API usage
+                        do_action('chatbot_openai_api_request_complete', $model, $response_body, $conversation_id);
+
+                        return $message['content'];
+                    }
+
+                    break; // Exit loop if no content and no tool calls
                 }
             }
 
@@ -886,8 +1032,9 @@ class Chatbot_OpenAI {
             }
             // Fall back to system_prompt if available (backward compatibility)
             elseif (isset($config->system_prompt) && !empty($config->system_prompt)) {
-                $system_prompt = $config->system_prompt;
-                chatbot_log('INFO', 'get_conversation_history', 'Using legacy system_prompt field');
+                // Prepend datetime context to legacy system prompts too
+                $system_prompt = $this->get_datetime_context() . "\n\n" . $config->system_prompt;
+                chatbot_log('INFO', 'get_conversation_history', 'Using legacy system_prompt field with datetime context');
             }
         }
         // If no config provided, try to find the default configuration
@@ -918,8 +1065,9 @@ class Chatbot_OpenAI {
                 }
                 // Fall back to system_prompt if available (backward compatibility)
                 elseif (!empty($default_config->system_prompt)) {
-                    $system_prompt = $default_config->system_prompt;
-                    chatbot_log('INFO', 'get_conversation_history', 'Using default config with legacy system_prompt field');
+                    // Prepend datetime context to legacy system prompts too
+                    $system_prompt = $this->get_datetime_context() . "\n\n" . $default_config->system_prompt;
+                    chatbot_log('INFO', 'get_conversation_history', 'Using default config with legacy system_prompt field and datetime context');
                 }
             }
         }
@@ -932,18 +1080,24 @@ class Chatbot_OpenAI {
             ),
         );
         
-        // Add recent messages (limit to last 10 to avoid token limit)
-        $recent_messages = array_slice($raw_messages, -10);
-        
+        // Filter out 'function' type messages - they are for admin logs only, NOT for AI context
+        // Including them causes the AI to mimic the log format instead of actually using tools
+        $filtered_messages = array_filter($raw_messages, function($msg) {
+            return $msg->sender_type !== 'function';
+        });
+
+        // Re-index after filtering and limit to last 10
+        $recent_messages = array_slice(array_values($filtered_messages), -10);
+
         foreach ($recent_messages as $message) {
             $role = ($message->sender_type === 'user') ? 'user' : 'assistant';
-            
+
             $formatted_messages[] = array(
                 'role' => $role,
                 'content' => $message->message,
             );
         }
-        
+
         return $formatted_messages;
     }
     
@@ -1008,12 +1162,51 @@ class Chatbot_OpenAI {
     private function get_default_system_prompt() {
         $site_name = get_bloginfo('name');
         $site_description = get_bloginfo('description');
-        
-        return "You are a helpful customer service chatbot for the website {$site_name}. " . 
+
+        // Add current date/time context
+        $context = $this->get_datetime_context();
+
+        return $context . "\n\n" .
+               "You are a helpful customer service chatbot for the website {$site_name}. " .
                "The website is described as: {$site_description}. " .
                "Be friendly, helpful, and concise in your responses. If you don't know the answer " .
                "to a question, politely say so and suggest contacting the site administrator for more information. " .
                "Keep responses under 3-4 sentences when possible.";
+    }
+
+    /**
+     * Get current date/time context for the AI
+     *
+     * @return string Context string with current date, time, and timezone
+     */
+    private function get_datetime_context() {
+        $timezone = wp_timezone();
+        $now = new DateTime('now', $timezone);
+
+        $current_date = $now->format('l, F j, Y'); // e.g., "Monday, December 23, 2024"
+        $current_time = $now->format('g:i A'); // e.g., "2:30 PM"
+        $timezone_name = $timezone->getName();
+
+        return "### CURRENT DATE & TIME ###\n" .
+               "Today is: {$current_date}\n" .
+               "Current time: {$current_time} ({$timezone_name})\n\n" .
+               "### CRITICAL TOOL USAGE RULES ###\n" .
+               "You have access to tools/functions that perform REAL actions (scheduling, booking, etc.).\n" .
+               "1. You MUST use the appropriate tool to perform ANY action. NEVER claim to have done something without actually calling the tool.\n" .
+               "2. NEVER say 'I have scheduled', 'I booked', 'Done', etc. unless you have ACTUALLY called the tool and received a success response.\n" .
+               "3. If you need information to call a tool (name, email, date, etc.), ask the user FIRST, then call the tool.\n" .
+               "4. After calling a tool successfully, report the ACTUAL result from the tool response - do not make up details.\n" .
+               "5. If a tool call fails, tell the user honestly and offer alternatives.\n\n" .
+               "### DATE/TIME HANDLING ###\n" .
+               "1. When users mention relative dates like 'tomorrow', 'next week', 'in 3 days', 'next Monday', etc., " .
+               "you MUST calculate the actual date based on today's date above.\n" .
+               "2. When calling functions/tools:\n" .
+               "   - DATE parameters should contain ONLY the date in DD/MM/YYYY format (e.g., '24/12/2025')\n" .
+               "   - TIME parameters should contain ONLY the time in HH:MM format (e.g., '14:00')\n" .
+               "   - NEVER mix date and time in a single parameter\n" .
+               "3. Do NOT ask the user to provide a specific format - convert it yourself.\n\n" .
+               "Example: If today is Monday, December 23, 2024 and user says 'schedule for tomorrow at 2pm', " .
+               "use date='24/12/2024' and time='14:00' as SEPARATE parameters.";
     }
     
     /**
@@ -1025,8 +1218,11 @@ class Chatbot_OpenAI {
      * @return string Combined system prompt
      */
     private function build_system_prompt($knowledge, $persona, $knowledge_sources = '') {
-        // First, add the persona
-        $system_prompt = $persona;
+        // Start with current date/time context
+        $system_prompt = $this->get_datetime_context() . "\n\n";
+
+        // Add the persona
+        $system_prompt .= $persona;
 
         // Add manual knowledge if provided
         if (!empty($knowledge)) {
@@ -1078,10 +1274,49 @@ class Chatbot_OpenAI {
 
         return $system_prompt;
     }
-    
+
+    /**
+     * Log a function call to the conversation for admin visibility
+     *
+     * @param int $conversation_id The conversation ID
+     * @param string $function_name The function name
+     * @param array $args The function arguments
+     * @param mixed $result The function result (or WP_Error)
+     * @param bool $is_error Whether the result is an error
+     */
+    private function log_function_call($conversation_id, $function_name, $args, $result, $is_error) {
+        if (!$conversation_id) {
+            return;
+        }
+
+        $db = Chatbot_DB::get_instance();
+
+        // Format the result for display
+        $result_display = $is_error
+            ? $result->get_error_message()
+            : (is_array($result) ? json_encode($result, JSON_PRETTY_PRINT) : $result);
+
+        // Truncate if too long
+        if (strlen($result_display) > 500) {
+            $result_display = substr($result_display, 0, 500) . '...';
+        }
+
+        // Build the message content
+        $status_icon = $is_error ? '❌' : '✅';
+        $status_text = $is_error ? 'FAILED' : 'SUCCESS';
+
+        $message = "🔧 **Function Call: {$function_name}**\n";
+        $message .= "Status: {$status_icon} {$status_text}\n";
+        $message .= "Arguments: " . json_encode($args) . "\n";
+        $message .= "Result: {$result_display}";
+
+        // Store as a 'function' type message (will be hidden from user chat, visible in admin)
+        $db->add_message($conversation_id, 'function', $message);
+    }
+
     /**
      * Get a default response when API key is not set
-     * 
+     *
      * @param string $message The user message
      * @return string A default response
      */

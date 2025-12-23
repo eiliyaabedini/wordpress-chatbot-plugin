@@ -514,17 +514,23 @@
                 },
                 success: function(response) {
                     sendButton.prop('disabled', false);
-                    
+
                     if (response.success) {
                         // Clear the text area
                         replyText.val('');
-                        
-                        // Show status
-                        statusText.text(chatbotAdminVars.sentText);
+
+                        // Show status with platform info
+                        let statusMessage = chatbotAdminVars.sentText;
+                        if (response.data.platform_sent === true) {
+                            statusMessage += ' ✓ Delivered to user';
+                        } else if (response.data.platform_sent === false) {
+                            statusMessage += ' ⚠️ ' + (response.data.platform_error || 'Failed to deliver');
+                        }
+                        statusText.text(statusMessage);
                         setTimeout(function() {
                             statusText.text('');
-                        }, 3000);
-                        
+                        }, 5000);
+
                         // Add message to the chat
                         const messageHtml = `
                             <div class="chatbot-admin-message chatbot-admin-message-admin">
@@ -537,7 +543,7 @@
                                 </div>
                             </div>
                         `;
-                        
+
                         messagesContainer.append(messageHtml);
                         scrollToBottom();
                     } else {
@@ -574,7 +580,7 @@
                 data: {
                     action: 'chatbot_get_messages',
                     conversation_id: conversationId,
-                    nonce: chatbotAdminVars.nonce
+                    nonce: chatbotAdminVars.frontendNonce // Use frontend nonce for frontend action
                 },
                 success: function(response) {
                     if (response.success) {

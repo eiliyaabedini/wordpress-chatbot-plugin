@@ -611,9 +611,10 @@ class Chatbot_DB {
      * @param string $persona Personality and tone information for the chatbot
      * @param string $knowledge_sources JSON array of WordPress post IDs to use as knowledge
      * @param string $telegram_bot_token Telegram bot token for this configuration
+     * @param string $n8n_settings JSON string of n8n integration settings
      * @return bool Whether the update was successful
      */
-    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '') {
+    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '', $n8n_settings = '') {
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_configurations';
@@ -635,7 +636,8 @@ class Chatbot_DB {
             'knowledge_length' => strlen($knowledge),
             'persona_length' => strlen($persona),
             'knowledge_sources' => $knowledge_sources,
-            'has_telegram_token' => !empty($telegram_bot_token)
+            'has_telegram_token' => !empty($telegram_bot_token),
+            'has_n8n_settings' => !empty($n8n_settings)
         ));
 
         $result = $wpdb->update(
@@ -647,10 +649,11 @@ class Chatbot_DB {
                 'persona' => sanitize_textarea_field($persona),
                 'knowledge_sources' => $knowledge_sources, // JSON string
                 'telegram_bot_token' => sanitize_text_field($telegram_bot_token),
+                'n8n_settings' => $n8n_settings, // JSON string
                 'updated_at' => current_time('mysql')
             ),
             array('id' => $id),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s'),
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'),
             array('%d')
         );
 

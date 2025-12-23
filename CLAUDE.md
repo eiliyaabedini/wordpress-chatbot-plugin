@@ -491,9 +491,9 @@ By maintaining comprehensive logging, we create a reliable audit trail for troub
 ## Versioning and Builds
 
 ### Version Numbering
-- **Patch version** (1.3.0 → 1.3.1): Increment on every build/zip creation
-- **Minor version** (1.3.6 → 1.4.0): Only increment when explicitly requested by user
-- **Major version** (1.4.0 → 2.0.0): Only increment for breaking changes when requested
+- **Patch version** (1.3.0 → 1.3.1): Increment on every build/zip creation (without commit)
+- **Minor version** (1.3.6 → 1.4.0): Increment when user asks to COMMIT (commit = minor version bump)
+- **Major version** (1.4.0 → 2.0.0): Only increment for breaking changes when explicitly requested
 
 ### Version Locations
 Update version in TWO places in `chatbot-plugin.php`:
@@ -523,4 +523,4 @@ zip -r chatbot-plugin.zip chatbot-plugin \
 - Don't try to commit yourself, Commit just when I ask you!
 - When modifying AIPass integration, test complete OAuth flow
 - Always check WordPress debug.log for integration issues
-- Test with both AIPass connected AND disconnected states
+- Test with both AIPass connected AND disconnected states- When creating a zip file for the plugin, always include the version number in the filename (e.g., chatbot-plugin-1.3.15.zip instead of chatbot-plugin.zip)

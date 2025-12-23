@@ -1007,6 +1007,14 @@ class Chatbot_AIPass {
         // Check if token is expired or will expire in next 5 minutes
         // Refresh proactively before expiry to avoid mid-request expiration
         if ($this->token_expiry > 0 && time() >= ($this->token_expiry - 300)) {
+            // Check if we're in a cooldown period after a failed refresh
+            $refresh_cooldown_until = get_transient('chatbot_aipass_refresh_cooldown');
+            if ($refresh_cooldown_until !== false && time() < $refresh_cooldown_until) {
+                $remaining = $refresh_cooldown_until - time();
+                chatbot_log('DEBUG', 'is_connected', "In refresh cooldown period, {$remaining}s remaining. Skipping refresh.");
+                return false;
+            }
+
             chatbot_log('INFO', 'is_connected', 'Access token expired or expiring soon, attempting refresh');
 
             // Attempt to refresh the token
@@ -1014,9 +1022,17 @@ class Chatbot_AIPass {
 
             if (!$refresh_result['success']) {
                 chatbot_log('ERROR', 'is_connected', 'Token refresh failed: ' . $refresh_result['error']);
+
+                // Set cooldown period (5 minutes) to prevent retry loops
+                $cooldown_seconds = 300;
+                set_transient('chatbot_aipass_refresh_cooldown', time() + $cooldown_seconds, $cooldown_seconds);
+                chatbot_log('WARN', 'is_connected', "Refresh failed, entering {$cooldown_seconds}s cooldown to prevent rate limiting");
+
                 return false;
             }
 
+            // Clear cooldown on successful refresh
+            delete_transient('chatbot_aipass_refresh_cooldown');
             chatbot_log('INFO', 'is_connected', 'Access token refreshed successfully');
         }
 
@@ -1638,7 +1654,7 @@ class Chatbot_AIPass {
      * @param bool $is_retry Whether this is a retry after token refresh (internal use)
      * @return array Result with success status and completion or error
      */
-    public function generate_completion($messages, $model = 'gpt-4o-mini', $max_tokens = 1000, $temperature = 0.7, $is_retry = false) {
+    public function generate_completion($messages, $model = 'gpt-4o-mini', $max_tokens = 1000, $temperature = 0.7, $tools = null, $is_retry = false) {
         $this->refresh_configuration();
 
         // Check if AIPass is enabled and connected
@@ -1665,11 +1681,18 @@ class Chatbot_AIPass {
             $request_body['max_tokens'] = intval($max_tokens);
         }
 
+        // Add tools for function calling if provided
+        if (!empty($tools)) {
+            $request_body['tools'] = $tools;
+            $request_body['tool_choice'] = 'auto'; // Let AI decide when to use tools
+        }
+
         chatbot_log('INFO', 'generate_completion', 'Making AIPass completion request', array(
             'model' => $model,
             'max_tokens' => $max_tokens,
             'message_count' => count($messages),
-            'system_prompt_length' => isset($messages[0]['content']) ? strlen($messages[0]['content']) : 0
+            'system_prompt_length' => isset($messages[0]['content']) ? strlen($messages[0]['content']) : 0,
+            'has_tools' => !empty($tools) ? 'Yes (' . count($tools) . ')' : 'No'
         ));
 
         // Make request to AIPass chat completion endpoint
@@ -1726,7 +1749,7 @@ class Chatbot_AIPass {
                 $this->refresh_configuration();
 
                 // Retry the request with new token (mark as retry to avoid infinite loop)
-                return $this->generate_completion($messages, $model, $max_tokens, $temperature, true);
+                return $this->generate_completion($messages, $model, $max_tokens, $temperature, $tools, true);
             } else {
                 chatbot_log('ERROR', 'generate_completion', 'Token refresh failed after 401: ' . $refresh_result['error']);
                 return array(
@@ -1778,8 +1801,37 @@ class Chatbot_AIPass {
             );
         }
 
-        if (!isset($response_body['choices'][0]['message']['content'])) {
-            chatbot_log('ERROR', 'generate_completion', 'Invalid response format');
+        // Check if the response contains tool calls (function calling)
+        $message = isset($response_body['choices'][0]['message']) ? $response_body['choices'][0]['message'] : null;
+        $finish_reason = isset($response_body['choices'][0]['finish_reason']) ? $response_body['choices'][0]['finish_reason'] : 'stop';
+
+        if (!$message) {
+            chatbot_log('ERROR', 'generate_completion', 'Invalid response format - no message');
+            return array(
+                'success' => false,
+                'error' => 'Invalid response format'
+            );
+        }
+
+        // Check if AI wants to call tools
+        if ($finish_reason === 'tool_calls' || (isset($message['tool_calls']) && !empty($message['tool_calls']))) {
+            chatbot_log('INFO', 'generate_completion', 'AI requested tool calls', array(
+                'tool_count' => count($message['tool_calls'])
+            ));
+
+            return array(
+                'success' => true,
+                'content' => isset($message['content']) ? $message['content'] : null,
+                'tool_calls' => $message['tool_calls'],
+                'usage' => isset($response_body['usage']) ? $response_body['usage'] : null,
+                'model' => isset($response_body['model']) ? $response_body['model'] : $model,
+                'finish_reason' => $finish_reason
+            );
+        }
+
+        // Regular response without tool calls
+        if (!isset($message['content'])) {
+            chatbot_log('ERROR', 'generate_completion', 'Invalid response format - no content');
             return array(
                 'success' => false,
                 'error' => 'Invalid response format'
@@ -1789,9 +1841,10 @@ class Chatbot_AIPass {
         // Return success with completion text and usage info
         return array(
             'success' => true,
-            'content' => $response_body['choices'][0]['message']['content'],
+            'content' => $message['content'],
             'usage' => isset($response_body['usage']) ? $response_body['usage'] : null,
-            'model' => isset($response_body['model']) ? $response_body['model'] : $model
+            'model' => isset($response_body['model']) ? $response_body['model'] : $model,
+            'finish_reason' => $finish_reason
         );
     }
 
