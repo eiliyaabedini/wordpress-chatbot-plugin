@@ -170,7 +170,7 @@ class Chatbot_AIPass_Proxy {
         
         // Get request parameters
         $prompt = isset($_POST['prompt']) ? sanitize_textarea_field($_POST['prompt']) : '';
-        $model = isset($_POST['model']) ? sanitize_text_field($_POST['model']) : 'gpt-3.5-turbo';
+        $model = isset($_POST['model']) ? sanitize_text_field($_POST['model']) : CHATBOT_DEFAULT_MODEL;
         $max_tokens = isset($_POST['maxTokens']) ? intval($_POST['maxTokens']) : 1000;
         $temperature = isset($_POST['temperature']) ? floatval($_POST['temperature']) : 0.7;
         
@@ -209,7 +209,7 @@ class Chatbot_AIPass_Proxy {
         
         // Get request parameters
         $messages_json = isset($_POST['messages']) ? $_POST['messages'] : '';
-        $model = isset($_POST['model']) ? sanitize_text_field($_POST['model']) : 'gpt-3.5-turbo';
+        $model = isset($_POST['model']) ? sanitize_text_field($_POST['model']) : CHATBOT_DEFAULT_MODEL;
         $max_tokens = isset($_POST['maxTokens']) ? intval($_POST['maxTokens']) : 1000;
         $temperature = isset($_POST['temperature']) ? floatval($_POST['temperature']) : 0.7;
         

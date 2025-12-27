@@ -1277,7 +1277,7 @@ class Chatbot_Admin {
                             $n8n_enabled = isset($n8n_settings['enabled']) ? (bool) $n8n_settings['enabled'] : false;
                             $n8n_webhook_url = isset($n8n_settings['webhook_url']) ? $n8n_settings['webhook_url'] : '';
                             $n8n_webhook_secret = isset($n8n_settings['webhook_secret']) ? $n8n_settings['webhook_secret'] : '';
-                            $n8n_timeout = isset($n8n_settings['timeout']) ? (int) $n8n_settings['timeout'] : 30;
+                            $n8n_timeout = isset($n8n_settings['timeout']) ? (int) $n8n_settings['timeout'] : 300;
                             $n8n_actions = isset($n8n_settings['actions']) ? $n8n_settings['actions'] : array();
                             ?>
 
@@ -1419,7 +1419,7 @@ class Chatbot_Admin {
                                 <label for="chatbot_n8n_timeout" style="font-weight: 500;">
                                     <?php _e('Timeout (seconds):', 'chatbot-plugin'); ?>
                                 </label>
-                                <input type="number" name="chatbot_n8n_timeout" id="chatbot_n8n_timeout" class="small-text" value="<?php echo esc_attr($n8n_timeout); ?>" min="5" max="120">
+                                <input type="number" name="chatbot_n8n_timeout" id="chatbot_n8n_timeout" class="small-text" value="<?php echo esc_attr($n8n_timeout); ?>" min="5" max="300">
 
                                 <?php if ($editing): ?>
                                 <button type="button" id="chatbot_n8n_test_connection" class="button button-secondary" style="margin-left: 10px;" data-nonce="<?php echo wp_create_nonce('chatbot_n8n_test'); ?>">
@@ -1846,7 +1846,7 @@ class Chatbot_Admin {
                                             enabled: $('#chatbot_n8n_enabled').is(':checked'),
                                             webhook_url: $('#chatbot_n8n_webhook_url').val(),
                                             webhook_secret: $('#chatbot_n8n_webhook_secret').val(),
-                                            timeout: parseInt($('#chatbot_n8n_timeout').val()) || 30,
+                                            timeout: parseInt($('#chatbot_n8n_timeout').val()) || 300,
                                             headers: JSON.parse($('#chatbot_n8n_headers').val() || '[]'),
                                             actions: currentActions
                                         };
@@ -3414,7 +3414,7 @@ class Chatbot_Admin {
         $n8n_enabled = isset($_POST['chatbot_n8n_enabled']) && $_POST['chatbot_n8n_enabled'] === '1';
         $n8n_webhook_url = isset($_POST['chatbot_n8n_webhook_url']) ? esc_url_raw($_POST['chatbot_n8n_webhook_url']) : '';
         $n8n_webhook_secret = isset($_POST['chatbot_n8n_webhook_secret']) ? sanitize_text_field($_POST['chatbot_n8n_webhook_secret']) : '';
-        $n8n_timeout = isset($_POST['chatbot_n8n_timeout']) ? absint($_POST['chatbot_n8n_timeout']) : 30;
+        $n8n_timeout = isset($_POST['chatbot_n8n_timeout']) ? absint($_POST['chatbot_n8n_timeout']) : 300;
         $n8n_actions_raw = isset($_POST['chatbot_n8n_actions']) ? wp_unslash($_POST['chatbot_n8n_actions']) : '[]';
 
         // Sanitize n8n actions

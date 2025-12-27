@@ -1455,10 +1455,11 @@ class Chatbot_AIPass {
             )
         );
 
-        // Use a fast, cheap model for testing
+        // Use a fast, cheap model for testing (use constant if available)
+        $test_model = defined('CHATBOT_DEFAULT_MODEL') ? CHATBOT_DEFAULT_MODEL : 'gemini/gemini-2.5-flash-lite';
         $result = $this->generate_completion(
             $test_messages,
-            'gemini/gemini-2.5-flash-lite', // Fastest and cheapest
+            $test_model,
             10, // Very low token limit
             0.1 // Low temperature
         );
@@ -1654,7 +1655,12 @@ class Chatbot_AIPass {
      * @param bool $is_retry Whether this is a retry after token refresh (internal use)
      * @return array Result with success status and completion or error
      */
-    public function generate_completion($messages, $model = 'gpt-4o-mini', $max_tokens = 1000, $temperature = 0.7, $tools = null, $is_retry = false) {
+    public function generate_completion($messages, $model = null, $max_tokens = 1000, $temperature = 0.7, $tools = null, $is_retry = false) {
+        // Use default model from constant if not specified
+        if ($model === null) {
+            $model = defined('CHATBOT_DEFAULT_MODEL') ? CHATBOT_DEFAULT_MODEL : 'gemini/gemini-2.5-flash-lite';
+        }
+
         $this->refresh_configuration();
 
         // Check if AIPass is enabled and connected
@@ -1703,7 +1709,7 @@ class Chatbot_AIPass {
                 'Authorization' => 'Bearer ' . $this->access_token
             ),
             'body' => json_encode($request_body),
-            'timeout' => 60
+            'timeout' => 300 // 5 minutes for AI completion
         ));
 
         if (is_wp_error($response)) {

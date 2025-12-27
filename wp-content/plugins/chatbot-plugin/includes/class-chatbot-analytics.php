@@ -514,11 +514,12 @@ Keep your entire response under 750 words. Format with clear headings and simple
 
             // Generate the summary using the integration layer
             // This will automatically use AIPass if configured, otherwise direct OpenAI API
+            // Get the configured model from settings
+            $model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
+
             if ($using_aipass && class_exists('Chatbot_AIPass')) {
                 // Use AIPass integration
                 $aipass = Chatbot_AIPass::get_instance();
-                // Hardcoded: Use Gemini 2.5 Pro for AI Insights (most capable for analysis)
-                $model = 'gemini/gemini-2.5-pro';
 
                 $result = $aipass->generate_completion(
                     $messages,
@@ -537,7 +538,6 @@ Keep your entire response under 750 words. Format with clear headings and simple
             } else {
                 // Use direct OpenAI API
                 $api_url = 'https://api.openai.com/v1/chat/completions';
-                $model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
 
                 // Create request body
                 $request_body = array(
@@ -856,11 +856,12 @@ You should maintain the same analytical context throughout the conversation, ref
             chatbot_log('INFO', 'handle_follow_up_question', 'Integration mode: ' . ($using_aipass ? 'AIPass' : 'Direct OpenAI API'));
 
             // Generate the response using the integration layer
+            // Get the configured model from settings
+            $model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
+
             if ($using_aipass && class_exists('Chatbot_AIPass')) {
                 // Use AIPass integration
                 $aipass = Chatbot_AIPass::get_instance();
-                // Hardcoded: Use Gemini 2.5 Pro for AI Insights follow-up questions (most capable for analysis)
-                $model = 'gemini/gemini-2.5-pro';
 
                 $result = $aipass->generate_completion(
                     $messages,
@@ -877,7 +878,6 @@ You should maintain the same analytical context throughout the conversation, ref
             } else {
                 // Use direct OpenAI API
                 $api_url = 'https://api.openai.com/v1/chat/completions';
-                $model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
 
                 // Create request body
                 $request_body = array(

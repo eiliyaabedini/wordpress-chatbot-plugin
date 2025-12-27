@@ -61,7 +61,7 @@ class Chatbot_N8N_Gateway {
                 'enabled' => false,
                 'webhook_url' => '',
                 'webhook_secret' => '',
-                'timeout' => 120,
+                'timeout' => 300,
                 'actions' => array()
             );
         }
@@ -72,7 +72,7 @@ class Chatbot_N8N_Gateway {
                 'enabled' => false,
                 'webhook_url' => '',
                 'webhook_secret' => '',
-                'timeout' => 120,
+                'timeout' => 300,
                 'actions' => array()
             );
         }
@@ -81,7 +81,7 @@ class Chatbot_N8N_Gateway {
             'enabled' => isset($settings['enabled']) ? (bool) $settings['enabled'] : false,
             'webhook_url' => isset($settings['webhook_url']) ? $settings['webhook_url'] : '',
             'webhook_secret' => isset($settings['webhook_secret']) ? $settings['webhook_secret'] : '',
-            'timeout' => isset($settings['timeout']) ? (int) $settings['timeout'] : 120,
+            'timeout' => isset($settings['timeout']) ? (int) $settings['timeout'] : 300,
             'headers' => isset($settings['headers']) && is_array($settings['headers']) ? $settings['headers'] : array(),
             'actions' => isset($settings['actions']) && is_array($settings['actions']) ? $settings['actions'] : array()
         );

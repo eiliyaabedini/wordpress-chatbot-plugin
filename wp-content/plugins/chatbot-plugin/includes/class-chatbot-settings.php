@@ -416,7 +416,7 @@ class Chatbot_Settings {
 
                     // Debug current AI integration settings values
                     $api_key = get_option('chatbot_openai_api_key', '');
-                    $model = get_option('chatbot_openai_model', 'gpt-3.5-turbo');
+                    $model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
                     $max_tokens = get_option('chatbot_openai_max_tokens', 150);
                     $temperature = get_option('chatbot_openai_temperature', 0.7);
 
@@ -1478,7 +1478,7 @@ class Chatbot_Settings {
                                     if (response.success) {
                                         $message.html('<span style="color: green;">✓ ' + response.data.message + '</span>');
                                         $results.html('API key is correctly configured and working properly.\n\nModel: ' +
-                                                    '<?php echo esc_js(get_option('chatbot_openai_model', 'gpt-3.5-turbo')); ?>\n' +
+                                                    '<?php echo esc_js(get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL)); ?>\n' +
                                                     'Connection status: success');
                                     } else {
                                         $message.html('<span style="color: red;">✗ Error</span>');

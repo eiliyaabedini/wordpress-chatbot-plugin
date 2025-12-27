@@ -15,7 +15,7 @@ class Chatbot_OpenAI {
 
     private static $instance = null;
     private $api_key = '';
-    private $model = 'gpt-4.1-mini';
+    private $model = null; // Set from CHATBOT_DEFAULT_MODEL constant
     private $max_tokens = 1000;
     private $temperature = 0.7;
     private $system_prompt = '';
@@ -78,7 +78,7 @@ class Chatbot_OpenAI {
         // Get all OpenAI related options for debugging
         $debug_data = array(
             'api_key_exists' => !empty(get_option('chatbot_openai_api_key', '')),
-            'model' => get_option('chatbot_openai_model', 'gpt-3.5-turbo'),
+            'model' => get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL),
             'max_tokens' => get_option('chatbot_openai_max_tokens', 1000),
             'temperature' => get_option('chatbot_openai_temperature', 0.7),
             'system_prompt_excerpt' => substr(get_option('chatbot_openai_system_prompt', ''), 0, 50) . '...',
@@ -166,7 +166,7 @@ class Chatbot_OpenAI {
         }
 
         // Get other settings
-        $this->model = get_option('chatbot_openai_model', 'gpt-4.1-mini');
+        $this->model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
         $this->max_tokens = get_option('chatbot_openai_max_tokens', 1000); // Increased default from 150 to 1000
         $this->temperature = get_option('chatbot_openai_temperature', 0.7);
 
@@ -284,7 +284,7 @@ class Chatbot_OpenAI {
         register_setting('chatbot_openai_settings', 'chatbot_openai_model', array(
             'type' => 'string',
             'sanitize_callback' => array($this, 'sanitize_model'),
-            'default' => 'gemini/gemini-2.5-flash-lite', // Default to cheapest model
+            'default' => CHATBOT_DEFAULT_MODEL, // Uses constant from chatbot-plugin.php
         ));
         register_setting('chatbot_openai_settings', 'chatbot_openai_max_tokens', array(
             'type' => 'integer',
@@ -302,7 +302,7 @@ class Chatbot_OpenAI {
         register_setting('chatbot_settings', 'chatbot_openai_model', array(
             'type' => 'string',
             'sanitize_callback' => array($this, 'sanitize_model'),
-            'default' => 'gemini/gemini-2.5-flash-lite', // Default to cheapest model
+            'default' => CHATBOT_DEFAULT_MODEL, // Uses constant from chatbot-plugin.php
         ));
         register_setting('chatbot_settings', 'chatbot_openai_max_tokens', array(
             'type' => 'integer',
@@ -517,21 +517,117 @@ class Chatbot_OpenAI {
         }
 
         // AIPass mode: Show message about hardcoded models (NO selector)
+        $model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
+
         if ($aipass_connected) {
-            echo '<div style="background: #e7f3ff; padding: 15px; border-left: 4px solid #2196F3; border-radius: 4px;">';
-            echo '<p style="margin: 0 0 10px 0;"><strong>' . __('Models are automatically optimized for AIPass:', 'chatbot-plugin') . '</strong></p>';
-            echo '<ul style="margin: 5px 0; padding-left: 20px;">';
-            echo '<li><strong>Chat Conversations:</strong> Gemini 2.5 Flash Lite (Ultra Fast & Cheapest)</li>';
-            echo '<li><strong>AI Insights:</strong> Gemini 2.5 Pro (Most Capable for Analysis)</li>';
-            echo '</ul>';
-            echo '<p style="margin: 10px 0 0 0; color: #666; font-size: 13px;"><em>' . __('These models are hardcoded for optimal performance and cost.', 'chatbot-plugin') . '</em></p>';
-            echo '</div>';
+            // AIPass mode: Show model selector with AIPass models
+            $aipass = Chatbot_AIPass::get_instance();
+            $models_result = $aipass->get_available_models();
+
+            echo '<select name="chatbot_openai_model" id="chatbot_openai_model">';
+
+            if ($models_result['success'] && !empty($models_result['models'])) {
+                // Filter to only chat-compatible models
+                $chat_models = array_filter($models_result['models'], function($model_id) {
+                    // Exclude TTS (text-to-speech) models
+                    if (strpos($model_id, 'tts') !== false) return false;
+
+                    // Exclude STT (speech-to-text) models
+                    if (strpos($model_id, 'whisper') !== false) return false;
+
+                    // Exclude image generation models
+                    if (strpos($model_id, 'flux') !== false) return false;
+                    if (strpos($model_id, 'imagen') !== false) return false;
+                    if (strpos($model_id, 'recraft') !== false) return false;
+                    if (strpos($model_id, 'seedream') !== false) return false;
+                    if (strpos($model_id, 'dreamina') !== false) return false;
+                    if (strpos($model_id, 'dall-e') !== false) return false;
+                    if (strpos($model_id, 'gpt-image') !== false) return false;
+                    if (strpos($model_id, '-image-preview') !== false) return false;
+
+                    // Exclude video generation models
+                    if (strpos($model_id, 'sora') !== false) return false;
+                    if (strpos($model_id, 'veo') !== false) return false;
+
+                    return true;
+                });
+
+                // Group models by provider for better organization
+                $grouped_models = array();
+                foreach ($chat_models as $model_id) {
+                    // Determine provider from model ID
+                    if (strpos($model_id, '/') !== false) {
+                        $parts = explode('/', $model_id);
+                        $provider = ucfirst($parts[0]);
+                    } elseif (strpos($model_id, 'gpt-') === 0 || strpos($model_id, 'gpt') === 0) {
+                        $provider = 'OpenAI';
+                    } elseif (strpos($model_id, 'claude') === 0) {
+                        $provider = 'Anthropic';
+                    } else {
+                        $provider = 'Other';
+                    }
+                    if (!isset($grouped_models[$provider])) {
+                        $grouped_models[$provider] = array();
+                    }
+                    $grouped_models[$provider][] = $model_id;
+                }
+
+                // Put the recommended model at the very top
+                $default_model = CHATBOT_DEFAULT_MODEL;
+                $has_default = in_array($default_model, $chat_models);
+
+                if ($has_default) {
+                    echo '<option value="' . esc_attr($default_model) . '" ' . selected($model, $default_model, false) . '>' . esc_html($default_model) . ' (Recommended - Fast & Cheapest)</option>';
+                }
+
+                // Sort providers: Gemini first, then OpenAI, Anthropic, others alphabetically
+                uksort($grouped_models, function($a, $b) {
+                    $priority = array('Gemini' => 0, 'OpenAI' => 1, 'Anthropic' => 2, 'Cerebras' => 3);
+                    $a_priority = isset($priority[$a]) ? $priority[$a] : 99;
+                    $b_priority = isset($priority[$b]) ? $priority[$b] : 99;
+                    if ($a_priority !== $b_priority) {
+                        return $a_priority - $b_priority;
+                    }
+                    return strcmp($a, $b);
+                });
+
+                foreach ($grouped_models as $provider => $provider_models) {
+                    echo '<optgroup label="' . esc_attr($provider) . '">';
+                    foreach ($provider_models as $model_id) {
+                        // Skip the default model as it's already at the top
+                        if ($model_id === $default_model) {
+                            continue;
+                        }
+                        $display_name = $model_id;
+                        // Add label for notable models
+                        if ($model_id === 'gemini/gemini-2.5-pro') {
+                            $display_name .= ' (Most Capable)';
+                        } elseif ($model_id === 'gemini/gemini-2.5-flash') {
+                            $display_name .= ' (Fast)';
+                        }
+                        echo '<option value="' . esc_attr($model_id) . '" ' . selected($model, $model_id, false) . '>' . esc_html($display_name) . '</option>';
+                    }
+                    echo '</optgroup>';
+                }
+            } else {
+                // Fallback if models couldn't be loaded
+                echo '<option value="' . esc_attr(CHATBOT_DEFAULT_MODEL) . '" ' . selected($model, CHATBOT_DEFAULT_MODEL, false) . '>' . esc_html(CHATBOT_DEFAULT_MODEL) . ' (Recommended)</option>';
+                echo '<option value="gemini/gemini-2.5-pro" ' . selected($model, 'gemini/gemini-2.5-pro', false) . '>gemini/gemini-2.5-pro</option>';
+                echo '<option value="openai/gpt-4o-mini" ' . selected($model, 'openai/gpt-4o-mini', false) . '>openai/gpt-4o-mini</option>';
+            }
+
+            echo '</select>';
+
+            echo '<p class="description">' . __('Select the AI model to use for chat conversations. Gemini 2.5 Flash Lite is recommended for its speed and cost-effectiveness.', 'chatbot-plugin') . '</p>';
+
+            if (!$models_result['success']) {
+                echo '<p class="description" style="color: #d63638;"><em>' . __('Could not load full model list. Showing default models.', 'chatbot-plugin') . '</em></p>';
+            }
+
             return;
         }
 
         // Direct OpenAI API mode: Show model selector
-        $model = get_option('chatbot_openai_model', 'gpt-4o-mini');
-
         // OpenAI models list
         $openai_models = array(
             // OpenAI O-series models
@@ -555,7 +651,7 @@ class Chatbot_OpenAI {
         echo '</select>';
 
         echo '<p class="description">' . __('Select the OpenAI model to use. GPT-3.5 Turbo is fastest and most economical, while O4 and GPT-4 models are more capable but cost more.', 'chatbot-plugin') . '</p>';
-        echo '<p class="description" style="color: #999;"><em>' . __('💡 Connect AIPass to use optimized Gemini models (faster & cheaper than GPT)', 'chatbot-plugin') . '</em></p>';
+        echo '<p class="description" style="color: #999;"><em>' . __('Connect AIPass to access 160+ models including Gemini (faster & cheaper than GPT)', 'chatbot-plugin') . '</em></p>';
         echo '<p class="description">' . __('Recommended: <strong>GPT-4o Mini</strong> for balanced performance or <strong>GPT-4.1 Mini</strong> for latest features.', 'chatbot-plugin') . '</p>';
     }
     
@@ -603,7 +699,7 @@ class Chatbot_OpenAI {
     public function sanitize_model($input) {
         // If input is empty (happens when saving from other tabs), preserve current value
         if (empty($input)) {
-            $current_value = get_option('chatbot_openai_model', 'gemini/gemini-2.5-flash-lite');
+            $current_value = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
             chatbot_log('INFO', 'sanitize_model', 'Preserving current model value', array('model' => $current_value));
             return $current_value;
         }
@@ -776,8 +872,8 @@ class Chatbot_OpenAI {
 
             // If using AIPass, use its API instead of direct OpenAI API
             if ($this->use_aipass && $this->aipass) {
-                // Use Gemini 2.5 Flash Lite (fastest & cheapest)
-                $model = 'gemini/gemini-2.5-flash-lite';
+                // Use the configured model from settings
+                $model = $this->model;
 
                 // Use AIPass to generate completion with optional tools
                 $result = $this->aipass->generate_completion(
@@ -915,7 +1011,7 @@ class Chatbot_OpenAI {
                             'Content-Type' => 'application/json',
                         ),
                         'body' => json_encode($request_body),
-                        'timeout' => 60, // Increased timeout for function calling
+                        'timeout' => 300, // 5 minutes for function calling
                         'data_format' => 'body',
                     ));
 
@@ -1609,7 +1705,7 @@ IMPORTANT: You MUST provide a detailed response. Do not return an empty response
                 $aipass_model = $this->model;
                 if (strpos($aipass_model, '/') === false) {
                     // Model is not in AIPass format, use a reliable default
-                    $aipass_model = 'gemini/gemini-2.5-flash-lite';
+                    $aipass_model = CHATBOT_DEFAULT_MODEL;
                 }
 
                 chatbot_log('INFO', 'improve_prompt', 'Using AIPass for persona improvement', array(
