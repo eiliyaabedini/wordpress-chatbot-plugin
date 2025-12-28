@@ -61,8 +61,8 @@ class Chatbot_Analytics {
         }
         add_action('chatbot_generate_daily_insights', array($this, 'schedule_insights_generation'));
         
-        // Register OpenAI API usage tracking hooks
-        add_action('chatbot_openai_api_request_complete', array($this, 'track_api_usage'), 10, 3);
+        // Register AI API usage tracking hooks
+        add_action('chatbot_ai_request_complete', array($this, 'track_api_usage'), 10, 3);
     }
     
     /**
@@ -291,9 +291,9 @@ class Chatbot_Analytics {
     }
     
     /**
-     * Track OpenAI API usage for cost calculation
+     * Track AI API usage for cost calculation
      * 
-     * @param string $model The OpenAI model used
+     * @param string $model The AI model used
      * @param array $response The API response
      * @param int $conversation_id The conversation ID
      */
@@ -306,9 +306,9 @@ class Chatbot_Analytics {
             wp_send_json_error(array('message' => 'Security check failed.'));
         }
         
-        // Check if OpenAI integration is available
-        if (!class_exists('Chatbot_OpenAI') || !Chatbot_OpenAI::get_instance()->is_configured()) {
-            wp_send_json_error(array('message' => 'OpenAI API is not configured. Please set up your API key in the settings.'));
+        // Check if AIPass is connected
+        if (!class_exists('Chatbot_AI') || !Chatbot_AI::get_instance()->is_configured()) {
+            wp_send_json_error(array('message' => 'AIPass is not connected. Please connect AIPass in the settings.'));
             return;
         }
         
@@ -385,8 +385,8 @@ class Chatbot_Analytics {
         }
         $_SESSION['chatbot_analytics_conversation_data'] = $conversation_data;
         
-        // Get the OpenAI instance
-        $openai = Chatbot_OpenAI::get_instance();
+        // Get the AI instance
+        $ai = Chatbot_AI::get_instance();
         
         // Prepare enhanced system prompt for the analysis - more concise with suggested questions
         $system_prompt = "You are an analytics expert reviewing chat conversations from a website's chatbot. Your task is to analyze the provided conversation data and create a CONCISE but insightful data-driven summary that highlights only the most important key patterns, common questions, user needs, and actionable insights.
@@ -492,9 +492,9 @@ Always make sure charts have clear titles, labeled axes, and use appropriate col
 Keep your entire response under 750 words. Format with clear headings and simple bullet points. Use concise language and be specific. The HTML buttons should work when clicked to send the question text to the chatbot.";
         
         try {
-            // IMPORTANT: Use the proper OpenAI integration layer which automatically
-            // detects and uses AIPass when available, or falls back to direct OpenAI API
-            chatbot_log('INFO', 'generate_conversation_summary', 'Using OpenAI integration layer (supports both AIPass and direct API)');
+            // IMPORTANT: Use the AI integration layer which automatically
+            // uses AIPass for AI requests
+            chatbot_log('INFO', 'generate_conversation_summary', 'Using AI integration layer (supports both AIPass and direct API)');
 
             // Prepare messages for the AI
             $messages = array(
@@ -508,80 +508,30 @@ Keep your entire response under 750 words. Format with clear headings and simple
                 ),
             );
 
-            // Check if using AIPass or direct API
-            $using_aipass = $openai->is_using_aipass();
-            chatbot_log('INFO', 'generate_conversation_summary', 'Integration mode: ' . ($using_aipass ? 'AIPass' : 'Direct OpenAI API'));
+            // Generate the summary using AIPass
+            $model = get_option('chatbot_ai_model', CHATBOT_DEFAULT_MODEL);
+            chatbot_log('INFO', 'generate_conversation_summary', 'Using AIPass with model: ' . $model);
 
-            // Generate the summary using the integration layer
-            // This will automatically use AIPass if configured, otherwise direct OpenAI API
-            // Get the configured model from settings
-            $model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
-
-            if ($using_aipass && class_exists('Chatbot_AIPass')) {
-                // Use AIPass integration
-                $aipass = Chatbot_AIPass::get_instance();
-
-                $result = $aipass->generate_completion(
-                    $messages,
-                    $model,
-                    4000, // Higher token limit for analytics
-                    0.7
-                );
-
-                if (!$result['success']) {
-                    chatbot_log('ERROR', 'generate_conversation_summary', 'AIPass API Error: ' . $result['error']);
-                    wp_send_json_error(array('message' => 'Failed to generate summary: ' . $result['error']));
-                    return;
-                }
-
-                $response = $result['content'];
-            } else {
-                // Use direct OpenAI API
-                $api_url = 'https://api.openai.com/v1/chat/completions';
-
-                // Create request body
-                $request_body = array(
-                    'model' => $model,
-                    'messages' => $messages,
-                    'max_tokens' => 4000,
-                    'temperature' => 0.7
-                );
-
-                // Make API request
-                $api_key = get_option('chatbot_openai_api_key', '');
-                $response_data = wp_remote_post($api_url, array(
-                    'headers' => array(
-                        'Authorization' => 'Bearer ' . $api_key,
-                        'Content-Type' => 'application/json',
-                    ),
-                    'body' => json_encode($request_body),
-                    'timeout' => 60,
-                    'data_format' => 'body',
-                ));
-
-                if (is_wp_error($response_data)) {
-                    chatbot_log('ERROR', 'generate_conversation_summary', 'API Error: ' . $response_data->get_error_message());
-                    wp_send_json_error(array('message' => 'Failed to generate summary: ' . $response_data->get_error_message()));
-                    return;
-                }
-
-                $response_code = wp_remote_retrieve_response_code($response_data);
-                $response_body = json_decode(wp_remote_retrieve_body($response_data), true);
-
-                if ($response_code !== 200) {
-                    chatbot_log('ERROR', 'generate_conversation_summary', 'API Error: ' . json_encode($response_body));
-                    wp_send_json_error(array('message' => 'Failed to generate summary: API returned status code ' . $response_code));
-                    return;
-                }
-
-                if (!isset($response_body['choices'][0]['message']['content'])) {
-                    chatbot_log('ERROR', 'generate_conversation_summary', 'Unexpected API response format');
-                    wp_send_json_error(array('message' => 'Failed to generate summary: Unexpected API response format'));
-                    return;
-                }
-
-                $response = $response_body['choices'][0]['message']['content'];
+            if (!class_exists('Chatbot_AIPass')) {
+                wp_send_json_error(array('message' => 'AIPass integration not available.'));
+                return;
             }
+
+            $aipass = Chatbot_AIPass::get_instance();
+            $result = $aipass->generate_completion(
+                $messages,
+                $model,
+                4000, // Higher token limit for analytics
+                0.7
+            );
+
+            if (!$result['success']) {
+                chatbot_log('ERROR', 'generate_conversation_summary', 'AIPass API Error: ' . $result['error']);
+                wp_send_json_error(array('message' => 'Failed to generate summary: ' . $result['error']));
+                return;
+            }
+
+            $response = $result['content'];
 
             if (empty($response)) {
                 wp_send_json_error(array('message' => 'Failed to generate summary. AI returned an empty response.'));
@@ -611,9 +561,9 @@ Keep your entire response under 750 words. Format with clear headings and simple
             wp_send_json_error(array('message' => 'Security check failed.'));
         }
         
-        // Check if OpenAI integration is available
-        if (!class_exists('Chatbot_OpenAI') || !Chatbot_OpenAI::get_instance()->is_configured()) {
-            wp_send_json_error(array('message' => 'OpenAI API is not configured. Please set up your API key in the settings.'));
+        // Check if AIPass is connected
+        if (!class_exists('Chatbot_AI') || !Chatbot_AI::get_instance()->is_configured()) {
+            wp_send_json_error(array('message' => 'AIPass is not connected. Please connect AIPass in the settings.'));
             return;
         }
         
@@ -646,8 +596,8 @@ Keep your entire response under 750 words. Format with clear headings and simple
             $chat_history = array();
         }
         
-        // Get the OpenAI instance
-        $openai = Chatbot_OpenAI::get_instance();
+        // Get the AI instance
+        $ai = Chatbot_AI::get_instance();
         
         // Prepare system prompt with enhanced instructions for more concise responses
         $system_prompt = "You are an analytics expert reviewing chat conversations from a website's chatbot. You have access to the conversation data and can answer specific questions about patterns, trends, user behavior, and insights from this data.
@@ -836,10 +786,7 @@ You should maintain the same analytical context throughout the conversation, ref
                 'conversation_data_count' => count($conversation_data)
             ));
 
-            // IMPORTANT: Use the proper OpenAI integration layer which automatically
-            // detects and uses AIPass when available, or falls back to direct OpenAI API
-
-            // Prepare messages
+            // Prepare messages for AIPass
             $messages = array(
                 array(
                     'role' => 'system',
@@ -851,71 +798,27 @@ You should maintain the same analytical context throughout the conversation, ref
                 ),
             );
 
-            // Check if using AIPass or direct API
-            $using_aipass = $openai->is_using_aipass();
-            chatbot_log('INFO', 'handle_follow_up_question', 'Integration mode: ' . ($using_aipass ? 'AIPass' : 'Direct OpenAI API'));
+            // Generate the response using AIPass
+            $model = get_option('chatbot_ai_model', CHATBOT_DEFAULT_MODEL);
+            chatbot_log('INFO', 'handle_follow_up_question', 'Using AIPass with model: ' . $model);
 
-            // Generate the response using the integration layer
-            // Get the configured model from settings
-            $model = get_option('chatbot_openai_model', CHATBOT_DEFAULT_MODEL);
-
-            if ($using_aipass && class_exists('Chatbot_AIPass')) {
-                // Use AIPass integration
-                $aipass = Chatbot_AIPass::get_instance();
-
-                $result = $aipass->generate_completion(
-                    $messages,
-                    $model,
-                    4000, // Higher token limit for analytics
-                    0.7
-                );
-
-                if (!$result['success']) {
-                    throw new Exception('AIPass API Error: ' . $result['error']);
-                }
-
-                $response = $result['content'];
-            } else {
-                // Use direct OpenAI API
-                $api_url = 'https://api.openai.com/v1/chat/completions';
-
-                // Create request body
-                $request_body = array(
-                    'model' => $model,
-                    'messages' => $messages,
-                    'max_tokens' => 4000,
-                    'temperature' => 0.7
-                );
-
-                // Make API request
-                $api_key = get_option('chatbot_openai_api_key', '');
-                $response_data = wp_remote_post($api_url, array(
-                    'headers' => array(
-                        'Authorization' => 'Bearer ' . $api_key,
-                        'Content-Type' => 'application/json',
-                    ),
-                    'body' => json_encode($request_body),
-                    'timeout' => 60,
-                    'data_format' => 'body',
-                ));
-
-                if (is_wp_error($response_data)) {
-                    throw new Exception('API Error: ' . $response_data->get_error_message());
-                }
-
-                $response_code = wp_remote_retrieve_response_code($response_data);
-                $response_body = json_decode(wp_remote_retrieve_body($response_data), true);
-
-                if ($response_code !== 200) {
-                    throw new Exception('API Error: ' . json_encode($response_body));
-                }
-
-                if (isset($response_body['choices'][0]['message']['content'])) {
-                    $response = $response_body['choices'][0]['message']['content'];
-                } else {
-                    throw new Exception('Unexpected API response format.');
-                }
+            if (!class_exists('Chatbot_AIPass')) {
+                throw new Exception('AIPass integration not available.');
             }
+
+            $aipass = Chatbot_AIPass::get_instance();
+            $result = $aipass->generate_completion(
+                $messages,
+                $model,
+                4000, // Higher token limit for analytics
+                0.7
+            );
+
+            if (!$result['success']) {
+                throw new Exception('AIPass API Error: ' . $result['error']);
+            }
+
+            $response = $result['content'];
 
             if (!$response) {
                 wp_send_json_error(array('message' => 'Failed to generate response. AI returned an empty response.'));
@@ -955,9 +858,9 @@ You should maintain the same analytical context throughout the conversation, ref
     }
     
     /**
-     * Track OpenAI API usage for cost calculation
+     * Track AI API usage for cost calculation
      * 
-     * @param string $model The OpenAI model used
+     * @param string $model The AI model used
      * @param array $response The API response
      * @param int $conversation_id The conversation ID
      */
@@ -1033,7 +936,7 @@ You should maintain the same analytical context throughout the conversation, ref
     /**
      * Calculate token cost based on model and token counts
      * 
-     * @param string $model The OpenAI model used
+     * @param string $model The AI model used
      * @param int $prompt_tokens Number of prompt tokens
      * @param int $completion_tokens Number of completion tokens
      * @return float The calculated cost
@@ -1433,9 +1336,9 @@ You should maintain the same analytical context throughout the conversation, ref
     public function generate_ai_insights() {
         global $wpdb;
         
-        // Check if OpenAI integration is available
-        if (!class_exists('Chatbot_OpenAI') || !Chatbot_OpenAI::get_instance()->is_configured()) {
-            chatbot_log('ERROR', 'generate_ai_insights', 'OpenAI integration not available or not configured');
+        // Check if AI integration is available
+        if (!class_exists('Chatbot_AI') || !Chatbot_AI::get_instance()->is_configured()) {
+            chatbot_log('ERROR', 'generate_ai_insights', 'AI integration not available or not configured');
             return;
         }
         
@@ -1483,7 +1386,7 @@ You should maintain the same analytical context throughout the conversation, ref
             WHERE DATE(timestamp) >= %s
         ", $start_date));
         
-        // Prepare the data for OpenAI to analyze
+        // Prepare the data for AI to analyze
         $conversation_data = array();
         foreach ($conversations as $conv) {
             $conversation_data[] = array(
@@ -1500,7 +1403,7 @@ You should maintain the same analytical context throughout the conversation, ref
             $message_content[] = $msg->message;
         }
         
-        // Create the prompt for OpenAI
+        // Create the prompt for AI
         $system_prompt = "You are an analytics expert helping a website owner understand their chatbot usage data. Analyze the provided data and generate 3-5 actionable insights. Focus on patterns, potential leads, areas for improvement, and noteworthy trends.";
         
         $user_prompt = "Here is recent chatbot data. Please analyze it and provide 3-5 key insights that would be valuable for the website owner:\n\n";
@@ -1526,15 +1429,15 @@ Format each insight as JSON objects in an array. Example:
   }
 ]";
         
-        // Get the OpenAI instance
-        $openai = Chatbot_OpenAI::get_instance();
+        // Get the AI instance
+        $ai = Chatbot_AI::get_instance();
         
-        // Generate insights using OpenAI
+        // Generate insights using AI
         try {
-            $response = $openai->get_completion($system_prompt, $user_prompt);
+            $response = $ai->get_completion($system_prompt, $user_prompt);
             
             if (!$response) {
-                chatbot_log('ERROR', 'generate_ai_insights', 'Failed to get response from OpenAI');
+                chatbot_log('ERROR', 'generate_ai_insights', 'Failed to get response from AI');
                 return;
             }
             
@@ -1549,7 +1452,7 @@ Format each insight as JSON objects in an array. Example:
             $insights = json_decode($content, true);
             
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($insights)) {
-                chatbot_log('ERROR', 'generate_ai_insights', 'Invalid JSON response from OpenAI', $content);
+                chatbot_log('ERROR', 'generate_ai_insights', 'Invalid JSON response from AI', $content);
                 return;
             }
             
@@ -1578,7 +1481,7 @@ Format each insight as JSON objects in an array. Example:
             chatbot_log('INFO', 'generate_ai_insights', 'Generated ' . count($insights) . ' AI insights successfully');
             
         } catch (Exception $e) {
-            chatbot_log('ERROR', 'generate_ai_insights', 'Exception in OpenAI API call', $e->getMessage());
+            chatbot_log('ERROR', 'generate_ai_insights', 'Exception in AI API call', $e->getMessage());
         }
     }
     

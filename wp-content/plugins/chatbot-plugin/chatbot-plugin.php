@@ -1,14 +1,14 @@
 <?php
 /**
- * Plugin Name: AI Chat Bot
- * Plugin URI: https://github.com/eiliyaabedini/wordpress-chatbot-plugin
- * Description: A powerful AI chatbot plugin for WordPress
- * Version: 1.5.0
+ * Plugin Name: AIPass Chat
+ * Plugin URI: https://aipass.one
+ * Description: AI-powered chatbot for WordPress. Connect to 161+ AI models including GPT-4 and Gemini via AIPass.
+ * Version: 1.6.0
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
  * License URI: http://www.gnu.org/licenses/gpl-2.0.txt
- * Text Domain: ai-chat-bot
+ * Text Domain: aipass-chat
  * Domain Path: /languages
  */
 
@@ -18,24 +18,24 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.5.0');
+define('CHATBOT_PLUGIN_VERSION', '1.6.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CHATBOT_DEFAULT_MODEL', 'gemini/gemini-2.5-flash-lite'); // Default AI model for all API calls
 
 // Include required files
-// IMPORTANT: Load AIPass classes BEFORE OpenAI class
-// so that OpenAI can detect AIPass during initialization
+// IMPORTANT: Load AIPass classes BEFORE AI class
+// so that AI class can detect AIPass during initialization
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass-proxy.php';
 
-// Load n8n gateway BEFORE OpenAI so OpenAI can use it for function calling
+// Load n8n gateway BEFORE AI class so it can use it for function calling
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-n8n-gateway.php';
 
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-handler.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
-require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-openai.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-ai.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-settings.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';

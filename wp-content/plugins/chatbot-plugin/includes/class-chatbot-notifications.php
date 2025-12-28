@@ -439,8 +439,8 @@ class Chatbot_Notifications {
         
         // Generate AI analysis if possible and configured
         if ($this->is_email_notification_enabled('ai_summary') && 
-            class_exists('Chatbot_OpenAI') && 
-            Chatbot_OpenAI::get_instance()->is_configured()) {
+            class_exists('Chatbot_AI') && 
+            Chatbot_AI::get_instance()->is_configured()) {
             
             $summary_data['ai_analysis'] = $this->generate_ai_summary($conversations, $summary_data);
         }
@@ -492,12 +492,12 @@ class Chatbot_Notifications {
                 return '';
             }
             
-            // Check if OpenAI is available
-            if (!class_exists('Chatbot_OpenAI') || !Chatbot_OpenAI::get_instance()->is_configured()) {
+            // Check if AI is available
+            if (!class_exists('Chatbot_AI') || !Chatbot_AI::get_instance()->is_configured()) {
                 return '';
             }
             
-            $openai = Chatbot_OpenAI::get_instance();
+            $ai = Chatbot_AI::get_instance();
             
             // Prepare system prompt
             $system_prompt = "You are an analytics expert reviewing chat conversations from a website's chatbot. Your task is to analyze the provided conversation data and create a CONCISE but insightful data-driven summary that highlights only the most important patterns, common questions, user needs, and actionable insights from the last day of chatbot activity.
@@ -531,11 +531,11 @@ Your analysis should be professional but conversational in tone, written as a he
             
             $user_prompt .= "Based on this data, provide a concise, actionable summary following the format in your instructions.";
             
-            // Generate summary using OpenAI
-            $summary = $openai->get_completion($system_prompt, $user_prompt);
+            // Generate summary using AI
+            $summary = $ai->get_completion($system_prompt, $user_prompt);
             
             if (empty($summary)) {
-                chatbot_log('ERROR', 'generate_ai_summary', 'OpenAI returned empty summary');
+                chatbot_log('ERROR', 'generate_ai_summary', 'AI returned empty summary');
                 return '';
             }
             

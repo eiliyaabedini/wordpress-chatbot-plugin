@@ -25,6 +25,9 @@ class Chatbot_Admin {
         // Add admin menu
         add_action('admin_menu', array($this, 'add_admin_menu'));
 
+        // Add custom admin styles for menu icon
+        add_action('admin_head', array($this, 'add_admin_menu_styles'));
+
         // Register admin-specific scripts and styles
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_scripts'));
 
@@ -64,48 +67,85 @@ class Chatbot_Admin {
      * Add admin menu pages
      */
     public function add_admin_menu() {
-        // Main plugin page - Changed label to 'Chat Bots'
+        // Main plugin page
         add_menu_page(
-            __('Chatbot Plugin', 'chatbot-plugin'),
-            __('Chat Bots', 'chatbot-plugin'),
+            __('AIPass Chat', 'aipass-chat'),
+            'Pass',
             'manage_options',
             'chatbot-plugin',
             array($this, 'display_admin_page'),
-            'dashicons-format-chat',
+            'dashicons-admin-generic', // Placeholder, replaced by CSS
             100
         );
-        
+
         // First submenu - renamed to 'Overview'
         add_submenu_page(
             'chatbot-plugin',
-            __('Chatbot Overview', 'chatbot-plugin'),
-            __('Overview', 'chatbot-plugin'),
+            __('AIPass Overview', 'aipass-chat'),
+            __('Overview', 'aipass-chat'),
             'manage_options',
             'chatbot-plugin',
             array($this, 'display_admin_page')
         );
-        
+
         // Chatbots management submenu
         add_submenu_page(
             'chatbot-plugin',
-            __('Chat Bots', 'chatbot-plugin'),
-            __('Chat Bots', 'chatbot-plugin'),
+            __('Chat Bots', 'aipass-chat'),
+            __('Chat Bots', 'aipass-chat'),
             'manage_options',
             'chatbot-configurations',
             array($this, 'display_configurations_page')
         );
-        
+
         // Conversations submenu
         add_submenu_page(
             'chatbot-plugin',
-            __('Conversations', 'chatbot-plugin'),
-            __('Conversations', 'chatbot-plugin'),
+            __('Conversations', 'aipass-chat'),
+            __('Conversations', 'aipass-chat'),
             'manage_options',
             'chatbot-conversations',
             array($this, 'display_conversations_page')
         );
     }
-    
+
+    /**
+     * Add custom CSS for admin menu - AIPass branding
+     */
+    public function add_admin_menu_styles() {
+        ?>
+        <style>
+            /* Make icon area a flex container for vertical centering */
+            #adminmenu .toplevel_page_chatbot-plugin .wp-menu-image {
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
+
+            /* Replace dashicon with AI text box */
+            #adminmenu .toplevel_page_chatbot-plugin .wp-menu-image.dashicons-before.dashicons-admin-generic:before {
+                content: "AI" !important;
+                font-family: Arial, sans-serif !important;
+                font-size: 11px !important;
+                font-weight: bold !important;
+                background: #8A4FFF !important;
+                color: #fff !important;
+                padding: 3px 5px !important;
+                border-radius: 4px 0 4px 4px !important;
+                line-height: 1 !important;
+                width: auto !important;
+                height: auto !important;
+                position: static !important;
+            }
+
+            /* Make Pass text bold */
+            #adminmenu .toplevel_page_chatbot-plugin .wp-menu-name {
+                font-weight: 600;
+            }
+        </style>
+        <?php
+    }
+
     /**
      * Display the main admin page
      */
@@ -420,7 +460,7 @@ class Chatbot_Admin {
                                         <textarea name="chatbot_persona" id="chatbot_persona" class="large-text code" rows="7" data-original-value="<?php echo esc_attr($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?>"><?php echo esc_textarea($editing && isset($config->persona) ? $config->persona : 'You are a helpful, friendly, and professional assistant. Respond to user inquiries in a conversational tone while maintaining accuracy and being concise.'); ?></textarea>
                                         <p class="description"><?php _e('Define the personality and tone for this chatbot. This controls how the AI responds to users.', 'chatbot-plugin'); ?></p>
                                         <button type="button" class="button" id="chatbot_improve_prompt"
-                                            data-nonce-test="<?php echo wp_create_nonce('chatbot_test_openai_nonce'); ?>"
+                                            data-nonce-test="<?php echo wp_create_nonce('chatbot_test_ai_nonce'); ?>"
                                             data-nonce-improve="<?php echo wp_create_nonce('chatbot_improve_prompt_nonce'); ?>">
                                             <?php _e('Improve Persona with AI', 'chatbot-plugin'); ?>
                                         </button>
@@ -528,7 +568,7 @@ class Chatbot_Admin {
                                                                 console.log('Improve response:', response);
                                                                 if (response.success && response.data && response.data.improved_prompt) {
                                                                     if (response.data.improved_prompt.trim() === '') {
-                                                                        status.innerHTML = '<span style="color: red;">Error: OpenAI returned an empty response. Please try again.</span>';
+                                                                        status.innerHTML = '<span style="color: red;">Error: AI returned an empty response. Please try again.</span>';
                                                                     } else {
                                                                         textarea.value = response.data.improved_prompt;
                                                                         status.innerHTML = '<span style="color: green;">All Done, check it and if you need modify it!</span>';
@@ -2847,9 +2887,9 @@ class Chatbot_Admin {
             return;
         }
 
-        // Check if OpenAI class exists
-        if (!class_exists('Chatbot_OpenAI')) {
-            wp_send_json_error(array('message' => 'OpenAI integration not available.'));
+        // Check if AI class exists
+        if (!class_exists('Chatbot_AI')) {
+            wp_send_json_error(array('message' => 'AI integration not available.'));
             return;
         }
 
@@ -2865,17 +2905,17 @@ class Chatbot_Admin {
         // Add the test message to the conversation
         $db->add_message($conversation_id, 'user', $message);
 
-        // Get OpenAI instance
-        $openai = Chatbot_OpenAI::get_instance();
+        // Get AI instance
+        $ai = Chatbot_AI::get_instance();
 
-        // Check if API key is configured
-        if (!$openai->is_configured()) {
-            wp_send_json_error(array('message' => 'OpenAI API key not configured. Please add your API key in the OpenAI Integration tab.'));
+        // Check if AIPass is connected
+        if (!$ai->is_configured()) {
+            wp_send_json_error(array('message' => 'AIPass not connected. Please connect AIPass in the AI Integration tab.'));
             return;
         }
 
         // Generate a response
-        $response = $openai->generate_response($conversation_id, $message);
+        $response = $ai->generate_response($conversation_id, $message);
 
         // Clean up test conversation
         $db->delete_conversation($conversation_id);

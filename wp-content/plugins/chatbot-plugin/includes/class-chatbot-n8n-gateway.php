@@ -99,10 +99,10 @@ class Chatbot_N8N_Gateway {
     }
 
     /**
-     * Build OpenAI-compatible function definitions from chatbot's configured actions
+     * Build AI-compatible function definitions from chatbot's configured actions
      *
      * @param object|array $config The chatbot configuration
-     * @return array OpenAI function definitions
+     * @return array AI function definitions
      */
     public function build_function_definitions_for_chatbot($config) {
         $settings = $this->parse_config_settings($config);

@@ -2,98 +2,2294 @@
 # This file is distributed under the GPL-2.0+.
 msgid ""
 msgstr ""
-"Project-Id-Version: AI Chat Bot 1.0.0\n"
-"Report-Msgid-Bugs-To: https://github.com/eiliyaabedini/wordpress-chatbot-plugin/issues\n"
+"Project-Id-Version: AI Chat Bot 1.5.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/chatbot-plugin\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"POT-Creation-Date: 2025-05-10T00:00:00+00:00\n"
+"POT-Creation-Date: 2025-12-27T21:17:30+00:00\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"X-Generator: WP-CLI 2.9.0\n"
-"X-Domain: ai-chat-bot\n"
+"X-Generator: WP-CLI 2.11.0\n"
+"X-Domain: chatbot-plugin\n"
 
 #. Plugin Name of the plugin
+#: chatbot-plugin.php
 msgid "AI Chat Bot"
 msgstr ""
 
 #. Plugin URI of the plugin
+#: chatbot-plugin.php
 msgid "https://github.com/eiliyaabedini/wordpress-chatbot-plugin"
 msgstr ""
 
 #. Description of the plugin
+#: chatbot-plugin.php
 msgid "A powerful AI chatbot plugin for WordPress"
 msgstr ""
 
 #. Author of the plugin
+#: chatbot-plugin.php
 msgid "Eiliya Abedini"
 msgstr ""
 
 #. Author URI of the plugin
+#: chatbot-plugin.php
 msgid "https://iact.ir"
 msgstr ""
 
-#: includes/class-chatbot-admin.php:50
-msgid "Chat Bot Settings"
+#: includes/class-chatbot-admin.php:69
+msgid "Chatbot Plugin"
 msgstr ""
 
-#: includes/class-chatbot-admin.php:51
-msgid "Chat Bot"
+#: includes/class-chatbot-admin.php:70
+#: includes/class-chatbot-admin.php:91
+#: includes/class-chatbot-admin.php:92
+#: includes/class-chatbot-admin.php:243
+msgid "Chat Bots"
 msgstr ""
 
-#: includes/class-chatbot-admin.php:118
-msgid "OpenAI API Configuration"
+#: includes/class-chatbot-admin.php:81
+msgid "Chatbot Overview"
 msgstr ""
 
-#: includes/class-chatbot-openai.php:186
-msgid "OpenAI API Key"
+#: includes/class-chatbot-admin.php:82
+#: includes/class-chatbot-notifications.php:264
+msgid "Overview"
 msgstr ""
 
-#: includes/class-chatbot-openai.php:194
-msgid "Model"
+#: includes/class-chatbot-admin.php:101
+#: includes/class-chatbot-admin.php:102
+#: includes/class-chatbot-admin.php:1956
+#: includes/class-chatbot-admin.php:2094
+#: includes/class-chatbot-analytics.php:1578
+msgid "Conversations"
 msgstr ""
 
-#: includes/class-chatbot-openai.php:203
-msgid "Max Tokens"
+#: includes/class-chatbot-admin.php:121
+msgid "AI Conversation Insights"
 msgstr ""
 
-#: includes/class-chatbot-openai.php:212
-msgid "Temperature"
+#: includes/class-chatbot-admin.php:122
+msgid "Get AI-powered insights about your chatbot conversations. Analyze patterns, user behavior, and discover opportunities for improvement."
 msgstr ""
 
-#: includes/class-chatbot-settings.php:104
-msgid "Knowledge Base"
+#: includes/class-chatbot-admin.php:131
+msgid "AI Chat Analysis"
 msgstr ""
 
-#: includes/class-chatbot-settings.php:112
+#: includes/class-chatbot-admin.php:132
+msgid "Your AI assistant can analyze your chatbot conversations and provide concise, actionable insights with suggested follow-up questions."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:134
+msgid "Start Conversation Analysis"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:140
+msgid "Analyzing conversations..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:144
+msgid "Ask a question about your chat data..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:150
+msgid "Type your own question or click on a suggested question button for quick insights."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:202
+#: includes/class-chatbot-admin.php:3149
+msgid "Chatbot added successfully."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:203
+#: includes/class-chatbot-admin.php:3206
+msgid "Chatbot updated successfully."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:214
+#: includes/class-chatbot-admin.php:3117
+msgid "Chatbot name is required."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:215
+#: includes/class-chatbot-admin.php:3131
+#: includes/class-chatbot-admin.php:3198
+msgid "A chatbot with this name already exists."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:216
+msgid "Failed to add or update chatbot. Please try again."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:217
+#: includes/class-chatbot-admin.php:3190
+msgid "Invalid configuration data."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:243
+msgid "Edit Chatbot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:248
+msgid "Add New"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:260
+msgid "Configuration not found."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:261
+#: includes/class-chatbot-admin.php:273
+msgid "&larr; Back to Chat Bots"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:376
+#: includes/class-chatbot-settings.php:319
+msgid "General"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:379
+msgid "Knowledge"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:382
+msgid "Integrations"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:396
+msgid "active"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:407
+#: includes/class-chatbot-admin.php:1554
+#: includes/class-chatbot-admin.php:1954
+msgid "Name"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:411
+msgid "Enter a unique name for this chatbot. This will be used in the shortcode."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:412
+msgid "Example shortcode:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:417
 msgid "Persona"
 msgstr ""
 
-#: includes/class-chatbot-settings.php:120
-msgid "Appearance"
+#: includes/class-chatbot-admin.php:421
+msgid "Define the personality and tone for this chatbot. This controls how the AI responds to users."
 msgstr ""
 
-#: templates/chatbot-template.php:123
-msgid "Chat Support"
+#: includes/class-chatbot-admin.php:425
+msgid "Improve Persona with AI"
 msgstr ""
 
-#: templates/chatbot-template.php:143
-msgid "Welcome to our chat!"
+#: includes/class-chatbot-admin.php:440
+msgid "Knowledge Base"
 msgstr ""
 
-#: templates/chatbot-template.php:146
-msgid "Your name..."
+#: includes/class-chatbot-admin.php:444
+msgid "Define the domain-specific knowledge for this chatbot. This information is what the chatbot will use to answer questions."
 msgstr ""
 
-#: templates/chatbot-template.php:147
-msgid "Start Chat"
+#: includes/class-chatbot-admin.php:449
+msgid "WordPress Content"
 msgstr ""
 
-#: templates/chatbot-template.php:152
-msgid "Type your message..."
+#: includes/class-chatbot-admin.php:485
+msgid "Total System Prompt Size (Knowledge + Persona + WordPress Content):"
 msgstr ""
 
-#: templates/chatbot-template.php:163
-msgid "End Chat"
+#: includes/class-chatbot-admin.php:490
+msgid "tokens"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:497
+msgid "Select WordPress posts, pages, or products to use as additional knowledge for the AI. The content will be extracted and the AI can cite source URLs when responding."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:576
+msgid "Telegram"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:602
+msgid "Your site is running locally. Telegram will use polling mode instead of webhooks for testing."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:605
+msgid "Use the \"Poll Now\" button to manually check for new messages after connecting."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:617
+#: includes/class-chatbot-admin.php:632
+#: includes/class-chatbot-admin.php:885
+msgid "Connected"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:619
+msgid "Polling Mode"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:623
+msgid "Click \"Poll Now\" to check for new Telegram messages. This is for local testing only."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:634
+msgid "Webhook Active"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:638
+msgid "Telegram will instantly send messages to your site. Users can message this bot on Telegram."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:645
+#: includes/class-chatbot-admin.php:834
+msgid "Start Auto-Poll"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:649
+#: includes/class-chatbot-admin.php:784
+#: includes/class-chatbot-admin.php:789
+msgid "Disconnect Telegram"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:656
+#: includes/messaging/class-chatbot-platform-telegram.php:367
+msgid "Bot Token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:663
+msgid "Connect Telegram Bot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:666
+msgid "Test Token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:671
+msgid "Save the chatbot first, then you can connect Telegram."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:677
+msgid "Connect a Telegram bot to allow users to chat via Telegram."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:678
+msgid "Get your bot token from @BotFather"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:691
+#: includes/class-chatbot-admin.php:726
+msgid "Please enter a bot token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:695
+#: includes/class-chatbot-admin.php:1141
+#: includes/class-chatbot-admin.php:1812
+#: includes/class-chatbot-aipass.php:319
+#: includes/class-chatbot-aipass.php:320
+#: includes/class-chatbot-settings.php:982
+msgid "Testing..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:707
+#: includes/class-chatbot-admin.php:1158
+msgid "Valid!"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:709
+msgid "Invalid token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:713
+#: includes/class-chatbot-admin.php:754
+#: includes/class-chatbot-admin.php:788
+#: includes/class-chatbot-admin.php:1124
+#: includes/class-chatbot-admin.php:1164
+#: includes/class-chatbot-admin.php:1217
+#: includes/class-chatbot-admin.php:1252
+#: includes/class-chatbot-admin.php:1796
+#: includes/class-chatbot-admin.php:1832
+#: includes/class-chatbot-aipass.php:308
+#: includes/class-chatbot-aipass.php:339
+msgid "Connection error"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:731
+#: includes/class-chatbot-admin.php:1183
+msgid "Connecting..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:744
+#: includes/class-chatbot-admin.php:1200
+msgid "Connected! Reloading..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:749
+#: includes/class-chatbot-admin.php:1212
+msgid "Connection failed"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:762
+msgid "Are you sure you want to disconnect this Telegram bot?"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:769
+#: includes/class-chatbot-admin.php:1232
+msgid "Disconnecting..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:783
+#: includes/class-chatbot-admin.php:1247
+msgid "Disconnect failed"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:815
+msgid "message(s) processed"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:835
+msgid "Polling stopped"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:840
+msgid "Stop Polling"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:841
+msgid "Polling every 2 seconds..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:861
+msgid "WhatsApp"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:895
+msgid "WhatsApp Cloud API is connected. Users can message your WhatsApp Business number."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:899
+#: includes/class-chatbot-admin.php:946
+msgid "Send Test Message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:902
+#: includes/class-chatbot-aipass.php:144
+#: includes/class-chatbot-settings.php:563
+msgid "Disconnect"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:905
+msgid "Webhook Info"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:908
+msgid "Webhook Log"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:918
+msgid "Recent Webhook Activity"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:920
+msgid "No webhooks received yet. Send a WhatsApp message to test."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:924
+#: includes/class-chatbot-notifications.php:295
+msgid "Time"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:925
+msgid "From"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:926
+msgid "Type"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:927
+#: includes/class-chatbot-admin.php:953
+msgid "Message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:940
+msgid "Refresh"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:948
+msgid "Recipient Phone Number"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:950
+msgid "Include country code (e.g., +1 for US). Must be a number that has messaged your WhatsApp Business first."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:957
+msgid "Send Message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:960
+#: includes/class-chatbot-admin.php:1392
+msgid "Cancel"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:966
+msgid "Webhook Configuration"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:967
+#: includes/class-chatbot-admin.php:1205
+msgid "Callback URL:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:969
+#: includes/class-chatbot-admin.php:1206
+msgid "Verify Token:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:971
+msgid "Use these values in your Meta App Dashboard under WhatsApp > Configuration > Webhook."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:978
+msgid "How to get credentials"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:982
+msgid "Where to get your credentials"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:984
+msgid "Go to"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:985
+msgid "Create or select your App → Add WhatsApp product"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:986
+msgid "In <strong>WhatsApp → API Setup</strong>:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:988
+#: includes/class-chatbot-admin.php:1012
+#: includes/messaging/class-chatbot-platform-whatsapp.php:417
+msgid "Phone Number ID"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:988
+msgid "Shown under \"From\" phone number"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:989
+#: includes/class-chatbot-admin.php:1018
+#: includes/messaging/class-chatbot-platform-whatsapp.php:424
+msgid "Access Token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:989
+msgid "Click \"Generate\" for a temporary token (24h) or create a permanent System User token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:993
+msgid "After connecting"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:994
+msgid "Configure the webhook in Meta's dashboard:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:996
+msgid "Callback URL"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:996
+msgid "Will be shown after you connect"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:997
+#: includes/messaging/class-chatbot-platform-whatsapp.php:431
+msgid "Verify Token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:997
+msgid "Auto-generated by the plugin"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1000
+msgid "For production use:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1002
+msgid "A verified Meta Business Account"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1003
+msgid "A registered WhatsApp Business phone number"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1004
+msgid "Subscribe to the \"messages\" webhook field"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1006
+msgid "For testing, Meta provides a test phone number in sandbox mode."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1022
+msgid "Show/Hide"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1026
+msgid "Connect WhatsApp"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1029
+msgid "Test Credentials"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1034
+msgid "Save the chatbot first, then you can connect WhatsApp."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1039
+msgid "Connect WhatsApp Cloud API to allow users to chat via WhatsApp. Requires"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1040
+msgid "Meta Business Account"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1093
+msgid "Please enter a phone number"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1098
+msgid "Please enter a message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1103
+#: includes/class-chatbot-admin.php:2695
+msgid "Sending..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1117
+msgid "Message sent successfully!"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1119
+msgid "Failed to send message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1137
+#: includes/class-chatbot-admin.php:1178
+msgid "Please enter Phone Number ID and Access Token"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1160
+msgid "Invalid credentials"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1204
+msgid "WhatsApp connected! Next step: Configure the webhook in your Meta App Dashboard."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1225
+msgid "Are you sure you want to disconnect WhatsApp?"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1248
+#: includes/class-chatbot-admin.php:1253
+msgid "Disconnect WhatsApp"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1271
+msgid "n8n Workflow Automation"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1285
+msgid "Connect to n8n or Zapier to enable AI-powered actions. The AI can execute actions like scheduling meetings, sending emails, or updating your CRM."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1289
+msgid "How it works:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1290
+msgid "Define actions below. The AI decides when to call them during conversations, and n8n handles the integrations."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1296
+msgid "Enable n8n Integration"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1304
+msgid "Webhook URL"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1307
+msgid "The webhook URL from your n8n workflow."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1311
+msgid "Webhook Secret (Optional)"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1313
+msgid "Optional security secret"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1314
+msgid "If set, requests include HMAC signature for verification."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1324
+msgid "Custom Headers (Optional)"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1326
+msgid "Add custom headers to send with webhook requests (e.g., Authorization, API keys)."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1335
+msgid "+ Add Header"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1341
+msgid "Configured Actions"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1344
+msgid "Each action becomes a \"tool\" that the AI can call when appropriate during conversations."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1355
+msgid "+ Add Action"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1360
+#: includes/class-chatbot-admin.php:1571
+msgid "Add New Action"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1364
+msgid "Action Name"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1367
+msgid "Unique identifier (lowercase, underscores allowed)."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1372
+#: includes/class-chatbot-admin.php:1560
+#: includes/class-chatbot-settings.php:1335
+msgid "Description"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1374
+msgid "Schedule a meeting with a customer. Use this when a user wants to book an appointment."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1375
+msgid "The AI uses this to decide when to call this action."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1380
+msgid "Parameters"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1386
+msgid "+ Add Parameter"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1391
+msgid "Save Action"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1399
+msgid "Test Action:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1401
+msgid "Enter values for each parameter to test this action."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1412
+msgid "Run Test"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1413
+msgid "Close"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1420
+msgid "Timeout (seconds):"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1426
+#: includes/class-chatbot-aipass.php:142
+#: includes/class-chatbot-aipass.php:342
+msgid "Test Connection"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1429
+msgid "Save Webhook Settings"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1468
+msgid "No custom headers configured."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1523
+msgid "No actions configured yet."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1538
+msgid "Test"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1539
+#: includes/class-chatbot-admin.php:1976
+msgid "Edit"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1540
+#: includes/class-chatbot-admin.php:1980
+#: includes/class-chatbot-admin.php:2150
+#: includes/class-chatbot-admin.php:2452
+msgid "Delete"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1561
+msgid "Req"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1571
+msgid "Edit Action"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1622
+msgid "Please enter an action name."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1623
+msgid "Please enter a description."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1642
+msgid "Delete this action?"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1662
+msgid "This action has no parameters."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1689
+msgid "True"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1690
+msgid "Enter value..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1712
+#: includes/class-chatbot-admin.php:1809
+msgid "Enter a webhook URL first."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1752
+msgid "Testing action..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1774
+msgid "Webhook received (async mode)"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1775
+msgid "n8n is set to respond immediately. To see actual results, configure your Webhook node:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1776
+msgid "Set \"Respond\" to \"When Last Node Finishes\", OR"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1777
+msgid "Add a \"Respond to Webhook\" node at the end of your workflow"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1780
+msgid "Success!"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1784
+msgid "Sent Parameters:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1787
+msgid "Response:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1792
+#: includes/class-chatbot-admin.php:1828
+#: includes/class-chatbot-admin.php:1872
+msgid "Failed"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1855
+msgid "Saving..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1876
+msgid "Save error"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1889
+msgid "Learn more about n8n"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1890
+msgid "Webhook Documentation"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1929
+msgid "Update Chatbot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1931
+msgid "Add Chatbot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1933
+msgid "Reset Form"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1947
+msgid "No chatbots found"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1948
+msgid "Create your first chatbot by clicking the \"Add New\" button above."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1955
+msgid "Shortcode"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1957
+#: includes/class-chatbot-admin.php:2359
+msgid "Actions"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1971
+msgid "conversation"
+msgid_plural "conversations"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-chatbot-admin.php:1979
+msgid "Are you sure you want to delete this chatbot? This action cannot be undone."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1990
+msgid "Using Chatbots on Your Site"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1991
+msgid "To add a chatbot to your site, use the shortcode format shown in the table above."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1992
+msgid "For example:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1994
+msgid "Use a specific chatbot by name"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1995
+msgid "Uses the chatbot named \"Default\" if it exists"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1996
+msgid "Apply a dark theme to the chatbot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1997
+msgid "Display chatbot inline on the page (default is floating)"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1998
+msgid "Set a custom height for the chatbot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:1999
+msgid "Skip the welcome message when chatbot loads"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2001
+msgid "Combined example:"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2033
+#: includes/class-chatbot-admin.php:2138
+msgid "No conversations found."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2104
+msgid "All Conversations"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2105
+#: includes/class-chatbot-admin.php:2419
+#: includes/class-chatbot-admin.php:2431
+msgid "Active"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2106
+#: includes/class-chatbot-admin.php:2423
+msgid "Ended"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2107
+#: includes/class-chatbot-admin.php:2427
+msgid "Archived"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2112
+msgid "All Chatbots"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2120
+msgid "Filter"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2145
+msgid "Select bulk action"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2147
+msgid "Bulk Actions"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2148
+#: includes/class-chatbot-admin.php:2443
+msgid "Archive"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2149
+msgid "Mark as Active"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2152
+msgid "Apply"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2164
+msgid "%s conversation"
+msgid_plural "%s conversations"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-chatbot-admin.php:2199
+msgid "Conversation not found."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2207
+msgid "Conversation with %s"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2249
+msgid "Back to All Conversations"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2254
+msgid "Archive Conversation"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2258
+#: includes/class-chatbot-admin.php:2326
+msgid "Reactivate Conversation"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2262
+#: includes/class-chatbot-admin.php:2451
+#: includes/class-chatbot-admin.php:2698
+msgid "Are you sure you want to delete this conversation? This action cannot be undone."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2263
+msgid "Delete Conversation"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2271
+msgid "No messages in this conversation yet."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2283
+msgid "Admin"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2286
+msgid "AI Assistant"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2289
+msgid "System"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2292
+msgid "🔧 Function Call"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2313
+msgid "Type your reply here..."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2316
+msgid "Send"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2323
+msgid "This conversation is no longer active. You cannot send messages to it."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2353
+#: includes/class-chatbot-notifications.php:294
+msgid "Visitor"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2354
+msgid "Chatbot"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2355
+msgid "Started"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2356
+msgid "Last Message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2357
+#: includes/class-chatbot-analytics.php:1588
+#: includes/class-chatbot-notifications.php:296
+msgid "Messages"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2358
+#: includes/class-chatbot-notifications.php:297
+msgid "Status"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2431
+msgid "Inactive"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2438
+msgid "View"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2447
+msgid "Activate"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2484
+#: includes/class-chatbot-admin.php:2498
+#: includes/class-chatbot-admin.php:2512
+#: includes/class-chatbot-admin.php:2544
+#: includes/class-chatbot-admin.php:3249
+#: includes/class-chatbot-admin.php:3396
+#: includes/class-chatbot-ai.php:760
+msgid "Security check failed."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2489
+msgid "Conversation archived successfully."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2491
+msgid "Failed to archive conversation."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2503
+msgid "Conversation activated successfully."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2505
+msgid "Failed to activate conversation."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2517
+msgid "Conversation deleted successfully."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2519
+msgid "Failed to delete conversation."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2550
+msgid "No conversations were selected."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2584
+msgid "%s conversation archived."
+msgid_plural "%s conversations archived."
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-chatbot-admin.php:2588
+msgid "%s conversation activated."
+msgid_plural "%s conversations activated."
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-chatbot-admin.php:2592
+msgid "%s conversation deleted."
+msgid_plural "%s conversations deleted."
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/class-chatbot-admin.php:2696
+msgid "Message sent"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2697
+msgid "Error sending message"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2699
+msgid "Are you sure you want to archive this conversation?"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:2700
+msgid "Are you sure you want to reactivate this conversation?"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3164
+msgid "Failed to add chatbot: %s"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3175
+msgid "Error adding chatbot: %s"
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3208
+msgid "Failed to update chatbot."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3217
+msgid "Invalid configuration ID."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3237
+msgid "Chatbot deleted successfully."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3239
+msgid "Failed to delete chatbot."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3254
+msgid "You do not have permission to add configurations."
+msgstr ""
+
+#: includes/class-chatbot-admin.php:3401
+msgid "You do not have permission to update configurations."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:173
+msgid "AI Configuration"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:181
+msgid "Model"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:195
+#: includes/class-chatbot-aipass.php:96
+msgid "AIPass Integration"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:198
+msgid "You are connected to AIPass! Your chatbot has access to 161+ AI models including OpenAI GPT, O-series, and Google Gemini."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:200
+msgid "Connect with AIPass to power your chatbot with AI. AIPass provides access to 161+ AI models - no API key needed!"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:201
+msgid "Please connect AIPass below to enable AI responses."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:205
+msgid "Learn more at %s"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:209
+msgid "✓ 161+ AI models available"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:210
+msgid "✓ Includes Gemini models (faster & cheaper than GPT)"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:211
+msgid "✓ Simple usage-based pricing"
+msgstr ""
+
+#: includes/class-chatbot-ai.php:225
+msgid "Connect AIPass to select from 161+ AI models."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:315
+msgid "Select the AI model to use. Gemini 2.5 Flash Lite is recommended for speed and cost."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:764
+msgid "Permission denied."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:770
+msgid "Please connect AIPass to use this feature."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:777
+msgid "No persona provided."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:804
+msgid "The API returned an empty response. Please try again."
+msgstr ""
+
+#: includes/class-chatbot-ai.php:811
+#: includes/class-chatbot-settings.php:998
+msgid "Error: "
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:119
+msgid "AIPass powers your chatbot with AI. Simply connect your AIPass account to get started."
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:129
+#: includes/class-chatbot-settings.php:550
+msgid "Open AIPass Dashboard"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:138
+#: includes/class-chatbot-settings.php:559
+msgid "View balance in AIPass Dashboard"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:139
+#: includes/class-chatbot-settings.php:560
+msgid "Loading balance..."
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:149
+msgid "Connect with AIPass to power your chatbot with AI."
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:155
+#: includes/class-chatbot-settings.php:573
+msgid "Connect with AIPass"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:296
+msgid "Remaining Budget:"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:299
+msgid "Used:"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:299
+msgid "Max:"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:304
+msgid "Could not load balance info"
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:1394
+msgid "✓ Connection successful! AI responded: \"%s\""
+msgstr ""
+
+#: includes/class-chatbot-aipass.php:1400
+msgid " | Balance: $%.2f"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1494
+msgid "Analytics Overview"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1502
+msgid "Refresh Data"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1535
+msgid "No conversations found. Analytics will populate once chat sessions begin."
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1582
+#: includes/class-chatbot-analytics.php:1592
+msgid "Total"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1596
+msgid "Avg/Conv"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1602
+msgid "API Usage"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1606
+msgid "Last 7 Days"
+msgstr ""
+
+#: includes/class-chatbot-analytics.php:1614
+msgid "Recent Insights"
+msgstr ""
+
+#: includes/class-chatbot-data-retention.php:420
+msgid "Successfully deleted %d conversations."
+msgstr ""
+
+#: includes/class-chatbot-data-retention.php:433
+msgid "Successfully deleted %d conversations older than %d days."
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:175
+msgid "n8n integration is not configured for this chatbot"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:189
+msgid "Action \"%s\" is not configured"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:255
+#: includes/class-chatbot-n8n-gateway.php:582
+msgid "n8n returned error %d: %s"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:369
+msgid "Webhook URL is not configured"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:421
+msgid "n8n returned status %d"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:436
+#: includes/class-chatbot-n8n-gateway.php:486
+#: includes/class-chatbot-n8n-gateway.php:610
+msgid "Security check failed"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:440
+#: includes/class-chatbot-n8n-gateway.php:490
+#: includes/class-chatbot-n8n-gateway.php:614
+msgid "Permission denied"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:463
+#: includes/class-chatbot-n8n-gateway.php:499
+msgid "Webhook URL is required"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:472
+msgid "Connection successful!"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:503
+msgid "Action name is required"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:594
+msgid "Action executed successfully!"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:621
+msgid "Chatbot ID is required"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:627
+msgid "Invalid settings format"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:690
+msgid "Failed to save settings"
+msgstr ""
+
+#: includes/class-chatbot-n8n-gateway.php:695
+msgid "Webhook settings saved!"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:126
+msgid "[%s] New Chat: %s"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:129
+#: includes/class-chatbot-notifications.php:139
+msgid "A new chat conversation has been started by %s."
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:130
+msgid "View this conversation: %s"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:132
+msgid "View all conversations: %s"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:134
+msgid "This email was sent by the Chatbot Plugin."
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:138
+msgid "New Chat from %s"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:141
+msgid "View Conversation"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:144
+msgid "This notification was sent from"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:247
+msgid "[%s] Daily Chat Summary: %s"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:260
+msgid "Daily Chat Summary for %s"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:266
+msgid "Total Conversations"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:267
+msgid "Total Messages"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:268
+msgid "Avg. Messages per Conversation"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:271
+msgid "Total Tokens Used"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:275
+msgid "Total Cost"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:283
+msgid "AI Analysis"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:291
+msgid "Recent Conversations"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:333
+msgid "View All Conversations"
+msgstr ""
+
+#: includes/class-chatbot-notifications.php:337
+msgid "This daily summary was sent from"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:100
+#: includes/class-chatbot-settings.php:136
+#: includes/class-chatbot-settings.php:1323
+msgid "Rate Limiting"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:108
+#: includes/class-chatbot-settings.php:193
+#: includes/class-chatbot-settings.php:1343
+msgid "Messages per minute (per user)"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:116
+#: includes/class-chatbot-settings.php:201
+msgid "Maximum number of messages a user can send per minute."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:122
+#: includes/class-chatbot-settings.php:207
+#: includes/class-chatbot-settings.php:1347
+msgid "Messages per hour (per user)"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:130
+#: includes/class-chatbot-settings.php:215
+msgid "Maximum number of messages a user can send per hour."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:136
+#: includes/class-chatbot-settings.php:221
+#: includes/class-chatbot-settings.php:1351
+msgid "Messages per day (per user)"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:144
+#: includes/class-chatbot-settings.php:229
+msgid "Maximum number of messages a user can send per day."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:150
+#: includes/class-chatbot-settings.php:235
+#: includes/class-chatbot-settings.php:1355
+msgid "Global messages per minute"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:158
+#: includes/class-chatbot-settings.php:243
+msgid "Maximum number of messages from all users per minute."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:164
+#: includes/class-chatbot-settings.php:249
+#: includes/class-chatbot-settings.php:1359
+msgid "Global messages per hour"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:172
+#: includes/class-chatbot-settings.php:257
+msgid "Maximum number of messages from all users per hour."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:178
+msgid "Maximum message length"
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:186
+msgid "Maximum length of a message in characters. Messages longer than this will be rejected."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:195
+#: includes/class-chatbot-settings.php:632
+msgid "Configure rate limits to prevent abuse and control API costs."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:230
+msgid "Your message is too long. Maximum allowed length is %d characters."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:289
+msgid "Rate limit exceeded. Please wait before sending more messages. You can send %d messages per minute."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:300
+msgid "Rate limit exceeded. You have reached your hourly message limit of %d messages."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:311
+msgid "Rate limit exceeded. You have reached your daily message limit of %d messages."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:321
+msgid "The system is currently experiencing high traffic. Please try again in a minute."
+msgstr ""
+
+#: includes/class-chatbot-rate-limiter.php:329
+msgid "The system has reached its hourly message limit. Please try again later."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:38
+#: includes/class-chatbot-settings.php:39
+msgid "Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:111
+msgid "AI Connection"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:119
+msgid "AIPass"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:128
+msgid "General Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:144
+msgid "Welcome Message"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:152
+msgid "Chat Greeting"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:160
+msgid "Typing Indicator Text"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:168
+msgid "Primary Color"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:176
+msgid "Button Icon Type"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:184
+msgid "Custom Button Icon"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:264
+msgid "Notification Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:272
+msgid "Notification Email"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:280
+msgid "Email Notifications"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:289
+msgid "Telegram Notifications"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:322
+#: includes/class-chatbot-settings.php:581
+msgid "AI Integration"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:325
+msgid "Notifications"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:328
+msgid "Security"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:331
+msgid "Data Retention"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:341
+msgid "Security check failed. Please try again."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:487
+msgid "AIPass Documentation"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:488
+msgid "You are using AIPass for AI-powered features. AIPass provides seamless access to 161+ AI models without managing API keys."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:490
+msgid "Resources:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:492
+msgid "AIPass Homepage"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:492
+msgid "Learn about features and pricing"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:493
+msgid "AIPass Dashboard"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:493
+msgid "View your usage and balance"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:494
+msgid "API Documentation"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:494
+msgid "Developer resources"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:503
+msgid "Notification Documentation"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:504
+msgid "Configure email and Telegram notifications to keep you informed about new chat conversations and receive daily summaries."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:505
+msgid "For Telegram notifications, you need to create a Telegram bot and obtain the API key. Visit <a href=\"https://core.telegram.org/bots#how-do-i-create-a-bot\" target=\"_blank\">Telegram Bot Documentation</a> for more information."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:516
+msgid "Connect your chatbot to AI services. AIPass is the recommended way to power your chatbot with AI."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:526
+msgid "AIPass integration is not available."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:578
+msgid "AIPass provides access to 161+ AI models including GPT-4 and Gemini."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:580
+msgid "For advanced AI settings, visit the %s tab."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:625
+msgid "Configure general settings for the chatbot."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:638
+msgid "Go to Security Tab for Rate Limit Reset"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:640
+msgid "Use the Security tab to reset all rate limit counters if needed."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:668
+msgid "The welcome message displayed to visitors before they start chatting."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:679
+msgid "The greeting message shown when a chat begins. Use %s where the visitor's name should appear."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:680
+#: includes/class-chatbot-settings.php:796
+msgid "Default:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:698
+msgid "Reset to Default"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:703
+msgid "Preview"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:706
+msgid "The primary color used throughout the chatbot (button, header, links, etc)."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:756
+msgid "Default Chat Icon"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:757
+msgid "Custom SVG Icon"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:758
+msgid "Uploaded Image"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:760
+msgid "Select the type of icon to use for the chat button."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:795
+msgid "The text to display when the AI is generating a response."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:826
+msgid "Enter custom SVG code for the chat button icon."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:827
+msgid "Click on a sample icon above or paste your own SVG code."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:846
+msgid "Upload Image"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:861
+msgid "Upload an image to use as the chat button icon. Recommended size: 24x24 pixels."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:885
+msgid "Configure notification settings for the chatbot. You can receive notifications via email or Telegram when new conversations start or receive daily summaries."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:896
+msgid "Email address where notifications will be sent. Defaults to admin email."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:906
+#: includes/class-chatbot-settings.php:949
+msgid "New Conversations"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:907
+#: includes/class-chatbot-settings.php:950
+msgid "Daily Summary"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:919
+msgid "Select which events should trigger email notifications."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:932
+msgid "Bot API Key"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:934
+msgid "Enter your Telegram Bot API Key. Create a bot through BotFather to get this key."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:939
+msgid "Chat ID"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:941
+msgid "Enter the Chat ID where notifications should be sent. This can be your personal chat ID or a group chat ID."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:946
+msgid "Notification Events"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:962
+msgid "Select which events should trigger Telegram notifications."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:968
+msgid "Test Telegram Connection"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:996
+msgid "Success! Test message sent."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1002
+msgid "Error: Could not complete the test."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1057
+msgid "Data Retention Policy"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1058
+msgid "Configure how long chat conversations are stored before being automatically deleted. This helps with GDPR compliance and data minimization."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1065
+msgid "Enable Automatic Cleanup"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1069
+msgid "Automatically delete old conversations"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1071
+msgid "When enabled, conversations older than the specified period will be permanently deleted."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1076
+msgid "Retention Period"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1079
+#: includes/class-chatbot-settings.php:1120
+msgid "5 days"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1080
+#: includes/class-chatbot-settings.php:1121
+msgid "1 week"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1081
+#: includes/class-chatbot-settings.php:1122
+msgid "2 weeks"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1082
+#: includes/class-chatbot-settings.php:1123
+msgid "30 days"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1083
+#: includes/class-chatbot-settings.php:1124
+msgid "60 days"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1084
+#: includes/class-chatbot-settings.php:1125
+msgid "90 days"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1085
+#: includes/class-chatbot-settings.php:1126
+msgid "180 days"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1086
+#: includes/class-chatbot-settings.php:1127
+msgid "1 year"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1088
+msgid "Conversations older than this will be permanently deleted."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1093
+msgid "Skip Export Before Deletion"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1097
+msgid "Delete without exporting"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1099
+msgid "When checked, conversations will be deleted without creating an export. Uncheck to automatically save an export before deletion."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1104
+msgid "Save Retention Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1109
+msgid "Manual Data Cleanup"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1110
+msgid "You can also manually clean up old conversations right now."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1117
+msgid "Delete conversations older than:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1134
+msgid "Delete ALL conversations (use with caution)"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1141
+msgid "Create export backup before deletion"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1146
+msgid "Run Cleanup Now"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1153
+msgid "Cleanup Results"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1174
+msgid "Are you sure you want to delete ALL conversations? This action cannot be undone."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1175
+msgid "Are you sure you want to delete conversations older than"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1175
+msgid "days? This action cannot be undone."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1183
+msgid "Cleaning up data..."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1199
+msgid "Cleanup completed successfully!"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1202
+msgid "Conversations deleted:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1205
+msgid "Failed to delete:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1209
+msgid "Export created:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1215
+msgid "Error:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1215
+msgid "Unknown error"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1219
+msgid "Error: Server communication failed"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1231
+msgid "Data Retention Guidelines"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1232
+msgid "Here are some best practices for data retention in compliance with GDPR and other privacy regulations:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1235
+msgid "Only store personal data for as long as necessary for the purposes for which it was collected"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1236
+msgid "Regularly review and delete data that is no longer needed"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1237
+msgid "Be transparent with users about how long their data will be stored"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1238
+msgid "Consider creating a data retention policy document for your website"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1239
+msgid "Ensure you have a legal basis for retaining any data you keep"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1240
+msgid "Provide mechanisms for users to request deletion of their data"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1243
+msgid "For more information on GDPR compliance, visit the <a href=\"https://gdpr.eu/\" target=\"_blank\">official GDPR website</a>."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1293
+msgid "Data Management & GDPR"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1294
+msgid "For data retention settings and GDPR compliance options, please visit our dedicated Data Retention tab."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1297
+msgid "Go to Data Retention Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1312
+msgid "All rate limits have been reset successfully."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1314
+#: includes/class-chatbot-settings.php:1415
+msgid "Failed to reset rate limits."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1317
+msgid "Rate limiter not available."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1324
+msgid "Rate limiting protects your chatbot from abuse and helps manage API costs by limiting how many messages users can send in a given time period."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1329
+msgid "Current Rate Limit Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1333
+msgid "Setting"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1334
+msgid "Value"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1344
+msgid "Maximum number of messages a user can send per minute"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1348
+msgid "Maximum number of messages a user can send per hour"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1352
+msgid "Maximum number of messages a user can send per day"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1356
+msgid "Maximum number of messages from all users per minute"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1360
+msgid "Maximum number of messages from all users per hour"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1380
+msgid "You can adjust these settings in the Rate Limiting section of the General settings tab."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1381
+msgid "Go to Rate Limit Settings"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1384
+#: includes/class-chatbot-settings.php:1389
+msgid "Reset All Rate Limits"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1385
+msgid "If you need to reset all rate limit counters (for example, after testing or if users are experiencing issues), you can do so using the button below."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1386
+msgid "Warning:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1386
+msgid "This will reset all rate limit counters for all users. Use with caution."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1395
+msgid "Are you sure you want to reset all rate limits? This action cannot be undone."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1401
+msgid "Resetting rate limits..."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1413
+msgid "All rate limits have been reset successfully!"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1419
+msgid "An error occurred while resetting rate limits."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1432
+msgid "Test Rate Limiting"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1433
+msgid "Use this tool to test that rate limiting is working correctly."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1436
+msgid "Simulate Rate Limit Test"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1440
+msgid "Test Results:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1454
+msgid "Testing rate limits..."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1468
+msgid "Test completed successfully!"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1474
+msgid "Test failed:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1478
+msgid "An error occurred during the test."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1494
+msgid "Rate limiting functionality is not available. Make sure the plugin is installed and activated correctly."
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1500
+msgid "Security Best Practices"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1501
+msgid "Here are some recommendations to keep your chatbot secure:"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1504
+msgid "Regularly update the plugin to get the latest security improvements"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1505
+msgid "Keep your WordPress installation and all plugins up to date"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1506
+msgid "Use strong passwords for your WordPress admin account"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1507
+msgid "Implement WordPress security plugins for additional protection"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1508
+msgid "Monitor your chatbot logs for any suspicious activity"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1509
+msgid "Adjust rate limits based on your site traffic and API usage"
+msgstr ""
+
+#: includes/class-chatbot-settings.php:1510
+msgid "Set an appropriate data retention period to comply with privacy regulations"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-telegram.php:368
+msgid "Get your bot token from @BotFather on Telegram"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:418
+msgid "Your WhatsApp Business Phone Number ID from Meta Developer Dashboard"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:425
+msgid "Permanent Access Token from Meta Developer Dashboard (use System User token for production)"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:432
+msgid "A custom string you create to verify webhook requests (will be auto-generated if empty)"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:517
+msgid "Complete WhatsApp Setup"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:519
+msgid "1. Go to Meta Developer Dashboard (developers.facebook.com)"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:520
+msgid "2. Select your WhatsApp Business App"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:521
+msgid "3. Go to WhatsApp > Configuration > Webhook"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:522
+msgid "4. Set Callback URL to: %s"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:523
+msgid "5. Set Verify Token to: %s"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:524
+msgid "6. Subscribe to \"messages\" webhook field"
+msgstr ""
+
+#: includes/messaging/class-chatbot-platform-whatsapp.php:525
+msgid "7. Click \"Verify and Save\""
 msgstr ""

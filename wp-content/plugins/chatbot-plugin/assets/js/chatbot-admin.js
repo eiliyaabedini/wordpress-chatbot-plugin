@@ -204,24 +204,24 @@
                 $status.html('<span>Improving prompt...</span>');
                 console.log('DEBUG: Button disabled, status updated');
                 
-                // Redirect to OpenAI settings if API key is not configured
+                // Redirect to AI settings if not configured
                 var handleApiKeyMissing = function() {
-                    console.log('DEBUG: API key missing handler called');
-                    if (confirm('OpenAI API key is not configured. Would you like to configure it now?')) {
-                        window.location.href = ajaxurl.replace('admin-ajax.php', 'admin.php?page=chatbot-settings&tab=openai');
+                    console.log('DEBUG: AI not configured handler called');
+                    if (confirm('AI is not configured. Would you like to configure it now?')) {
+                        window.location.href = ajaxurl.replace('admin-ajax.php', 'admin.php?page=chatbot-settings&tab=general');
                     } else {
-                        $status.html('<span style="color: red;">API key is required. Please configure your OpenAI API key in the OpenAI settings tab.</span>');
+                        $status.html('<span style="color: red;">AI configuration is required. Please configure AIPass in the AI settings tab.</span>');
                         $button.prop('disabled', false);
                     }
                 };
-                
-                // First, check if OpenAI API key is configured
-                console.log('DEBUG: Testing OpenAI API key');
+
+                // First, check if AI is configured
+                console.log('DEBUG: Testing AI configuration');
                 $.ajax({
                     url: ajaxurl,
                     type: 'POST',
                     data: {
-                        action: 'chatbot_test_openai',
+                        action: 'chatbot_test_ai',
                         validate_key_only: true,
                         nonce: $('#chatbot_improve_prompt').data('nonce-test')
                     },

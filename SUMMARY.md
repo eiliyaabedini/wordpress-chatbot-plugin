@@ -9,7 +9,7 @@ This is a WordPress plugin that enables a chat system between website visitors a
 - **Persistent Conversations**: Conversations are stored and can be resumed
 - **Admin Interface**: Admins can view and respond to conversations
 - **Database Storage**: All conversations and messages are stored in the database
-- **AI Analytics**: OpenAI-powered analysis of conversation data with interactive follow-up questions
+- **AI Analytics**: AI-powered analysis of conversation data with interactive follow-up questions (via AIPass)
 - **Custom Chatbot Configuration**: Multiple chatbots with different knowledge bases and personas
 
 ## Implementation Details
@@ -40,7 +40,7 @@ wp-content/plugins/chatbot-plugin/
 │   ├── class-chatbot-analytics.php       # Analytics processing and display
 │   ├── class-chatbot-db.php              # Database operations
 │   ├── class-chatbot-handler.php         # Message handling and AJAX functions
-│   └── class-chatbot-openai.php          # OpenAI API integration
+│   └── class-chatbot-ai.php              # AI integration (via AIPass)
 ├── templates/
 │   └── chatbot-template.php              # Frontend widget template
 ├── CLAUDE.md                             # Claude instructions
@@ -79,7 +79,7 @@ wp-content/plugins/chatbot-plugin/
 - **Follow-up Questions**: Support for detailed follow-up questions about analyzed data
 
 ### Analytics Backend
-- **OpenAI Integration**: Direct API integration with higher token limits (4000) for comprehensive analysis
+- **AIPass Integration**: API integration with higher token limits (4000) for comprehensive analysis
 - **Session Storage**: Conversation data stored in session for contextual follow-up questions
 - **System Prompts**: Specialized prompts for analytics experts to generate insights
 - **Error Handling**: Graceful error recovery with informative user feedback
@@ -99,7 +99,7 @@ wp-content/plugins/chatbot-plugin/
 5. Created admin interface for conversation management
 6. Added real-time polling for new messages
 7. Implemented persistence using localStorage
-8. Integrated OpenAI API for chat responses
+8. Integrated AIPass for chat responses
 9. Added customizable chatbot configurations
 10. Implemented analytics dashboard with AI-powered insights
 11. Enhanced token limits for more comprehensive analytics responses

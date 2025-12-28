@@ -8,10 +8,10 @@ This project is a WordPress plugin called "AI Chat Bot" that adds an AI-powered 
 
 ### Key Features
 
-- **Dual AI Integration**: Supports both direct OpenAI API and AIPass (OAuth2-based managed API service)
+- **AIPass Integration**: OAuth2-based managed API service - no API keys needed
 - **Multiple AI Models**: Access to 161+ models including OpenAI GPT-4, O-series, and Google Gemini
 - **Smart Configuration**: Dynamic model loading from AIPass server
-- **User-Friendly**: End users just login with AIPass - no API key needed
+- **User-Friendly**: End users just login with AIPass - one-click connection
 - **Conversation Management**: Full conversation history and analytics
 - **Rate Limiting**: Built-in abuse prevention
 - **Security**: XSS/SQL injection protection, PKCE-based OAuth2
@@ -37,12 +37,10 @@ This project uses DDEV for local WordPress development. Key commands:
 - `wp-content/plugins/chatbot-plugin/includes/class-chatbot-admin.php`: Admin interface
 - `wp-content/plugins/chatbot-plugin/includes/class-chatbot-settings.php`: Settings management
 
-### AI Integration (IMPORTANT: Load order matters!)
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-aipass.php`: AIPass OAuth2 integration (LOAD FIRST)
+### AI Integration
+- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-aipass.php`: AIPass OAuth2 integration (core AI service)
 - `wp-content/plugins/chatbot-plugin/includes/class-chatbot-aipass-proxy.php`: AIPass proxy handlers
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-openai.php`: OpenAI API integration (LOAD AFTER AIPass)
-
-**CRITICAL**: AIPass classes MUST be loaded before OpenAI class in `chatbot-plugin.php` so that OpenAI can detect AIPass during initialization.
+- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-ai.php`: AI facade class (thin wrapper for AIPass)
 
 ### Frontend Assets
 - `wp-content/plugins/chatbot-plugin/assets/js/aipass-sdk.js`: AIPass SDK loader (loads hosted SDK from https://aipass.one/aipass-sdk.js)
@@ -147,7 +145,7 @@ Models include:
 ### Testing AIPass Integration
 
 **In WordPress Admin**:
-1. Go to: Chat Bots → Settings → OpenAI tab
+1. Go to: Chat Bots → Settings → AI tab
 2. AIPass section shows connection status
 3. Click "Test Connection" - sends real AI completion request
 4. Expected: `✓ Connection successful! AI responded: "CONNECTED" | Balance: $XX.XX`
@@ -158,14 +156,13 @@ Models include:
 3. Messages should be responded to by AI (no debug messages)
 4. Check logs for: `Chatbot: INFO - generate_response - Using AIPass for API request`
 
-### AIPass vs Direct OpenAI API
+### AI Provider
 
-**Priority**:
-1. If AIPass enabled AND connected → Use AIPass
-2. Else if OpenAI API key set → Use direct OpenAI API
-3. Else → Fallback to simple pattern-matching responses
+The plugin uses AIPass exclusively for all AI operations:
+- If AIPass connected → Use AIPass for AI responses
+- If not connected → Fallback to simple pattern-matching responses
 
-This is controlled in `includes/class-chatbot-openai.php:107-138` (refresh_settings method).
+This is controlled in `includes/class-chatbot-ai.php` which delegates to AIPass.
 
 ### Token Refresh Mechanism (CRITICAL)
 
@@ -231,7 +228,6 @@ The plugin now implements automatic token refresh to maintain persistent connect
 
 ### Important Notes
 
-- **Class Loading Order**: AIPass classes MUST be loaded BEFORE OpenAI class (see `chatbot-plugin.php:28-29`)
 - **PKCE Security**: Uses SHA-256 when HTTPS available, falls back to "plain" for HTTP contexts
 - **Token Storage**: Both access and refresh tokens stored in WordPress options (NOT in JavaScript)
 - **Token Refresh**: Automatic refresh happens 5 minutes before expiry (proactive, not reactive)
@@ -258,10 +254,8 @@ The chatbot's response generation flow:
 
 1. **Message received**: `class-chatbot-handler.php:133` - `send_message()`
 2. **Response generated**: `class-chatbot-handler.php:346` - `generate_response()`
-3. **AI integration check**: Calls `Chatbot_OpenAI::generate_response()`
-4. **AIPass or Direct API**:
-   - If AIPass: `class-chatbot-aipass.php:1171` - Uses `/oauth2/v1/chat/completions`
-   - If Direct: `class-chatbot-openai.php:648` - Uses OpenAI API directly
+3. **AI integration**: Calls `Chatbot_AI::generate_response()` which delegates to AIPass
+4. **AIPass API call**: `class-chatbot-aipass.php` - Uses `/oauth2/v1/chat/completions`
 5. **Conversation history**: Last 10 messages included for context
 6. **System prompt**: Combines persona + knowledge base from chatbot configuration
 
@@ -298,8 +292,8 @@ ddev wp eval '$aipass = Chatbot_AIPass::get_instance(); echo "Connected: " . ($a
 # Test model loading
 ddev wp eval '$aipass = Chatbot_AIPass::get_instance(); $result = $aipass->get_available_models(); echo "Models: " . count($result["models"]);'
 
-# Check if OpenAI detects AIPass
-ddev wp eval '$openai = Chatbot_OpenAI::get_instance(); $openai->refresh_settings(); echo "Using AIPass: " . ($openai->is_configured() ? "YES" : "NO");'
+# Check if AI is configured
+ddev wp eval '$ai = Chatbot_AI::get_instance(); echo "AI Configured: " . ($ai->is_configured() ? "YES" : "NO");'
 ```
 
 **Clear AIPass Connection** (for testing):
@@ -369,24 +363,16 @@ Then download from the `wp-content/plugins` directory.
 
 By maintaining comprehensive logging, we create a reliable audit trail for troubleshooting issues, understanding system behavior, and improving the plugin over time.
 
-## Recent Updates (November 2024)
+## Recent Updates
 
-### Critical Bugfixes (2025-11-09 - Evening)
+### Architecture Simplification (December 2024)
 
-**Issue**: Chatbot and AI Insights both broken with 500 errors
-**Root Cause**: Called non-existent method `is_aipass_configured()` in 3 places
-**Fix**:
-- ✅ Added new public method `is_using_aipass()` to `class-chatbot-openai.php`
-- ✅ Fixed `validate_model()` to use `$this->use_aipass` directly
-- ✅ Fixed `generate_conversation_summary()` in analytics
-- ✅ Fixed `handle_follow_up_question()` in analytics
-
-**Issue**: Console flooded with "AIPass SDK not loaded yet, retrying..." every 100ms
-**Root Cause**: Old inline JavaScript (render_inline_javascript) using OLD SDK API in infinite retry loop
-**Fix**:
-- ✅ Disabled `render_inline_javascript()` call - all functionality now in `aipass-integration.js`
-- Old code checked for `AIPass` (old variable), new SDK uses `AiPass` (different casing)
-- Old code used `new AIPass()`, new SDK uses `AiPass.initialize()` + `AiPass.login()`
+**Change**: Removed direct OpenAI API support - now AIPass only
+- ✅ Renamed `class-chatbot-openai.php` to `class-chatbot-ai.php`
+- ✅ Renamed `Chatbot_OpenAI` class to `Chatbot_AI`
+- ✅ Removed all `chatbot_openai_*` option names (now `chatbot_ai_*`)
+- ✅ Simplified architecture - AIPass is the only AI provider
+- ✅ Reduced codebase complexity significantly
 
 ### AIPass SDK Migration (2025-11-09)
 
@@ -439,7 +425,6 @@ By maintaining comprehensive logging, we create a reliable audit trail for troub
    - No visible client credentials or technical configuration
    - Balance display in admin (Remaining / Used / Max)
    - Test Connection button with real AI completion
-   - Automatic fallback to OpenAI API key if AIPass unavailable
 
 6. ✅ **Security Features**
    - PKCE (Proof Key for Code Exchange) prevents authorization code interception
@@ -466,11 +451,6 @@ By maintaining comprehensive logging, we create a reliable audit trail for troub
 - End users shouldn't configure OAuth2 technical details
 - One-click "Connect with AIPass" experience
 
-**Why Both AIPass and Direct API?**
-- Flexibility for users with existing OpenAI accounts
-- Graceful fallback if AIPass unavailable
-- Enterprise users may prefer direct API control
-
 ### Known Issues & Solutions
 
 **Issue**: Empty model dropdown after connection
@@ -479,14 +459,8 @@ By maintaining comprehensive logging, we create a reliable audit trail for troub
 **Issue**: Settings reset on save
 **Solution**: Added hidden inputs to preserve tokens during form submission
 
-**Issue**: Debug messages on old conversations
-**Solution**: Debug messages only added when AIPass AND API key both unavailable. Start new conversation to see clean responses.
-
 **Issue**: crypto.subtle not available (HTTP context)
 **Solution**: Access via http://127.0.0.1 instead of .ddev.site domain
-
-**Issue**: Gemini/non-OpenAI models not working (Fixed 2025-11-09)
-**Solution**: Updated `validate_model()` to accept all models when using AIPass, only validate for direct OpenAI API
 
 ## Versioning and Builds
 
@@ -523,4 +497,4 @@ zip -r chatbot-plugin.zip chatbot-plugin \
 - Don't try to commit yourself, Commit just when I ask you!
 - When modifying AIPass integration, test complete OAuth flow
 - Always check WordPress debug.log for integration issues
-- Test with both AIPass connected AND disconnected states- When creating a zip file for the plugin, always include the version number in the filename (e.g., chatbot-plugin-1.3.15.zip instead of chatbot-plugin.zip)
+- When creating a zip file for the plugin, always include the version number in the filename (e.g., chatbot-plugin-1.3.15.zip instead of chatbot-plugin.zip)

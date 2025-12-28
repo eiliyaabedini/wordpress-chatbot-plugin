@@ -203,58 +203,19 @@ class Chatbot_Handler {
             $response = $this->generate_response($message, $conversation_id);
             
             // Add AI response to the database
-            // Use 'ai' sender type for OpenAI responses to distinguish from human admin messages
-            $is_openai_class_loaded = class_exists('Chatbot_OpenAI');
-            $is_api_configured = false;
-            $api_key_exists = false;
-            $api_key_format_valid = false;
-
-            // Check if using AIPass (do this first, before other checks)
-            $using_aipass = false;
-            if (class_exists('Chatbot_AIPass')) {
-                $aipass = Chatbot_AIPass::get_instance();
-                $using_aipass = get_option('chatbot_aipass_enabled', true) && $aipass->is_connected();
-            }
-
-            if ($is_openai_class_loaded) {
-                $openai_instance = Chatbot_OpenAI::get_instance();
-                // Force a settings refresh to ensure we have the latest API key
-                $openai_instance->refresh_settings();
-                $is_api_configured = $openai_instance->is_configured();
-
-                // Directly check API key for detailed diagnosis (only if not using AIPass)
-                $api_key = get_option('chatbot_openai_api_key', '');
-                $api_key_exists = !empty($api_key);
-                $api_key_format_valid = ($api_key_exists && strpos($api_key, 'sk-') === 0);
-                $api_key_length_valid = ($api_key_exists && strlen($api_key) >= 20);
-            }
-
-            // Determine sender type: 'ai' if using AIPass OR has valid API key, otherwise 'admin'
+            // Use 'ai' sender type for AI responses to distinguish from human admin messages
             $sender_type = 'admin'; // Default to admin
 
-            if ($is_openai_class_loaded && $is_api_configured) {
-                // is_configured() already checks for AIPass, so this is sufficient
-                $sender_type = 'ai';
-            }
+            if (class_exists('Chatbot_AI')) {
+                $ai_instance = Chatbot_AI::get_instance();
+                $ai_instance->refresh_settings();
 
-            // Log diagnostic information to error log (NEVER show debug info to users)
-            if ($sender_type === 'admin' && !$using_aipass) {
-                $debug_reason = '';
-                if (!$is_openai_class_loaded) {
-                    $debug_reason = "OpenAI class not loaded";
-                } elseif (!$api_key_exists) {
-                    $debug_reason = "API key not set and AIPass not connected";
-                } elseif (!$api_key_format_valid) {
-                    $debug_reason = "API key format invalid (should start with 'sk-')";
-                } elseif (!$is_api_configured) {
-                    $debug_reason = "OpenAI integration not configured properly";
+                if ($ai_instance->is_configured()) {
+                    $sender_type = 'ai';
+                } else {
+                    // Log that AIPass is not connected
+                    chatbot_log('WARN', 'send_message', 'AIPass not connected, using fallback responses');
                 }
-
-                // Log to error log for admin debugging, but DO NOT show to users
-                chatbot_log('WARN', 'send_message', 'AI integration not active', array(
-                    'reason' => $debug_reason,
-                    'using_fallback' => true
-                ));
             }
 
             $ai_message_id = $db->add_message($conversation_id, $sender_type, $response);
@@ -344,16 +305,16 @@ class Chatbot_Handler {
     /**
      * Generate a response based on the input message
      * 
-     * Uses OpenAI API if configured, otherwise falls back to simple response logic
+     * Uses AIPass if connected, otherwise falls back to simple response logic
      * 
      * @param string $message The user's message
      * @param int $conversation_id The conversation ID
      * @return string The generated response
      */
     private function generate_response($message, $conversation_id = null) {
-        // Check if OpenAI integration is available
-        if (class_exists('Chatbot_OpenAI')) {
-            $openai = Chatbot_OpenAI::get_instance();
+        // Check if AI integration is available
+        if (class_exists('Chatbot_AI')) {
+            $ai = Chatbot_AI::get_instance();
 
             // Get the chatbot configuration if it exists in session
             $chatbot_config = null;
@@ -421,12 +382,12 @@ class Chatbot_Handler {
                 chatbot_log('INFO', 'generate_response_handler', 'Using config: ' . (isset($chatbot_config->name) ? $chatbot_config->name : 'UNKNOWN'));
             }
 
-            // Use OpenAI to generate response based on conversation history
+            // Use AI to generate response based on conversation history
             // Pass the custom system prompt if available
-            return $openai->generate_response($conversation_id, $message, $chatbot_config);
+            return $ai->generate_response($conversation_id, $message, $chatbot_config);
         }
         
-        // Fallback to simple response system if OpenAI is not available or configured
+        // Fallback to simple response system if AI is not available or configured
         $message_lower = strtolower($message);
         
         // Simple response system
@@ -485,17 +446,17 @@ class Chatbot_Handler {
             return "I'm sorry, I'm not configured properly. Please contact the administrator.";
         }
 
-        if (!class_exists('Chatbot_OpenAI')) {
+        if (!class_exists('Chatbot_AI')) {
             return "I'm sorry, AI integration is not available.";
         }
 
-        $openai = Chatbot_OpenAI::get_instance();
+        $ai = Chatbot_AI::get_instance();
 
-        if (!$openai->is_configured()) {
+        if (!$ai->is_configured()) {
             return "I'm sorry, the AI service is not configured. Please contact the administrator.";
         }
 
-        return $openai->generate_response($conversation_id, $message, $chatbot_config);
+        return $ai->generate_response($conversation_id, $message, $chatbot_config);
     }
 }
 

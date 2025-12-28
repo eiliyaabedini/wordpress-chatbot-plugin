@@ -1,16 +1,17 @@
-# WordPress Chatbot Plugin with OpenAI Integration
+# AI Chat Bot - WordPress Plugin
 
-A WordPress plugin that adds an interactive chatbot with OpenAI integration to your website.
+A powerful WordPress plugin that adds an AI-powered interactive chatbot to your website using AIPass.
 
 ## Features
 
 - Easy setup with shortcode integration
-- OpenAI API integration with latest models (GPT-4o, GPT-4o Mini, GPT-4.1 Mini, etc.)
+- **AIPass Integration**: Access 161+ AI models (OpenAI GPT-4, O-series, Google Gemini, and more)
+- No API keys needed - just connect with AIPass
 - Customizable system prompts to control AI behavior
 - Dark and light theme options
 - Typing indicators for better user experience
-- Secure API key management
-- Conversation history support
+- Conversation history and analytics
+- Multi-platform support (Web, Telegram, WhatsApp)
 
 ## Installation
 
@@ -23,11 +24,12 @@ A WordPress plugin that adds an interactive chatbot with OpenAI integration to y
 
 ## Configuration
 
-1. After activation, go to Settings > Chatbot Plugin
-2. Enter your OpenAI API key (Get one from [OpenAI Platform](https://platform.openai.com/))
-3. Select your preferred model (GPT-3.5 Turbo is the default)
-4. Customize the system prompt if desired
-5. Save changes
+1. After activation, go to Chat Bots → Settings → AI tab
+2. Click "Connect with AIPass" button
+3. Login or create an AIPass account at [aipass.one](https://aipass.one)
+4. Select your preferred AI model from the dropdown
+5. Customize the system prompt if desired
+6. Save changes
 
 ## Usage
 

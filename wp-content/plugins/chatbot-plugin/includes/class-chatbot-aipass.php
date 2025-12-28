@@ -82,10 +82,10 @@ class Chatbot_AIPass {
      */
     public function register_settings() {
         // Register user-specific settings only (NOT client credentials)
-        register_setting('chatbot_openai_settings', 'chatbot_aipass_access_token');
-        register_setting('chatbot_openai_settings', 'chatbot_aipass_refresh_token');
-        register_setting('chatbot_openai_settings', 'chatbot_aipass_token_expiry');
-        register_setting('chatbot_openai_settings', 'chatbot_aipass_enabled', array(
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_access_token');
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_refresh_token');
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_token_expiry');
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_enabled', array(
             'type' => 'boolean',
             'default' => true, // AIPass is the default integration method
         ));
@@ -95,8 +95,8 @@ class Chatbot_AIPass {
             'chatbot_aipass_integration',
             __('AIPass Integration', 'chatbot-plugin'),
             array($this, 'render_aipass_field'),
-            'chatbot_openai_settings',
-            'chatbot_openai_settings_section'
+            'chatbot_ai_settings',
+            'chatbot_ai_settings_section'
         );
     }
 
@@ -113,18 +113,10 @@ class Chatbot_AIPass {
         echo '<input type="hidden" name="chatbot_aipass_access_token" value="' . esc_attr($this->access_token) . '" />';
         echo '<input type="hidden" name="chatbot_aipass_refresh_token" value="' . esc_attr($this->refresh_token) . '" />';
         echo '<input type="hidden" name="chatbot_aipass_token_expiry" value="' . esc_attr($this->token_expiry) . '" />';
-
-        // Create a toggle switch for enabling/disabling AIPass
-        echo '<div class="chatbot-aipass-toggle">';
-        echo '<label class="chatbot-toggle-switch">';
-        echo '<input type="checkbox" name="chatbot_aipass_enabled" id="chatbot_aipass_enabled" value="1" ' . checked($aipass_enabled, true, false) . '>';
-        echo '<span class="chatbot-toggle-slider"></span>';
-        echo '</label>';
-        echo '<span class="toggle-label">' . __('Enable AIPass Integration', 'chatbot-plugin') . '</span>';
-        echo '</div>';
+        echo '<input type="hidden" name="chatbot_aipass_enabled" value="1" />';
 
         // AIPass description
-        echo '<p class="description">' . __('AIPass allows you to use AI services without providing your own API key. Simply connect your AIPass account to get started.', 'chatbot-plugin') . '</p>';
+        echo '<p class="description">' . __('AIPass powers your chatbot with AI. Simply connect your AIPass account to get started.', 'chatbot-plugin') . '</p>';
 
         // Connection status section (no configuration fields needed)
         echo '<div id="chatbot-aipass-connection" style="margin-top: 15px; padding: 15px; background: #f9f9f9; border-radius: 5px; border: 1px solid #ddd;">';
@@ -154,7 +146,7 @@ class Chatbot_AIPass {
         } else {
             // Show connect button
             echo '<div class="aipass-status not-connected">';
-            echo '<p>' . __('Connect with AIPass to use AI services without an API key.', 'chatbot-plugin') . '</p>';
+            echo '<p>' . __('Connect with AIPass to power your chatbot with AI.', 'chatbot-plugin') . '</p>';
             echo '<button type="button" id="chatbot-aipass-connect" class="button button-primary aipass-connect-button">';
             echo '<span class="aipass-logo">';
             echo '<span class="aipass-logo-icon">AI</span>';
@@ -166,13 +158,6 @@ class Chatbot_AIPass {
         }
 
         echo '</div>'; // End of AIPass connection section
-
-        // Add explainer for the relationship between AIPass and API Key
-        echo '<div class="aipass-api-key-note" style="margin-top: 15px; padding: 12px; background: #e7f3ff; border-left: 4px solid #2196F3; border-radius: 4px;">';
-        echo '<p style="margin: 0;"><strong>💡 ' . __('Tip:', 'chatbot-plugin') . '</strong> ';
-        echo __('When AIPass is enabled, the API Key field will be hidden and AIPass will be used. Disable this toggle to use your own OpenAI API key instead.', 'chatbot-plugin');
-        echo '</p>';
-        echo '</div>';
 
         echo '</div>'; // End of AIPass container
 
@@ -190,51 +175,6 @@ class Chatbot_AIPass {
     private function render_inline_styles() {
         ?>
         <style>
-        .chatbot-toggle-switch {
-            position: relative;
-            display: inline-block;
-            width: 50px;
-            height: 24px;
-            vertical-align: middle;
-        }
-        .chatbot-toggle-switch input {
-            opacity: 0;
-            width: 0;
-            height: 0;
-        }
-        .chatbot-toggle-slider {
-            position: absolute;
-            cursor: pointer;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background-color: #ccc;
-            transition: .4s;
-            border-radius: 24px;
-        }
-        .chatbot-toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 16px;
-            width: 16px;
-            left: 4px;
-            bottom: 4px;
-            background-color: white;
-            transition: .4s;
-            border-radius: 50%;
-        }
-        input:checked + .chatbot-toggle-slider {
-            background-color: #2196F3;
-        }
-        input:checked + .chatbot-toggle-slider:before {
-            transform: translateX(26px);
-        }
-        .toggle-label {
-            margin-left: 10px;
-            vertical-align: middle;
-            font-weight: 500;
-        }
         .aipass-logo-link {
             text-decoration: none;
             margin-right: 15px;
@@ -337,7 +277,7 @@ class Chatbot_AIPass {
             console.log('AIPass settings page script loaded');
 
             // Note: SDK initialization and connect/disconnect handlers are now in aipass-integration.js
-            // This inline script only handles toggle functionality and other settings page features
+            // This inline script handles balance loading and test connection
 
             // Load balance info if connected
             <?php if ($this->is_connected()): ?>
@@ -404,44 +344,6 @@ class Chatbot_AIPass {
                 });
             });
 
-            // Toggle visibility between AIPass and API key sections
-            function toggleAIPassMode() {
-                const aipassEnabled = $('#chatbot_aipass_enabled').is(':checked');
-                const $apiKeyRow = $('input[name="chatbot_openai_api_key"]').closest('tr');
-                const $aipassConnectionSection = $('#chatbot-aipass-connection');
-                const $aipassInfoBox = $('#aipass-info-box');
-                const $openaiInfoBox = $('#openai-info-box');
-                const $aipassDocCard = $('#aipass-doc-card');
-                const $openaiDocCard = $('#openai-doc-card');
-
-                console.log('AIPass toggle changed:', aipassEnabled);
-
-                if (aipassEnabled) {
-                    // AIPass mode: Hide API key & OpenAI sections, show AIPass sections
-                    $apiKeyRow.hide();
-                    $aipassConnectionSection.show();
-                    $aipassInfoBox.show();
-                    $openaiInfoBox.hide();
-                    $aipassDocCard.show();
-                    $openaiDocCard.hide();
-                } else {
-                    // Direct API mode: Show API key & OpenAI sections, hide AIPass sections
-                    $apiKeyRow.show();
-                    $aipassConnectionSection.hide();
-                    $aipassInfoBox.hide();
-                    $openaiInfoBox.show();
-                    $aipassDocCard.hide();
-                    $openaiDocCard.show();
-                }
-            }
-
-            // Run on page load
-            toggleAIPassMode();
-
-            // Run when checkbox changes
-            $('#chatbot_aipass_enabled').on('change', function() {
-                toggleAIPassMode();
-            });
         });
         </script>
         <?php
@@ -882,7 +784,7 @@ class Chatbot_AIPass {
         if ($success) {
             $html .= '<script>
                 setTimeout(function() {
-                    window.location.href = "' . admin_url('admin.php?page=chatbot-settings&tab=openai&aipass_connected=1') . '";
+                    window.location.href = "' . admin_url('admin.php?page=chatbot-settings&tab=general&aipass_connected=1') . '";
                 }, 2000);
             </script>';
         }
@@ -910,7 +812,7 @@ class Chatbot_AIPass {
             </div>';
         }
 
-        $html .= '<a href="' . admin_url('admin.php?page=chatbot-settings&tab=openai') . '" class="button">Return to Settings</a>
+        $html .= '<a href="' . admin_url('admin.php?page=chatbot-settings&tab=general') . '" class="button">Return to Settings</a>
         </body>
         </html>';
 
