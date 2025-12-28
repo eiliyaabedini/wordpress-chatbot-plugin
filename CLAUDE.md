@@ -28,35 +28,157 @@ This project uses DDEV for local WordPress development. Key commands:
 - `ddev launch`: Open the WordPress site in your browser
 - `ddev describe`: Show project details and URLs
 
+## Architecture Overview (SOLID Principles)
+
+The plugin follows SOLID principles with a clean separation of concerns. This makes it easy to add new AI capabilities, support new platforms, and maintain the codebase.
+
+### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Entry Points                                  │
+│   AJAX (Web)  │  Webhooks (Telegram/WhatsApp)  │  REST API      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Platforms Layer                               │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
+│  │ Web Platform│  │  Telegram   │  │  WhatsApp   │             │
+│  │   (AJAX)    │  │  Platform   │  │  Platform   │             │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘             │
+└─────────┼────────────────┼────────────────┼─────────────────────┘
+          │                │                │
+          └────────────────┼────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Message Pipeline                              │
+│  ┌──────────┐  ┌──────────┐  ┌─────────────────────────────┐   │
+│  │Validation│→ │Rate Limit│→ │    Core Handler (AI Gen)    │   │
+│  │Middleware│  │Middleware│  │  - Build messages           │   │
+│  └──────────┘  └──────────┘  │  - Call AI Service          │   │
+│                              │  - Save conversation        │   │
+│                              └─────────────────────────────┘   │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                       AI Service (Facade)                        │
+│  - Routes requests to appropriate capability                     │
+│  - Handles provider selection and fallbacks                      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    AIPass Provider                               │
+│  Implements all AI Capability Interfaces:                        │
+│  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐ ┌──────────┐      │
+│  │  Chat  │ │  TTS   │ │  STT   │ │ Vision │ │Embeddings│      │
+│  │Capable │ │Capable │ │Capable │ │Capable │ │ (future) │      │
+│  └────────┘ └────────┘ └────────┘ └────────┘ └──────────┘      │
+└───────────────────────────┬─────────────────────────────────────┘
+                            │
+                            ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              AIPass Backend (LiteLLM Compatible)                 │
+│  https://aipass.one/oauth2/v1/chat/completions                   │
+│  - OpenAI-compatible request/response format                     │
+│  - Routes to 161+ models (GPT-4, Gemini, Claude, etc.)          │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Key Architectural Components
+
+| Component | Responsibility | Location |
+|-----------|---------------|----------|
+| **DI Container** | Dependency injection, service registration | `class-container.php` |
+| **Service Provider** | Registers all services in container | `class-service-provider.php` |
+| **Message Pipeline** | Processes messages through middleware | `messaging/class-message-pipeline.php` |
+| **Message Context** | Immutable context for message processing | `messaging/class-message-context.php` |
+| **AI Service** | Facade for all AI operations | `ai/services/class-ai-service.php` |
+| **AIPass Provider** | Implements AI capabilities via AIPass | `ai/providers/class-aipass-provider.php` |
+| **Platforms** | Handle platform-specific I/O | `messaging/class-chatbot-platform-*.php` |
+| **Repositories** | Data access layer | `repositories/class-wp-*-repository.php` |
+
 ## Plugin Structure
 
 ### Core Files
-- `wp-content/plugins/chatbot-plugin/chatbot-plugin.php`: Main plugin file
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-handler.php`: Message processing and routing
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-db.php`: Database operations
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-admin.php`: Admin interface
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-settings.php`: Settings management
+- `chatbot-plugin.php`: Main plugin file, initializes container
+- `includes/class-container.php`: Dependency Injection container
+- `includes/class-service-provider.php`: Service registration
+- `includes/class-chatbot-handler.php`: Legacy message handler (being migrated)
+- `includes/class-chatbot-db.php`: Database operations (delegates to repositories)
+- `includes/class-chatbot-admin.php`: Admin interface
+- `includes/class-chatbot-settings.php`: Settings management
 
-### AI Integration
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-aipass.php`: AIPass OAuth2 integration (core AI service)
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-aipass-proxy.php`: AIPass proxy handlers
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-ai.php`: AI facade class (thin wrapper for AIPass)
+### AI Layer (NEW - SOLID Architecture)
+```
+includes/ai/
+├── contracts/                           # Interfaces (contracts)
+│   ├── interface-ai-provider.php        # Base provider interface
+│   ├── interface-chat-capability.php    # Chat completion capability
+│   ├── interface-tts-capability.php     # Text-to-Speech capability
+│   ├── interface-stt-capability.php     # Speech-to-Text capability
+│   ├── interface-vision-capability.php  # Vision/file analysis capability
+│   └── interface-embeddings-capability.php  # (Future) Embeddings
+│
+├── providers/
+│   └── class-aipass-provider.php        # AIPass implementation
+│
+└── services/
+    ├── class-ai-service.php             # Facade for AI operations
+    ├── class-token-manager.php          # OAuth token management
+    └── class-api-client.php             # HTTP client wrapper
+```
+
+### Messaging Layer
+```
+includes/messaging/
+├── contracts/
+│   └── interface-message-middleware.php  # Middleware interface
+│
+├── middleware/
+│   ├── class-validation-middleware.php   # Input validation
+│   └── class-rate-limit-middleware.php   # Rate limiting
+│
+├── class-message-context.php             # Immutable message context
+├── class-message-response.php            # Response object
+├── class-message-pipeline.php            # Pipeline orchestrator
+├── class-chatbot-platform-web.php        # Web platform (AJAX)
+├── class-chatbot-platform-telegram.php   # Telegram platform
+└── class-chatbot-platform-whatsapp.php   # WhatsApp platform
+```
+
+### Repositories Layer
+```
+includes/repositories/
+├── contracts/
+│   ├── interface-conversation-repository.php
+│   ├── interface-message-repository.php
+│   └── interface-configuration-repository.php
+│
+├── class-wp-conversation-repository.php   # WordPress implementation
+├── class-wp-message-repository.php
+└── class-wp-configuration-repository.php
+```
+
+### Legacy Files (Still Active)
+- `includes/class-chatbot-aipass.php`: Original AIPass class (being delegated to new provider)
+- `includes/class-chatbot-ai.php`: Legacy AI facade (delegates to new AI Service)
 
 ### Frontend Assets
-- `wp-content/plugins/chatbot-plugin/assets/js/aipass-sdk.js`: AIPass SDK loader (loads hosted SDK from https://aipass.one/aipass-sdk.js)
-- `wp-content/plugins/chatbot-plugin/assets/js/aipass-integration.js`: WordPress AIPass UI integration
-- `wp-content/plugins/chatbot-plugin/assets/js/chatbot.js`: Chatbot frontend functionality
-- `wp-content/plugins/chatbot-plugin/assets/css/chatbot.css`: Chatbot styles
-
-**Note**: As of 2025-11-09, the plugin uses the official hosted AIPass Web SDK instead of a custom implementation.
+- `assets/js/aipass-sdk.js`: AIPass SDK loader
+- `assets/js/aipass-integration.js`: WordPress AIPass UI integration
+- `assets/js/chatbot.js`: Chatbot frontend functionality
+- `assets/css/chatbot.css`: Chatbot styles
 
 ### Additional Components
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-analytics.php`: Usage analytics
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-notifications.php`: Admin notifications
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-rate-limiter.php`: Rate limiting
-- `wp-content/plugins/chatbot-plugin/includes/class-chatbot-data-retention.php`: Data cleanup
-- `wp-content/plugins/chatbot-plugin/templates/chatbot-template.php`: Chatbot UI template
-- `wp-content/plugins/chatbot-plugin/languages/`: Translation files
+- `includes/class-chatbot-analytics.php`: Usage analytics
+- `includes/class-chatbot-notifications.php`: Admin notifications
+- `includes/class-chatbot-rate-limiter.php`: Rate limiting
+- `includes/class-chatbot-data-retention.php`: Data cleanup
+- `templates/chatbot-template.php`: Chatbot UI template
+- `languages/`: Translation files
 
 ## AIPass Integration (Production)
 
@@ -234,6 +356,345 @@ The plugin now implements automatic token refresh to maintain persistent connect
 - **CORS Avoidance**: Token exchange happens server-side in PHP (not client-side JavaScript)
 - **Cache Management**: Models cached for 1 hour, balance fetched on page load
 
+## LiteLLM & OpenAI Compatibility
+
+### Overview
+
+Our AIPass backend is powered by **LiteLLM**, which provides a unified OpenAI-compatible interface to 161+ AI models. This means all our API calls follow the OpenAI format, making it easy to:
+- Switch between models without code changes
+- Add new capabilities using standard OpenAI patterns
+- Leverage existing OpenAI documentation and examples
+
+### API Format Standards
+
+All AI requests follow the **OpenAI Chat Completions** format:
+
+```json
+{
+  "model": "gemini/gemini-2.5-flash",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "Hello!"}
+  ],
+  "max_tokens": 1000,
+  "temperature": 0.7
+}
+```
+
+### Vision/Image Requests (LiteLLM Format)
+
+For image analysis, use the multimodal content format:
+
+```json
+{
+  "model": "gemini/gemini-2.5-flash",
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {"type": "text", "text": "What's in this image?"},
+        {
+          "type": "image_url",
+          "image_url": {
+            "url": "data:image/jpeg;base64,{base64_encoded_data}"
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Key Points:**
+- `content` is an **array** of content blocks (not a string)
+- Images use `type: "image_url"` with base64 data URL
+- Text uses `type: "text"` with the prompt
+- The `detail` parameter is optional (OpenAI-specific, not all models support it)
+- Files should be attached to the **LAST** user message (not the first)
+
+### Tool/Function Calling (OpenAI Format)
+
+```json
+{
+  "model": "gemini/gemini-2.5-flash",
+  "messages": [...],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "schedule_meeting",
+        "description": "Schedule a meeting",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "date": {"type": "string"},
+            "time": {"type": "string"}
+          }
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}
+```
+
+### Supported Content Types by Model
+
+| Content Type | Gemini | GPT-4o | Claude | Notes |
+|-------------|--------|--------|--------|-------|
+| Text | ✅ | ✅ | ✅ | All models |
+| Images | ✅ | ✅ | ✅ | Vision models only |
+| PDFs | ✅ | ❌ | ✅ | Native support varies |
+| Audio | ✅ | ✅ | ❌ | Use TTS/STT endpoints |
+| Tools | ✅ | ✅ | ✅ | Function calling |
+
+### Model Naming Convention
+
+LiteLLM uses `provider/model` format:
+- `gemini/gemini-2.5-flash` - Google Gemini
+- `openai/gpt-4o` - OpenAI GPT-4o
+- `anthropic/claude-3-5-sonnet` - Anthropic Claude
+
+## Adding New AI Capabilities
+
+### Step 1: Define the Interface
+
+Create a new interface in `includes/ai/contracts/`:
+
+```php
+// interface-embeddings-capability.php
+interface Chatbot_Embeddings_Capability {
+
+    /**
+     * Generate embeddings for text.
+     *
+     * @param string|array $input Text or array of texts.
+     * @param array $options Optional parameters.
+     * @return array Result with 'success', 'embeddings', or 'error'.
+     */
+    public function generate_embeddings($input, array $options = []): array;
+
+    /**
+     * Check if embeddings capability is available.
+     */
+    public function is_embeddings_available(): bool;
+
+    /**
+     * Get available embedding models.
+     */
+    public function get_embedding_models(): array;
+}
+```
+
+### Step 2: Implement in AIPass Provider
+
+Add the interface to the provider class and implement the methods:
+
+```php
+// In class-aipass-provider.php
+
+class Chatbot_AIPass_Provider implements
+    Chatbot_AI_Provider,
+    Chatbot_Chat_Capability,
+    Chatbot_TTS_Capability,
+    Chatbot_STT_Capability,
+    Chatbot_Vision_Capability,
+    Chatbot_Embeddings_Capability  // Add new interface
+{
+    // Add to get_capabilities()
+    public function get_capabilities(): array {
+        return array(
+            'Chatbot_Chat_Capability',
+            'Chatbot_TTS_Capability',
+            'Chatbot_STT_Capability',
+            'Chatbot_Vision_Capability',
+            'Chatbot_Embeddings_Capability',  // Add here
+        );
+    }
+
+    // Implement the interface methods
+    public function generate_embeddings($input, array $options = []): array {
+        // Use OpenAI-compatible endpoint
+        $request_body = array(
+            'model' => $options['model'] ?? 'text-embedding-3-small',
+            'input' => $input,
+        );
+
+        $response = $this->api_client->authenticated_post(
+            '/oauth2/v1/embeddings',  // LiteLLM endpoint
+            $request_body,
+            $this->token_manager->get_access_token()
+        );
+
+        // Process response...
+    }
+}
+```
+
+### Step 3: Add to AI Service Facade
+
+Expose the capability through the AI Service:
+
+```php
+// In class-ai-service.php
+
+public function generate_embeddings($input, array $options = []): array {
+    $provider = $this->get_provider_for_capability('Chatbot_Embeddings_Capability');
+
+    if ($provider === null) {
+        return ['success' => false, 'error' => 'Embeddings not available'];
+    }
+
+    return $provider->generate_embeddings($input, $options);
+}
+
+public function is_embeddings_available(): bool {
+    return $this->has_capability('Chatbot_Embeddings_Capability');
+}
+```
+
+### Step 4: Use in Application
+
+```php
+// Anywhere in the plugin
+$ai_service = chatbot_container()->make('Chatbot_AI_Service');
+
+if ($ai_service->is_embeddings_available()) {
+    $result = $ai_service->generate_embeddings('Hello world');
+    if ($result['success']) {
+        $vector = $result['embeddings'][0];
+    }
+}
+```
+
+## Adding New Platforms
+
+### Step 1: Create Platform Class
+
+```php
+// class-chatbot-platform-discord.php
+
+class Chatbot_Platform_Discord {
+
+    public const PLATFORM_ID = 'discord';
+
+    private $pipeline;
+
+    public function set_pipeline(Chatbot_Message_Pipeline $pipeline): void {
+        $this->pipeline = $pipeline;
+    }
+
+    public function handle_webhook(): void {
+        // Parse Discord webhook payload
+        $message = $this->parse_discord_message($_POST);
+
+        // Create context (same as all other platforms!)
+        $context = new Chatbot_Message_Context(
+            $message['content'],
+            self::PLATFORM_ID,
+            $message['author'],
+            null,
+            $config_id,
+            $message['channel_id'],
+            ['source' => 'discord_webhook'],
+            $message['attachments'] ?? []  // Files work automatically!
+        );
+
+        // Process through pipeline (AI, middleware, everything works!)
+        $response = $this->pipeline->process($context);
+
+        // Send response back to Discord
+        $this->send_discord_message($response->get_message());
+    }
+}
+```
+
+### Step 2: Register in Service Provider
+
+```php
+// In class-service-provider.php
+
+$this->container->singleton(
+    'Chatbot_Platform_Discord',
+    function ($container) {
+        $platform = new Chatbot_Platform_Discord();
+        $platform->set_pipeline($container->make('Chatbot_Message_Pipeline'));
+        return $platform;
+    }
+);
+```
+
+**That's it!** The new platform automatically gets:
+- ✅ All AI capabilities (Chat, Vision, TTS, STT)
+- ✅ Conversation history and context
+- ✅ Rate limiting
+- ✅ Input validation
+- ✅ File/image processing
+- ✅ Tool/function calling
+
+## Adding New Middleware
+
+### Create Middleware Class
+
+```php
+// class-logging-middleware.php
+
+class Chatbot_Logging_Middleware implements Chatbot_Message_Middleware {
+
+    public function get_priority(): int {
+        return 5;  // Lower = runs first
+    }
+
+    public function process(
+        Chatbot_Message_Context $context,
+        callable $next
+    ): Chatbot_Message_Response {
+        // Before processing
+        chatbot_log('INFO', 'middleware', 'Processing message', [
+            'platform' => $context->get_platform(),
+            'has_files' => $context->has_files(),
+        ]);
+
+        // Call next middleware/handler
+        $response = $next($context);
+
+        // After processing
+        chatbot_log('INFO', 'middleware', 'Response generated', [
+            'success' => $response->is_success(),
+        ]);
+
+        return $response;
+    }
+}
+```
+
+### Register in Service Provider
+
+```php
+// In register_messaging_services()
+$pipeline->add_middleware(new Chatbot_Logging_Middleware());
+```
+
+## Feature Expansion Quick Reference
+
+### Want to add... | Do this...
+| Feature | Steps |
+|---------|-------|
+| **New AI capability** (embeddings, image gen) | 1. Create interface 2. Implement in provider 3. Add to AI Service facade |
+| **New messaging platform** (Discord, Slack) | 1. Create platform class 2. Register in Service Provider 3. Add webhook route |
+| **New file type support** | 1. Add MIME type to `$supported_file_types` 2. Add handler in `build_content_with_files()` |
+| **New middleware** (logging, caching) | 1. Create class implementing `Chatbot_Message_Middleware` 2. Register in Service Provider |
+| **New model support** | Just use it! LiteLLM routes `provider/model` format automatically |
+
+## Benefits of This Architecture
+
+1. **Single Responsibility**: Each class does one thing well
+2. **Open/Closed**: Add features by adding new classes, not modifying existing ones
+3. **Dependency Injection**: Easy to test, mock, and swap implementations
+4. **Platform Agnostic**: Same AI capabilities work on Web, Telegram, WhatsApp, etc.
+5. **Future Proof**: Adding new AI models or capabilities requires minimal changes
+6. **Maintainable**: Clear separation makes debugging and updates easier
+
 ## Key Development Tasks
 
 ### Adding the Chatbot to a Page
@@ -364,6 +825,50 @@ Then download from the `wp-content/plugins` directory.
 By maintaining comprehensive logging, we create a reliable audit trail for troubleshooting issues, understanding system behavior, and improving the plugin over time.
 
 ## Recent Updates
+
+### Vision/File Upload Support (December 2024)
+
+**Feature**: Users can now send images and files for AI analysis across all platforms!
+
+**Supported Platforms:**
+- ✅ **Web Chat**: Click attach button, select file, send with message
+- ✅ **Telegram**: Send photo or document to bot
+- ✅ **WhatsApp**: Send image or document
+
+**Supported File Types:**
+| Type | Extensions | AI Analysis |
+|------|------------|-------------|
+| Images | JPEG, PNG, GIF, WebP | ✅ Full vision analysis |
+| Text files | TXT, CSV | ✅ Content extracted and analyzed |
+| PDFs | PDF | ⚠️ Limited (text description only) |
+| Documents | DOC, DOCX | ⚠️ Limited (text description only) |
+| Spreadsheets | XLS, XLSX | ⚠️ Limited (text description only) |
+
+**Technical Implementation:**
+- Vision capability interface: `includes/ai/contracts/interface-vision-capability.php`
+- AIPass Provider implements vision with LiteLLM-compatible format
+- Files attached to LAST user message (critical for conversation history)
+- Base64 encoding with `data:mime/type;base64,` format
+
+### SOLID Architecture Refactoring (December 2024)
+
+**Major refactoring** to follow SOLID principles with dependency injection:
+
+**New Components:**
+- ✅ **DI Container** (`class-container.php`): Service registration and resolution
+- ✅ **Service Provider** (`class-service-provider.php`): Bootstraps all services
+- ✅ **AI Capability Interfaces**: Chat, TTS, STT, Vision (extensible)
+- ✅ **AIPass Provider**: Implements all AI capabilities
+- ✅ **AI Service Facade**: Unified interface for AI operations
+- ✅ **Message Pipeline**: Middleware-based message processing
+- ✅ **Platform Abstraction**: Web, Telegram, WhatsApp use same pipeline
+- ✅ **Repository Pattern**: Data access abstraction
+
+**Benefits:**
+- Add new AI capabilities without modifying existing code
+- Add new platforms with ~50 lines of code
+- Same features work across all platforms automatically
+- Easy to test with dependency injection
 
 ### Architecture Simplification (December 2024)
 

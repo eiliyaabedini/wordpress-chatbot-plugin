@@ -29,6 +29,24 @@
         const chatbotMicBtn = $('.chatbot-mic-btn');
         const chatbotTtsToggle = $('#chatbot-tts-autoplay');
 
+        // File Upload Variables - simplified to one file
+        let selectedFile = null;
+        const maxFileSize = 20 * 1024 * 1024; // 20MB max
+        const supportedFileTypes = {
+            'image/jpeg': 'image',
+            'image/jpg': 'image',
+            'image/png': 'image',
+            'image/gif': 'image',
+            'image/webp': 'image',
+            'application/pdf': 'pdf',
+            'text/plain': 'document',
+            'text/csv': 'document',
+            'application/msword': 'document',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'document',
+            'application/vnd.ms-excel': 'spreadsheet',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'spreadsheet'
+        };
+
         // Initialize TTS toggle from localStorage
         chatbotTtsToggle.prop('checked', ttsAutoPlay);
 
@@ -298,6 +316,106 @@
                 startRecording();
             }
         });
+
+        // File Upload UI and Handlers - Simplified for single file
+        const fileInput = chatbotInputContainer.find('.chatbot-file-input');
+        const attachBtn = chatbotInputContainer.find('.chatbot-attach-btn');
+        const filePreviewContainer = chatbotInputContainer.find('.chatbot-file-preview-container');
+
+        // Remove multiple attribute - only allow one file
+        fileInput.removeAttr('multiple');
+
+        // Attach button click handler
+        attachBtn.off('click').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            // Only open file picker if no file selected
+            if (!selectedFile) {
+                fileInput[0].click();
+            }
+            return false;
+        });
+
+        // File input change handler
+        fileInput.off('change').on('change', function(e) {
+            e.stopPropagation();
+            if (this.files && this.files.length > 0) {
+                const file = this.files[0];
+                handleSingleFile(file);
+            }
+            // Reset input so same file can be selected again
+            this.value = '';
+        });
+
+        // Handle single file selection
+        function handleSingleFile(file) {
+            // Check file type
+            if (!supportedFileTypes[file.type]) {
+                alert('File type not supported: ' + file.name + '\nSupported: Images, PDF, Word, Excel, Text files');
+                return;
+            }
+
+            // Check file size
+            if (file.size > maxFileSize) {
+                alert('File too large: ' + file.name + '\nMaximum size: 20MB');
+                return;
+            }
+
+            // Set selected file
+            selectedFile = file;
+            showFilePreview(file);
+        }
+
+        // Show file preview
+        function showFilePreview(file) {
+            const fileType = supportedFileTypes[file.type] || 'document';
+
+            // Clear previous preview
+            filePreviewContainer.empty();
+
+            // Create preview element
+            const preview = $('<div class="chatbot-file-preview"></div>');
+
+            // Icon based on file type
+            let iconHtml = '';
+            if (fileType === 'image') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.find('.chatbot-file-icon').html('<img src="' + e.target.result + '" alt="preview">');
+                };
+                reader.readAsDataURL(file);
+                iconHtml = '<div class="chatbot-file-icon"></div>';
+            } else if (fileType === 'pdf') {
+                iconHtml = '<div class="chatbot-file-icon pdf"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>';
+            } else {
+                iconHtml = '<div class="chatbot-file-icon document"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg></div>';
+            }
+
+            // File name (truncated)
+            const displayName = file.name.length > 20 ? file.name.substring(0, 17) + '...' : file.name;
+
+            preview.html(iconHtml + '<span class="chatbot-file-name" title="' + file.name + '">' + displayName + '</span><button type="button" class="chatbot-file-remove" title="Remove">&times;</button>');
+
+            // Remove button handler
+            preview.find('.chatbot-file-remove').off('click').on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                clearSelectedFile();
+                return false;
+            });
+
+            filePreviewContainer.append(preview);
+            filePreviewContainer.css('display', 'flex');
+            attachBtn.addClass('has-files');
+        }
+
+        // Clear selected file
+        function clearSelectedFile() {
+            selectedFile = null;
+            filePreviewContainer.empty();
+            filePreviewContainer.hide();
+            attachBtn.removeClass('has-files');
+        }
 
         // Detect if we're on mobile
         let isMobile = window.innerWidth <= 768;
@@ -647,31 +765,29 @@
         }
         
         // Function to send a message to the server
-        function sendMessage(message) {
+        function sendMessage(message, file) {
             if (!conversationId) {
                 return;
             }
-            
+
             // Show typing indicator for AI response
             showTypingIndicator();
-            
-            $.ajax({
+
+            // Check if we should use the new v2 endpoint with file support
+            const hasFile = file !== null && file !== undefined;
+            const action = hasFile ? 'chatbot_send_message_v2' : 'chatbot_send_message';
+
+            // Build the request
+            let ajaxOptions = {
                 url: chatbotPluginVars.ajaxUrl,
                 type: 'POST',
-                data: {
-                    action: 'chatbot_send_message',
-                    conversation_id: conversationId,
-                    message: message,
-                    sender_type: 'user',
-                    nonce: chatbotPluginVars.nonce
-                },
                 success: function(response) {
                     // Clear any error timer since connection succeeded
                     if (window.fetchErrorTimer) {
                         clearTimeout(window.fetchErrorTimer);
                         window.fetchErrorTimer = null;
                     }
-                    
+
                     if (response.success) {
                         // Update the pending user message with its ID (prevents duplicates if polling runs)
                         if (response.data.message_id) {
@@ -683,10 +799,17 @@
                         }
 
                         // If we got an AI response, display it immediately
-                        if (response.data.ai_response) {
+                        const aiResponse = response.data.ai_response || response.data.message;
+                        if (aiResponse) {
                             hideTypingIndicator();
                             // Pass the AI message ID to prevent duplicates when polling runs
-                            addMessage(response.data.ai_response, response.data.ai_sender_type || 'ai', false, response.data.ai_message_id);
+                            addMessage(aiResponse, response.data.ai_sender_type || 'ai', false, response.data.ai_message_id || response.data.message_id);
+                        }
+
+                        // Update conversation ID if returned (for new conversations)
+                        if (response.data.conversation_id) {
+                            conversationId = response.data.conversation_id;
+                            localStorage.setItem('chatbot_conversation_id', conversationId);
                         }
                     } else {
                         // Hide typing indicator and show error
@@ -720,19 +843,55 @@
                             // Add event listener for new chat button
                             $('.chatbot-new-chat-btn').on('click', resetChat);
                         } else {
-                            chatbotMessages.append('<div class="chatbot-system-message">Error sending message. Please try again.</div>');
+                            chatbotMessages.append('<div class="chatbot-system-message">Error: ' + (errorMessage || 'Failed to send message') + '</div>');
                         }
 
                         chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
                     }
                 },
-                error: function() {
+                error: function(xhr, status, error) {
                     // Hide typing indicator
                     hideTypingIndicator();
                     // Remove pending flag from user message so polling can recover
                     $('.chatbot-message.user[data-pending="true"]').removeAttr('data-pending');
+                    chatbotMessages.append('<div class="chatbot-system-message">Network error. Please try again.</div>');
+                    chatbotMessages.scrollTop(chatbotMessages[0].scrollHeight);
+                    console.error('AJAX Error:', status, error);
                 }
-            });
+            };
+
+            // Use FormData for file uploads, regular data otherwise
+            if (hasFile) {
+                const formData = new FormData();
+                formData.append('action', action);
+                formData.append('conversation_id', conversationId);
+                formData.append('message', message);
+                formData.append('visitor_name', visitorName || 'Visitor');
+                formData.append('nonce', chatbotPluginVars.nonce);
+
+                // Add chatbot config ID if available
+                const configId = chatbotContainer.data('chatbot-config-id');
+                if (configId) {
+                    formData.append('chatbot_config_id', configId);
+                }
+
+                // Append single file
+                formData.append('files[]', file);
+
+                ajaxOptions.data = formData;
+                ajaxOptions.processData = false;
+                ajaxOptions.contentType = false;
+            } else {
+                ajaxOptions.data = {
+                    action: action,
+                    conversation_id: conversationId,
+                    message: message,
+                    sender_type: 'user',
+                    nonce: chatbotPluginVars.nonce
+                };
+            }
+
+            $.ajax(ajaxOptions);
         }
 
         // Function to end the current conversation
@@ -996,7 +1155,10 @@
         // Handle user input (both send button and enter key)
         function handleUserInput() {
             const message = chatbotInput.val().trim();
-            if (message === '') return;
+            const hasFile = selectedFile !== null;
+
+            // Allow sending if there's a message OR file attached
+            if (message === '' && !hasFile) return;
 
             const maxLength = chatbotPluginVars.maxMessageLength || 500;
 
@@ -1009,14 +1171,33 @@
             chatbotInput.val('');
             updateCharCounter();
 
-            // If waiting for name, start conversation
+            // If waiting for name, start conversation (without file)
             if (waitingForName) {
                 addMessage(message, 'user', false);
                 startConversation(message);
+                clearSelectedFile();
             } else {
+                // Build display message including file info
+                let displayMessage = message;
+                if (hasFile) {
+                    if (displayMessage) {
+                        displayMessage += ' [Attached: ' + selectedFile.name + ']';
+                    } else {
+                        displayMessage = '[Attached: ' + selectedFile.name + ']';
+                    }
+                }
+
                 // Normal message - mark as pending until we get the ID back
-                addMessage(message, 'user', false, null, true);
-                sendMessage(message);
+                addMessage(displayMessage, 'user', false, null, true);
+
+                // Copy file before clearing
+                const fileToSend = selectedFile;
+
+                // Clear selected file from UI
+                clearSelectedFile();
+
+                // Send message with file
+                sendMessage(message || 'Please analyze this file.', fileToSend);
             }
         }
 

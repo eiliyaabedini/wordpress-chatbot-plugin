@@ -16,6 +16,32 @@ if (!defined('WPINC')) {
 abstract class Chatbot_Messaging_Platform {
 
     /**
+     * Message pipeline instance.
+     *
+     * @var Chatbot_Message_Pipeline|null
+     */
+    protected $pipeline = null;
+
+    /**
+     * Set the message pipeline.
+     *
+     * @param Chatbot_Message_Pipeline $pipeline The pipeline.
+     * @return void
+     */
+    public function set_pipeline(Chatbot_Message_Pipeline $pipeline): void {
+        $this->pipeline = $pipeline;
+    }
+
+    /**
+     * Get the message pipeline.
+     *
+     * @return Chatbot_Message_Pipeline|null
+     */
+    public function get_pipeline(): ?Chatbot_Message_Pipeline {
+        return $this->pipeline;
+    }
+
+    /**
      * Get the platform identifier (e.g., 'telegram', 'whatsapp')
      *
      * @return string
@@ -189,6 +215,8 @@ abstract class Chatbot_Messaging_Platform {
     /**
      * Process an incoming message and generate AI response
      *
+     * Uses the message pipeline if available, otherwise falls back to legacy handler.
+     *
      * @param string $platform_chat_id The platform-specific chat identifier
      * @param string $user_name The user's name
      * @param string $message_text The message content
@@ -196,6 +224,64 @@ abstract class Chatbot_Messaging_Platform {
      * @return string The AI response
      */
     protected function process_incoming_message(string $platform_chat_id, string $user_name, string $message_text, object $config): string {
+        // Try to use the pipeline if available
+        if ($this->pipeline !== null) {
+            return $this->process_via_pipeline($platform_chat_id, $user_name, $message_text, $config);
+        }
+
+        // Fall back to legacy processing
+        return $this->process_legacy($platform_chat_id, $user_name, $message_text, $config);
+    }
+
+    /**
+     * Process message through the new pipeline architecture.
+     *
+     * @param string $platform_chat_id The platform-specific chat identifier
+     * @param string $user_name The user's name
+     * @param string $message_text The message content
+     * @param object $config The chatbot configuration
+     * @return string The AI response
+     */
+    protected function process_via_pipeline(string $platform_chat_id, string $user_name, string $message_text, object $config): string {
+        $this->log('INFO', 'process_message', 'Processing via pipeline', [
+            'platform_chat_id' => $platform_chat_id,
+            'config_id' => $config->id,
+        ]);
+
+        // Create message context
+        $context = new Chatbot_Message_Context(
+            $message_text,
+            $this->get_platform_id(),
+            $user_name,
+            null, // conversation_id - pipeline will resolve
+            $config->id,
+            $platform_chat_id,
+            ['source' => 'platform_webhook']
+        );
+
+        // Process through pipeline
+        $response = $this->pipeline->process($context);
+
+        if ($response->is_success()) {
+            return $response->get_message();
+        }
+
+        $this->log('ERROR', 'process_message', 'Pipeline error: ' . $response->get_error());
+        return "Sorry, I encountered an error. Please try again.";
+    }
+
+    /**
+     * Legacy message processing method.
+     *
+     * @deprecated Use pipeline-based processing instead.
+     *
+     * @param string $platform_chat_id The platform-specific chat identifier
+     * @param string $user_name The user's name
+     * @param string $message_text The message content
+     * @param object $config The chatbot configuration
+     * @return string The AI response
+     */
+    protected function process_legacy(string $platform_chat_id, string $user_name, string $message_text, object $config): string {
         $db = Chatbot_DB::get_instance();
 
         // Get or create conversation

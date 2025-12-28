@@ -526,15 +526,26 @@ class Chatbot_AI {
         $db = Chatbot_DB::get_instance();
         $raw_messages = $db->get_messages($conversation_id);
 
+        // Get visitor name from conversation
+        $visitor_name = '';
+        $conversation = $db->get_conversation($conversation_id);
+        if ($conversation && !empty($conversation->visitor_name)) {
+            $visitor_name = $conversation->visitor_name;
+        }
+
         // Determine system prompt
         $system_prompt = $this->get_default_system_prompt();
 
         if (isset($config)) {
             if (isset($config->knowledge) && isset($config->persona) && !empty($config->knowledge) && !empty($config->persona)) {
                 $knowledge_sources = isset($config->knowledge_sources) ? $config->knowledge_sources : '';
-                $system_prompt = $this->build_system_prompt($config->knowledge, $config->persona, $knowledge_sources);
+                $system_prompt = $this->build_system_prompt($config->knowledge, $config->persona, $knowledge_sources, $visitor_name);
             } elseif (isset($config->system_prompt) && !empty($config->system_prompt)) {
                 $system_prompt = $this->get_datetime_context() . "\n\n" . $config->system_prompt;
+                // Add visitor name context
+                if (!empty($visitor_name) && $visitor_name !== 'Visitor') {
+                    $system_prompt .= $this->get_visitor_context($visitor_name);
+                }
             }
         } else {
             // Try to find default config
@@ -549,11 +560,20 @@ class Chatbot_AI {
                 if (isset($default_config->knowledge) && isset($default_config->persona) &&
                     !empty($default_config->knowledge) && !empty($default_config->persona)) {
                     $knowledge_sources = isset($default_config->knowledge_sources) ? $default_config->knowledge_sources : '';
-                    $system_prompt = $this->build_system_prompt($default_config->knowledge, $default_config->persona, $knowledge_sources);
+                    $system_prompt = $this->build_system_prompt($default_config->knowledge, $default_config->persona, $knowledge_sources, $visitor_name);
                 } elseif (!empty($default_config->system_prompt)) {
                     $system_prompt = $this->get_datetime_context() . "\n\n" . $default_config->system_prompt;
+                    // Add visitor name context
+                    if (!empty($visitor_name) && $visitor_name !== 'Visitor') {
+                        $system_prompt .= $this->get_visitor_context($visitor_name);
+                    }
                 }
             }
+        }
+
+        // Add visitor context to default system prompt if not already added
+        if (!empty($visitor_name) && $visitor_name !== 'Visitor' && strpos($system_prompt, 'Current User Information') === false) {
+            $system_prompt .= $this->get_visitor_context($visitor_name);
         }
 
         // Start with system message
@@ -651,10 +671,21 @@ class Chatbot_AI {
 
     /**
      * Build system prompt combining knowledge, persona, and WordPress content
+     *
+     * @param string $knowledge        The knowledge base content.
+     * @param string $persona          The persona/role description.
+     * @param string $knowledge_sources The WordPress knowledge sources.
+     * @param string $visitor_name     The visitor's name (optional).
+     * @return string The complete system prompt.
      */
-    private function build_system_prompt($knowledge, $persona, $knowledge_sources = '') {
+    private function build_system_prompt($knowledge, $persona, $knowledge_sources = '', $visitor_name = '') {
         $system_prompt = $this->get_datetime_context() . "\n\n";
         $system_prompt .= $persona;
+
+        // Add visitor context if available
+        if (!empty($visitor_name) && $visitor_name !== 'Visitor') {
+            $system_prompt .= $this->get_visitor_context($visitor_name);
+        }
 
         if (!empty($knowledge)) {
             if (!empty($persona)) {
@@ -686,6 +717,19 @@ class Chatbot_AI {
         }
 
         return $system_prompt;
+    }
+
+    /**
+     * Get visitor context to add to system prompt.
+     *
+     * @param string $visitor_name The visitor's name.
+     * @return string The visitor context string.
+     */
+    private function get_visitor_context($visitor_name) {
+        return "\n\n### CURRENT USER INFORMATION ###\n" .
+               "The user you are chatting with has provided their name: " . $visitor_name . "\n" .
+               "IMPORTANT: When the user needs to provide their name (e.g., for scheduling meetings, filling forms, or making bookings), " .
+               "use the name \"" . $visitor_name . "\" - do NOT ask for their name again since they already provided it at the start of the conversation.";
     }
 
     /**

@@ -3,7 +3,7 @@
  * Plugin Name: AIPass Chat
  * Plugin URI: https://aipass.one
  * Description: AI-powered chatbot for WordPress. Connect to 161+ AI models including GPT-4 and Gemini via AIPass.
- * Version: 1.6.0
+ * Version: 1.7.0
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -18,7 +18,7 @@ if (!defined('WPINC')) {
 }
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.6.0');
+define('CHATBOT_PLUGIN_VERSION', '1.7.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CHATBOT_DEFAULT_MODEL', 'gemini/gemini-2.5-flash-lite'); // Default AI model for all API calls
@@ -50,6 +50,46 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-platform-wh
 
 // Keep legacy Telegram class for backward compatibility
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-telegram.php';
+
+// Load new SOLID architecture (v1.7.0+)
+// Container and Service Provider
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-container.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-service-provider.php';
+
+// Repository Interfaces (Contracts)
+require_once CHATBOT_PLUGIN_PATH . 'includes/repositories/contracts/interface-conversation-repository.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/repositories/contracts/interface-message-repository.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/repositories/contracts/interface-configuration-repository.php';
+
+// Repository Implementations
+require_once CHATBOT_PLUGIN_PATH . 'includes/repositories/class-wp-conversation-repository.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/repositories/class-wp-message-repository.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/repositories/class-wp-configuration-repository.php';
+
+// AI Capability Interfaces (Contracts)
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/contracts/interface-ai-provider.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/contracts/interface-chat-capability.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/contracts/interface-tts-capability.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/contracts/interface-stt-capability.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/contracts/interface-vision-capability.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/contracts/interface-embeddings-capability.php';
+
+// AI Services
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/services/class-api-client.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/services/class-token-manager.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/services/class-ai-service.php';
+
+// AI Providers
+require_once CHATBOT_PLUGIN_PATH . 'includes/ai/providers/class-aipass-provider.php';
+
+// Messaging Pipeline (v1.7.0+)
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-message-context.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-message-response.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/contracts/interface-message-middleware.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/middleware/class-validation-middleware.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/middleware/class-rate-limit-middleware.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-message-pipeline.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-platform-web.php';
 
 /**
  * Helper function for standardized logging
@@ -724,3 +764,33 @@ function chatbot_plugin_init() {
     return Chatbot_Plugin::get_instance();
 }
 chatbot_plugin_init();
+
+/**
+ * Initialize the dependency injection container and register services.
+ *
+ * This runs on plugins_loaded with a high priority to ensure
+ * the container is available early for other components.
+ *
+ * @since 1.7.0
+ */
+function chatbot_init_container() {
+    $container = Chatbot_Container::get_instance();
+    $provider = new Chatbot_Service_Provider($container);
+    $provider->register();
+    $provider->boot();
+
+    chatbot_log('DEBUG', 'container_init', 'DI container initialized with all services');
+}
+add_action('plugins_loaded', 'chatbot_init_container', 5);
+
+/**
+ * Get the plugin's DI container.
+ *
+ * Helper function to access the container from anywhere in the plugin.
+ *
+ * @since 1.7.0
+ * @return Chatbot_Container The DI container instance.
+ */
+function chatbot_container() {
+    return Chatbot_Container::get_instance();
+}

@@ -246,28 +246,229 @@ class Chatbot_Platform_Telegram extends Chatbot_Messaging_Platform {
         }
 
         $update = $request->get_json_params();
+        $message = $update['message'] ?? null;
 
-        if (!isset($update['message']['text'])) {
+        if (!$message) {
             return new WP_REST_Response(array('ok' => true), 200);
         }
 
-        $chat_id = (string) $update['message']['chat']['id'];
-        $user_name = $update['message']['from']['first_name'] ?? 'Telegram User';
-        $message_text = $update['message']['text'];
+        $chat_id = (string) ($message['chat']['id'] ?? '');
+        $user_name = $message['from']['first_name'] ?? 'Telegram User';
+
+        // Extract text and files from message
+        $message_text = $message['text'] ?? $message['caption'] ?? '';
+        $files = $this->extract_files_from_message($message, $config->telegram_bot_token);
+
+        // Skip if no text and no files
+        if (empty($message_text) && empty($files)) {
+            return new WP_REST_Response(array('ok' => true), 200);
+        }
 
         // Handle /start command
         if ($message_text === '/start') {
-            $this->send_telegram_message($config->telegram_bot_token, $chat_id, "Hello! I'm an AI assistant. How can I help you today?");
+            $this->send_telegram_message($config->telegram_bot_token, $chat_id, "Hello! I'm an AI assistant. How can I help you today? You can send me text, images, PDFs, and documents!");
             return new WP_REST_Response(array('ok' => true), 200);
         }
 
-        // Process the message and get AI response
-        $ai_response = $this->process_incoming_message($chat_id, $user_name, $message_text, $config);
+        // Use default prompt if only files are sent
+        if (empty($message_text) && !empty($files)) {
+            $message_text = 'Please analyze the attached file(s).';
+        }
+
+        // Process the message with files
+        $ai_response = $this->process_message_with_files($chat_id, $user_name, $message_text, $config, $files);
 
         // Send the response
         $this->send_telegram_message($config->telegram_bot_token, $chat_id, $ai_response);
 
         return new WP_REST_Response(array('ok' => true), 200);
+    }
+
+    /**
+     * Extract files from a Telegram message.
+     *
+     * @param array  $message   The Telegram message.
+     * @param string $bot_token The bot token.
+     * @return array Array of file data.
+     */
+    private function extract_files_from_message(array $message, string $bot_token): array {
+        $files = [];
+
+        // Handle photo (array of sizes, get the largest)
+        if (!empty($message['photo'])) {
+            $photo = end($message['photo']); // Get largest size
+            $file_data = $this->download_telegram_file($bot_token, $photo['file_id'], 'image/jpeg', 'photo.jpg');
+            if ($file_data) {
+                $files[] = $file_data;
+            }
+        }
+
+        // Handle document
+        if (!empty($message['document'])) {
+            $doc = $message['document'];
+            $mime_type = $doc['mime_type'] ?? 'application/octet-stream';
+            $file_name = $doc['file_name'] ?? 'document';
+            $file_data = $this->download_telegram_file($bot_token, $doc['file_id'], $mime_type, $file_name);
+            if ($file_data) {
+                $files[] = $file_data;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
+     * Download a file from Telegram.
+     *
+     * @param string $bot_token The bot token.
+     * @param string $file_id   The Telegram file ID.
+     * @param string $mime_type The MIME type.
+     * @param string $file_name The original filename.
+     * @return array|null File data or null on error.
+     */
+    private function download_telegram_file(string $bot_token, string $file_id, string $mime_type, string $file_name): ?array {
+        // Get file path from Telegram
+        $response = wp_remote_get($this->api_base . $bot_token . '/getFile?file_id=' . urlencode($file_id), [
+            'timeout' => 30,
+        ]);
+
+        if (is_wp_error($response)) {
+            $this->log('ERROR', 'download_file', 'Failed to get file path: ' . $response->get_error_message());
+            return null;
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if (!isset($body['ok']) || !$body['ok'] || !isset($body['result']['file_path'])) {
+            $this->log('ERROR', 'download_file', 'Invalid getFile response', $body);
+            return null;
+        }
+
+        $file_path = $body['result']['file_path'];
+
+        // Download the file
+        $file_url = "https://api.telegram.org/file/bot{$bot_token}/{$file_path}";
+        $file_response = wp_remote_get($file_url, [
+            'timeout' => 60,
+        ]);
+
+        if (is_wp_error($file_response)) {
+            $this->log('ERROR', 'download_file', 'Failed to download file: ' . $file_response->get_error_message());
+            return null;
+        }
+
+        $file_content = wp_remote_retrieve_body($file_response);
+        if (empty($file_content)) {
+            $this->log('ERROR', 'download_file', 'Empty file content');
+            return null;
+        }
+
+        // Check file size (max 20MB for Telegram)
+        if (strlen($file_content) > 20 * 1024 * 1024) {
+            $this->log('WARN', 'download_file', 'File too large', ['size' => strlen($file_content)]);
+            return null;
+        }
+
+        // Determine file type
+        $file_type = $this->get_file_type_from_mime($mime_type);
+        if ($file_type === null) {
+            $this->log('WARN', 'download_file', 'Unsupported file type', ['mime_type' => $mime_type]);
+            return null;
+        }
+
+        $this->log('INFO', 'download_file', 'Downloaded file from Telegram', [
+            'file_name' => $file_name,
+            'file_type' => $file_type,
+            'size' => strlen($file_content),
+        ]);
+
+        return [
+            'type' => $file_type,
+            'data' => base64_encode($file_content),
+            'mime_type' => $mime_type,
+            'name' => $file_name,
+        ];
+    }
+
+    /**
+     * Get file type from MIME type.
+     *
+     * @param string $mime_type The MIME type.
+     * @return string|null The file type or null if unsupported.
+     */
+    private function get_file_type_from_mime(string $mime_type): ?string {
+        $mime_type = strtolower($mime_type);
+
+        // Image types
+        if (strpos($mime_type, 'image/') === 0) {
+            $supported = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            return in_array($mime_type, $supported, true) ? 'image' : null;
+        }
+
+        // PDF
+        if ($mime_type === 'application/pdf') {
+            return 'pdf';
+        }
+
+        // Documents
+        $document_types = [
+            'text/plain',
+            'text/csv',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+        if (in_array($mime_type, $document_types, true)) {
+            return 'document';
+        }
+
+        // Spreadsheets
+        $spreadsheet_types = [
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+        if (in_array($mime_type, $spreadsheet_types, true)) {
+            return 'spreadsheet';
+        }
+
+        return null;
+    }
+
+    /**
+     * Process a message with file attachments.
+     *
+     * @param string $chat_id      The Telegram chat ID.
+     * @param string $user_name    The user's name.
+     * @param string $message_text The message text.
+     * @param object $config       The chatbot configuration.
+     * @param array  $files        Array of file data.
+     * @return string The AI response.
+     */
+    private function process_message_with_files(string $chat_id, string $user_name, string $message_text, object $config, array $files): string {
+        // If we have pipeline with files support, use it
+        if ($this->pipeline !== null && !empty($files)) {
+            $context = new Chatbot_Message_Context(
+                $message_text,
+                $this->get_platform_id(),
+                $user_name,
+                null,
+                $config->id,
+                $chat_id,
+                ['source' => 'telegram_webhook'],
+                $files
+            );
+
+            $response = $this->pipeline->process($context);
+
+            if ($response->is_success()) {
+                return $response->get_message();
+            }
+
+            $this->log('ERROR', 'process_message', 'Pipeline error: ' . $response->get_error());
+            return "Sorry, I encountered an error processing your request. Please try again.";
+        }
+
+        // Fall back to standard processing (without files)
+        return $this->process_incoming_message($chat_id, $user_name, $message_text, $config);
     }
 
     /**

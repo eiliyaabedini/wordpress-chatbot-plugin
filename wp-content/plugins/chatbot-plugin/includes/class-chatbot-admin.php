@@ -941,45 +941,7 @@ class Chatbot_Admin {
                                             <button type="button" id="chatbot_whatsapp_disconnect" class="button" data-config-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_whatsapp_disconnect'); ?>" style="color: #d32f2f; margin-left: 5px;">
                                                 <?php _e('Disconnect', 'chatbot-plugin'); ?>
                                             </button>
-                                            <button type="button" id="chatbot_whatsapp_show_webhook" class="button" style="margin-left: 5px;">
-                                                <?php _e('Webhook Info', 'chatbot-plugin'); ?>
-                                            </button>
-                                            <button type="button" id="chatbot_whatsapp_show_debug" class="button" style="margin-left: 5px;">
-                                                <?php _e('Webhook Log', 'chatbot-plugin'); ?>
-                                            </button>
                                             <span id="chatbot_whatsapp_status" style="margin-left: 10px;"></span>
-
-                                            <!-- Webhook Debug Log -->
-                                            <?php
-                                            $whatsapp_platform = Chatbot_Messaging_Manager::get_instance()->get_platform('whatsapp');
-                                            $webhook_debug = $whatsapp_platform ? $whatsapp_platform->get_webhook_debug($config->id) : array();
-                                            ?>
-                                            <div id="whatsapp_debug_log" style="display: none; margin-top: 15px; background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 4px;">
-                                                <h4 style="margin: 0 0 10px 0; color: #856404;"><?php _e('Recent Webhook Activity', 'chatbot-plugin'); ?></h4>
-                                                <?php if (empty($webhook_debug)): ?>
-                                                    <p style="color: #856404;"><?php _e('No webhooks received yet. Send a WhatsApp message to test.', 'chatbot-plugin'); ?></p>
-                                                <?php else: ?>
-                                                    <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
-                                                        <tr style="background: #fff;">
-                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('Time', 'chatbot-plugin'); ?></th>
-                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('From', 'chatbot-plugin'); ?></th>
-                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('Type', 'chatbot-plugin'); ?></th>
-                                                            <th style="padding: 5px; border: 1px solid #ddd; text-align: left;"><?php _e('Message', 'chatbot-plugin'); ?></th>
-                                                        </tr>
-                                                        <?php foreach ($webhook_debug as $wh): ?>
-                                                        <tr>
-                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['time']); ?></td>
-                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['from']); ?></td>
-                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['message_type']); ?></td>
-                                                            <td style="padding: 5px; border: 1px solid #ddd;"><?php echo esc_html($wh['body_preview']); ?></td>
-                                                        </tr>
-                                                        <?php endforeach; ?>
-                                                    </table>
-                                                <?php endif; ?>
-                                                <p style="margin: 10px 0 0 0;">
-                                                    <button type="button" class="button button-small" onclick="location.reload();"><?php _e('Refresh', 'chatbot-plugin'); ?></button>
-                                                </p>
-                                            </div>
 
                                             <!-- Test Message Form (hidden by default) -->
                                             <div id="whatsapp_test_form" style="display: none; margin-top: 15px; background: #f0f6fc; border: 1px solid #c5d9ed; padding: 15px; border-radius: 4px;">
@@ -1001,15 +963,6 @@ class Chatbot_Admin {
                                                 </button>
                                                 <span id="whatsapp_test_status" style="margin-left: 10px;"></span>
                                             </div>
-
-                                            <div id="whatsapp_webhook_info" style="display: none; margin-top: 15px; background: #f5f5f5; padding: 15px; border-radius: 4px;">
-                                                <h4 style="margin: 0 0 10px 0;"><?php _e('Webhook Configuration', 'chatbot-plugin'); ?></h4>
-                                                <p><strong><?php _e('Callback URL:', 'chatbot-plugin'); ?></strong><br>
-                                                <code style="background: #fff; padding: 5px 10px; display: block; margin: 5px 0; word-break: break-all;"><?php echo esc_html(rest_url("chatbot-plugin/v1/webhook/whatsapp/{$config->id}")); ?></code></p>
-                                                <p><strong><?php _e('Verify Token:', 'chatbot-plugin'); ?></strong><br>
-                                                <code style="background: #fff; padding: 5px 10px; display: block; margin: 5px 0;"><?php echo esc_html($whatsapp_info['verify_token'] ?? ''); ?></code></p>
-                                                <p class="description"><?php _e('Use these values in your Meta App Dashboard under WhatsApp > Configuration > Webhook.', 'chatbot-plugin'); ?></p>
-                                            </div>
                                         <?php elseif ($editing): ?>
                                             <!-- Disconnected state - show connection form -->
                                             <div style="margin-bottom: 15px;">
@@ -1023,36 +976,96 @@ class Chatbot_Admin {
                                                     <ol style="margin: 0 0 15px 20px; padding: 0; color: #50575e;">
                                                         <li style="margin-bottom: 8px;"><?php _e('Go to', 'chatbot-plugin'); ?> <a href="https://developers.facebook.com/" target="_blank">Meta for Developers</a></li>
                                                         <li style="margin-bottom: 8px;"><?php _e('Create or select your App → Add WhatsApp product', 'chatbot-plugin'); ?></li>
+                                                        <li style="margin-bottom: 8px;"><?php _e('In <strong>App Settings → Basic</strong>:', 'chatbot-plugin'); ?>
+                                                            <ul style="margin: 8px 0 0 20px; list-style-type: disc;">
+                                                                <li><strong><?php _e('App ID', 'chatbot-plugin'); ?></strong>: <?php _e('Shown at the top of the page', 'chatbot-plugin'); ?></li>
+                                                                <li><strong><?php _e('App Secret', 'chatbot-plugin'); ?></strong>: <?php _e('Click "Show" to reveal', 'chatbot-plugin'); ?></li>
+                                                            </ul>
+                                                        </li>
                                                         <li style="margin-bottom: 8px;"><?php _e('In <strong>WhatsApp → API Setup</strong>:', 'chatbot-plugin'); ?>
                                                             <ul style="margin: 8px 0 0 20px; list-style-type: disc;">
+                                                                <li><strong><?php _e('Business Account ID', 'chatbot-plugin'); ?></strong>: <?php _e('Shown at the top (also called WABA ID)', 'chatbot-plugin'); ?></li>
                                                                 <li><strong><?php _e('Phone Number ID', 'chatbot-plugin'); ?></strong>: <?php _e('Shown under "From" phone number', 'chatbot-plugin'); ?></li>
-                                                                <li><strong><?php _e('Access Token', 'chatbot-plugin'); ?></strong>: <?php _e('Click "Generate" for a temporary token (24h) or create a permanent System User token', 'chatbot-plugin'); ?></li>
+                                                                <li><strong><?php _e('Access Token', 'chatbot-plugin'); ?></strong>: <?php _e('Click "Generate" for a temporary token or use System User token', 'chatbot-plugin'); ?></li>
                                                             </ul>
                                                         </li>
                                                     </ol>
-                                                    <h4 style="margin: 15px 0 12px 0; color: #1d2327;"><?php _e('After connecting', 'chatbot-plugin'); ?></h4>
-                                                    <p style="margin: 0 0 8px 0; color: #50575e;"><?php _e('Configure the webhook in Meta\'s dashboard:', 'chatbot-plugin'); ?></p>
-                                                    <ul style="margin: 0 0 15px 20px; padding: 0; color: #50575e; list-style-type: disc;">
-                                                        <li style="margin-bottom: 5px;"><strong><?php _e('Callback URL', 'chatbot-plugin'); ?></strong>: <?php _e('Will be shown after you connect', 'chatbot-plugin'); ?></li>
-                                                        <li style="margin-bottom: 5px;"><strong><?php _e('Verify Token', 'chatbot-plugin'); ?></strong>: <?php _e('Auto-generated by the plugin', 'chatbot-plugin'); ?></li>
-                                                    </ul>
+                                                    <div style="background: #d4edda; border-left: 4px solid #28a745; padding: 10px 12px; margin-top: 12px;">
+                                                        <strong style="color: #155724;"><?php _e('Automatic Webhook Setup:', 'chatbot-plugin'); ?></strong>
+                                                        <p style="margin: 8px 0 0 0; font-size: 13px; color: #155724;"><?php _e('The plugin will automatically configure webhooks via the Graph API. No manual webhook setup required!', 'chatbot-plugin'); ?></p>
+                                                    </div>
                                                     <div style="background: #fff8e5; border-left: 4px solid #ffb900; padding: 10px 12px; margin-top: 12px;">
                                                         <strong style="color: #6d5200;"><?php _e('For production use:', 'chatbot-plugin'); ?></strong>
                                                         <ul style="margin: 8px 0 0 20px; padding: 0; color: #6d5200; list-style-type: disc; font-size: 13px;">
                                                             <li><?php _e('A verified Meta Business Account', 'chatbot-plugin'); ?></li>
                                                             <li><?php _e('A registered WhatsApp Business phone number', 'chatbot-plugin'); ?></li>
-                                                            <li><?php _e('Subscribe to the "messages" webhook field', 'chatbot-plugin'); ?></li>
+                                                            <li><?php _e('Your WordPress site must be accessible via HTTPS', 'chatbot-plugin'); ?></li>
                                                         </ul>
-                                                        <p style="margin: 8px 0 0 0; font-size: 13px; color: #6d5200;"><?php _e('For testing, Meta provides a test phone number in sandbox mode.', 'chatbot-plugin'); ?></p>
                                                     </div>
                                                 </div>
                                             </div>
+                                            <?php
+                                            // Only show tunnel URL field for local/dev environments
+                                            $site_url = site_url();
+                                            $is_local_dev = (
+                                                strpos($site_url, 'localhost') !== false ||
+                                                strpos($site_url, '127.0.0.1') !== false ||
+                                                strpos($site_url, '.local') !== false ||
+                                                strpos($site_url, '.ddev.site') !== false ||
+                                                strpos($site_url, '.test') !== false ||
+                                                strpos($site_url, '.dev') !== false ||
+                                                strpos($site_url, 'http://') === 0
+                                            );
+                                            if ($is_local_dev):
+                                            ?>
+                                            <!-- Public Webhook URL (Optional) - Only shown for local dev -->
+                                            <div class="whatsapp-input-group" style="margin-bottom: 10px; padding: 10px; background: #fff3cd; border-radius: 5px; border: 1px dashed #ffc107;">
+                                                <label for="chatbot_whatsapp_webhook_url_input" style="display: block; margin-bottom: 5px;">
+                                                    <strong><?php _e('Public Webhook URL (Required for Local Dev)', 'chatbot-plugin'); ?></strong>
+                                                </label>
+                                                <input type="text" id="chatbot_whatsapp_webhook_url_input" class="regular-text" placeholder="https://your-tunnel-url.trycloudflare.com" style="width: 100%;">
+                                                <p class="description" style="margin-top: 3px; font-size: 12px;"><?php _e('Your site appears to be local. Enter a tunnel URL (ngrok, cloudflared) so Meta can reach your webhook.', 'chatbot-plugin'); ?></p>
+                                            </div>
+                                            <?php else: ?>
+                                            <!-- Hidden input for production - will be empty and use site URL automatically -->
+                                            <input type="hidden" id="chatbot_whatsapp_webhook_url_input" value="">
+                                            <?php endif; ?>
+                                            <!-- App ID -->
+                                            <div class="whatsapp-input-group" style="margin-bottom: 10px;">
+                                                <label for="chatbot_whatsapp_app_id_input" style="display: block; margin-bottom: 5px;">
+                                                    <strong><?php _e('App ID', 'chatbot-plugin'); ?></strong>
+                                                </label>
+                                                <input type="text" id="chatbot_whatsapp_app_id_input" class="regular-text" placeholder="123456789012345" style="width: 100%;">
+                                                <p class="description" style="margin-top: 3px; font-size: 12px;"><?php _e('From App Settings → Basic', 'chatbot-plugin'); ?></p>
+                                            </div>
+                                            <!-- App Secret -->
+                                            <div class="whatsapp-input-group" style="margin-bottom: 10px;">
+                                                <label for="chatbot_whatsapp_app_secret_input" style="display: block; margin-bottom: 5px;">
+                                                    <strong><?php _e('App Secret', 'chatbot-plugin'); ?></strong>
+                                                </label>
+                                                <input type="password" id="chatbot_whatsapp_app_secret_input" class="regular-text" placeholder="abc123def456..." style="width: 100%;">
+                                                <button type="button" class="button button-small" onclick="var f=document.getElementById('chatbot_whatsapp_app_secret_input');f.type=f.type==='password'?'text':'password';" style="margin-top: 5px;">
+                                                    <?php _e('Show/Hide', 'chatbot-plugin'); ?>
+                                                </button>
+                                                <p class="description" style="margin-top: 3px; font-size: 12px;"><?php _e('From App Settings → Basic (click "Show")', 'chatbot-plugin'); ?></p>
+                                            </div>
+                                            <!-- Business Account ID -->
+                                            <div class="whatsapp-input-group" style="margin-bottom: 10px;">
+                                                <label for="chatbot_whatsapp_waba_id_input" style="display: block; margin-bottom: 5px;">
+                                                    <strong><?php _e('Business Account ID (WABA ID)', 'chatbot-plugin'); ?></strong>
+                                                </label>
+                                                <input type="text" id="chatbot_whatsapp_waba_id_input" class="regular-text" placeholder="123456789012345" style="width: 100%;">
+                                                <p class="description" style="margin-top: 3px; font-size: 12px;"><?php _e('From WhatsApp → API Setup (shown at top)', 'chatbot-plugin'); ?></p>
+                                            </div>
+                                            <!-- Phone Number ID -->
                                             <div class="whatsapp-input-group" style="margin-bottom: 10px;">
                                                 <label for="chatbot_whatsapp_phone_id_input" style="display: block; margin-bottom: 5px;">
                                                     <strong><?php _e('Phone Number ID', 'chatbot-plugin'); ?></strong>
                                                 </label>
                                                 <input type="text" id="chatbot_whatsapp_phone_id_input" class="regular-text" placeholder="123456789012345" style="width: 100%;">
+                                                <p class="description" style="margin-top: 3px; font-size: 12px;"><?php _e('From WhatsApp → API Setup (under "From" number)', 'chatbot-plugin'); ?></p>
                                             </div>
+                                            <!-- Access Token -->
                                             <div class="whatsapp-input-group" style="margin-bottom: 10px;">
                                                 <label for="chatbot_whatsapp_token_input" style="display: block; margin-bottom: 5px;">
                                                     <strong><?php _e('Access Token', 'chatbot-plugin'); ?></strong>
@@ -1061,6 +1074,7 @@ class Chatbot_Admin {
                                                 <button type="button" class="button button-small" onclick="var f=document.getElementById('chatbot_whatsapp_token_input');f.type=f.type==='password'?'text':'password';" style="margin-top: 5px;">
                                                     <?php _e('Show/Hide', 'chatbot-plugin'); ?>
                                                 </button>
+                                                <p class="description" style="margin-top: 3px; font-size: 12px;"><?php _e('Temporary (24h) or permanent System User token', 'chatbot-plugin'); ?></p>
                                             </div>
                                             <button type="button" id="chatbot_whatsapp_connect" class="button button-primary" data-config-id="<?php echo esc_attr($config->id); ?>" data-nonce="<?php echo wp_create_nonce('chatbot_whatsapp_connect'); ?>">
                                                 <?php _e('Connect WhatsApp', 'chatbot-plugin'); ?>
@@ -1084,18 +1098,6 @@ class Chatbot_Admin {
                                     <script type="text/javascript">
                                     (function($) {
                                         $(document).ready(function() {
-                                            // Show/hide webhook info
-                                            $('#chatbot_whatsapp_show_webhook').on('click', function() {
-                                                $('#whatsapp_webhook_info').slideToggle();
-                                                $('#whatsapp_debug_log').slideUp();
-                                            });
-
-                                            // Show/hide debug log
-                                            $('#chatbot_whatsapp_show_debug').on('click', function() {
-                                                $('#whatsapp_debug_log').slideToggle();
-                                                $('#whatsapp_webhook_info').slideUp();
-                                            });
-
                                             // Show/hide help content
                                             $('#chatbot_whatsapp_help_toggle').on('click', function() {
                                                 var content = $('#chatbot_whatsapp_help_content');
@@ -1112,7 +1114,6 @@ class Chatbot_Admin {
                                             // Show/hide test message form
                                             $('#chatbot_whatsapp_send_test').on('click', function() {
                                                 $('#whatsapp_test_form').slideToggle();
-                                                $('#whatsapp_webhook_info').slideUp();
                                             });
 
                                             $('#chatbot_whatsapp_send_test_cancel').on('click', function() {
@@ -1208,19 +1209,32 @@ class Chatbot_Admin {
 
                                             // Connect button
                                             $('#chatbot_whatsapp_connect').on('click', function() {
+                                                var webhookBaseUrl = $('#chatbot_whatsapp_webhook_url_input').val();
+                                                var appId = $('#chatbot_whatsapp_app_id_input').val();
+                                                var appSecret = $('#chatbot_whatsapp_app_secret_input').val();
+                                                var wabaId = $('#chatbot_whatsapp_waba_id_input').val();
                                                 var phoneId = $('#chatbot_whatsapp_phone_id_input').val();
                                                 var token = $('#chatbot_whatsapp_token_input').val();
                                                 var configId = $(this).data('config-id');
                                                 var status = $('#chatbot_whatsapp_status');
                                                 var button = $(this);
 
+                                                // Validate all required fields
+                                                if (!appId || !appSecret) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter App ID and App Secret', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
+                                                if (!wabaId) {
+                                                    status.html('<span style="color: red;"><?php _e('Please enter Business Account ID (WABA ID)', 'chatbot-plugin'); ?></span>');
+                                                    return;
+                                                }
                                                 if (!phoneId || !token) {
                                                     status.html('<span style="color: red;"><?php _e('Please enter Phone Number ID and Access Token', 'chatbot-plugin'); ?></span>');
                                                     return;
                                                 }
 
                                                 button.prop('disabled', true);
-                                                status.html('<span><?php _e('Connecting...', 'chatbot-plugin'); ?></span>');
+                                                status.html('<span><?php _e('Connecting and configuring webhooks...', 'chatbot-plugin'); ?></span>');
 
                                                 $.ajax({
                                                     url: ajaxurl,
@@ -1230,6 +1244,10 @@ class Chatbot_Admin {
                                                         platform: 'whatsapp',
                                                         config_id: configId,
                                                         credentials: {
+                                                            webhook_base_url: webhookBaseUrl,
+                                                            app_id: appId,
+                                                            app_secret: appSecret,
+                                                            business_account_id: wabaId,
                                                             phone_number_id: phoneId,
                                                             access_token: token
                                                         },
@@ -1237,17 +1255,21 @@ class Chatbot_Admin {
                                                     },
                                                     success: function(response) {
                                                         if (response.success) {
-                                                            status.html('<span style="color: green;"><?php _e('Connected! Reloading...', 'chatbot-plugin'); ?></span>');
-                                                            // Show webhook setup instructions
-                                                            if (response.data.setup_instructions) {
-                                                                var instructions = response.data.setup_instructions;
-                                                                alert('<?php _e('WhatsApp connected! Next step: Configure the webhook in your Meta App Dashboard.', 'chatbot-plugin'); ?>\n\n' +
-                                                                    '<?php _e('Callback URL:', 'chatbot-plugin'); ?> ' + instructions.webhook_url + '\n' +
-                                                                    '<?php _e('Verify Token:', 'chatbot-plugin'); ?> ' + instructions.verify_token);
+                                                            var msg = response.data.message || '<?php _e('Connected!', 'chatbot-plugin'); ?>';
+                                                            var color = response.data.webhook_configured ? 'green' : 'orange';
+                                                            status.html('<span style="color: ' + color + ';">' + msg + '</span>');
+
+                                                            // Show warning alert if webhooks not configured
+                                                            if (response.data.webhook_warning) {
+                                                                alert('<?php _e('WhatsApp Connected!', 'chatbot-plugin'); ?>\n\n' +
+                                                                    '<?php _e('Warning:', 'chatbot-plugin'); ?> ' + response.data.webhook_warning + '\n\n' +
+                                                                    '<?php _e('Webhook URL:', 'chatbot-plugin'); ?> ' + response.data.webhook_url + '\n' +
+                                                                    '<?php _e('Verify Token:', 'chatbot-plugin'); ?> ' + response.data.verify_token);
                                                             }
+
                                                             setTimeout(function() {
                                                                 window.location.reload();
-                                                            }, 1000);
+                                                            }, 1500);
                                                         } else {
                                                             status.html('<span style="color: red;">' + (response.data.message || '<?php _e('Connection failed', 'chatbot-plugin'); ?>') + '</span>');
                                                             button.prop('disabled', false);

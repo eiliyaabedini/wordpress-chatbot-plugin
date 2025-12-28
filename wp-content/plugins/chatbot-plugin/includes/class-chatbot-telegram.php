@@ -1,8 +1,15 @@
 <?php
 /**
- * Chatbot Telegram Integration
+ * Chatbot Telegram Integration (Legacy)
  *
- * Handles Telegram bot integration for chatbot configurations
+ * Handles Telegram bot integration for chatbot configurations.
+ *
+ * @deprecated 1.7.0 Use Chatbot_Platform_Telegram from the messaging platform architecture instead.
+ * @see Chatbot_Platform_Telegram
+ *
+ * This legacy class is kept for backward compatibility. It registers REST API endpoints
+ * and handles AJAX requests. New development should use the Chatbot_Platform_Telegram
+ * class which integrates with the message pipeline architecture.
  */
 
 // If this file is called directly, abort.
@@ -10,6 +17,9 @@ if (!defined('WPINC')) {
     die;
 }
 
+/**
+ * @deprecated 1.7.0 Use Chatbot_Platform_Telegram instead.
+ */
 class Chatbot_Telegram {
 
     private static $instance = null;

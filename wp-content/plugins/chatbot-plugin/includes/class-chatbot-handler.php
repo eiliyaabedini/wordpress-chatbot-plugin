@@ -415,9 +415,10 @@ class Chatbot_Handler {
     }
 
     /**
-     * Generate a response for a Telegram message
+     * Generate a response for Telegram messages.
      *
-     * This is a public wrapper around generate_response for external callers like Telegram
+     * @deprecated 1.7.0 Use Chatbot_Message_Pipeline instead via Chatbot_Platform_Telegram.
+     * @see Chatbot_Platform_Telegram::process_incoming_message()
      *
      * @param string $message The user's message
      * @param int $conversation_id The conversation ID
@@ -429,9 +430,14 @@ class Chatbot_Handler {
     }
 
     /**
-     * Generate a response for any messaging platform
+     * Generate a response for any messaging platform.
      *
-     * This is a public wrapper around generate_response for external callers like Telegram, WhatsApp, etc.
+     * @deprecated 1.7.0 Use Chatbot_Message_Pipeline instead via platform classes.
+     * @see Chatbot_Messaging_Platform::process_incoming_message()
+     *
+     * This legacy method is kept for backward compatibility. New code should use
+     * the message pipeline architecture via Chatbot_Platform_Web, Chatbot_Platform_Telegram,
+     * or Chatbot_Platform_WhatsApp classes.
      *
      * @param string $message The user's message
      * @param int $conversation_id The conversation ID

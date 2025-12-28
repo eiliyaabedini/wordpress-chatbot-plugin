@@ -11,14 +11,77 @@ if (!defined('WPINC')) {
 }
 
 class Chatbot_DB {
-    
+
     private static $instance = null;
-    
+
+    /**
+     * Conversation repository instance.
+     *
+     * @since 1.7.0
+     * @var Chatbot_Conversation_Repository|null
+     */
+    private $conversation_repository = null;
+
+    /**
+     * Message repository instance.
+     *
+     * @since 1.7.0
+     * @var Chatbot_Message_Repository|null
+     */
+    private $message_repository = null;
+
+    /**
+     * Configuration repository instance.
+     *
+     * @since 1.7.0
+     * @var Chatbot_Configuration_Repository|null
+     */
+    private $configuration_repository = null;
+
     public static function get_instance() {
         if (null === self::$instance) {
             self::$instance = new self();
         }
         return self::$instance;
+    }
+
+    /**
+     * Inject repository dependencies.
+     *
+     * This method allows the DI container to inject repositories,
+     * enabling delegation of database operations while maintaining
+     * backward compatibility with direct usage.
+     *
+     * @since 1.7.0
+     * @param Chatbot_Conversation_Repository $conversation_repo The conversation repository.
+     * @param Chatbot_Message_Repository      $message_repo      The message repository.
+     * @param Chatbot_Configuration_Repository $config_repo      The configuration repository.
+     * @return void
+     */
+    public function set_repositories(
+        Chatbot_Conversation_Repository $conversation_repo,
+        Chatbot_Message_Repository $message_repo,
+        Chatbot_Configuration_Repository $config_repo
+    ) {
+        $this->conversation_repository = $conversation_repo;
+        $this->message_repository = $message_repo;
+        $this->configuration_repository = $config_repo;
+
+        if (function_exists('chatbot_log')) {
+            chatbot_log('DEBUG', 'chatbot_db', 'Repositories injected into Chatbot_DB');
+        }
+    }
+
+    /**
+     * Check if repositories are available for delegation.
+     *
+     * @since 1.7.0
+     * @return bool True if all repositories are injected.
+     */
+    private function has_repositories() {
+        return $this->conversation_repository !== null
+            && $this->message_repository !== null
+            && $this->configuration_repository !== null;
     }
     
     /**
@@ -33,6 +96,34 @@ class Chatbot_DB {
      * @return int|false The conversation ID or false on failure
      */
     public function create_conversation($visitor_name, $chatbot_config_id = null, $chatbot_config_name = null, $telegram_chat_id = null, $platform_type = null, $platform_chat_id = null) {
+        // Delegate to repository if available
+        if ($this->conversation_repository !== null) {
+            $data = array(
+                'visitor_name' => $visitor_name,
+                'status' => 'active',
+            );
+
+            if (!empty($chatbot_config_id)) {
+                $data['chatbot_config_id'] = $chatbot_config_id;
+            }
+            if (!empty($chatbot_config_name)) {
+                $data['chatbot_config_name'] = $chatbot_config_name;
+            }
+            if (!empty($telegram_chat_id)) {
+                $data['telegram_chat_id'] = $telegram_chat_id;
+            }
+            if (!empty($platform_type)) {
+                $data['platform_type'] = $platform_type;
+            }
+            if (!empty($platform_chat_id)) {
+                $data['platform_chat_id'] = $platform_chat_id;
+            }
+
+            $result = $this->conversation_repository->create($data);
+            return $result !== null ? $result : false;
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_conversations';
@@ -88,17 +179,24 @@ class Chatbot_DB {
     
     /**
      * Add a message to a conversation
-     * 
+     *
      * @param int $conversation_id The conversation ID
      * @param string $sender_type The sender type ('user', 'admin', 'ai', 'system')
      * @param string $message The message content
      * @return int|false The message ID or false on failure
      */
     public function add_message($conversation_id, $sender_type, $message) {
+        // Delegate to repository if available
+        if ($this->message_repository !== null) {
+            $result = $this->message_repository->save($conversation_id, $sender_type, $message);
+            return $result !== null ? $result : false;
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_messages';
-        
+
         // Update the conversation's updated_at timestamp
         $conversation_table = $wpdb->prefix . 'chatbot_conversations';
         $wpdb->update(
@@ -108,7 +206,7 @@ class Chatbot_DB {
             array('%s'),
             array('%d')
         );
-        
+
         $result = $wpdb->insert(
             $table,
             array(
@@ -118,30 +216,36 @@ class Chatbot_DB {
             ),
             array('%d', '%s', '%s')
         );
-        
+
         if ($result === false) {
             return false;
         }
-        
+
         return $wpdb->insert_id;
     }
     
     /**
      * Get messages for a conversation
-     * 
+     *
      * @param int $conversation_id The conversation ID
      * @return array An array of message objects
      */
     public function get_messages($conversation_id) {
+        // Delegate to repository if available
+        if ($this->message_repository !== null) {
+            return $this->message_repository->get_for_conversation($conversation_id);
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_messages';
-        
+
         $query = $wpdb->prepare(
             "SELECT * FROM $table WHERE conversation_id = %d ORDER BY timestamp ASC",
             $conversation_id
         );
-        
+
         return $wpdb->get_results($query);
     }
     
@@ -241,6 +345,12 @@ class Chatbot_DB {
      * @return object|null The conversation object or null if not found
      */
     public function get_conversation($conversation_id) {
+        // Delegate to repository if available
+        if ($this->conversation_repository !== null) {
+            return $this->conversation_repository->find($conversation_id);
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_conversations';
@@ -385,33 +495,39 @@ class Chatbot_DB {
     
     /**
      * Delete a conversation and all its messages
-     * 
+     *
      * @param int $conversation_id The conversation ID
      * @return bool Whether the deletion was successful
      */
     public function delete_conversation($conversation_id) {
+        // Delegate to repository if available
+        if ($this->conversation_repository !== null) {
+            return $this->conversation_repository->delete($conversation_id);
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
-        
+
         $conversations_table = $wpdb->prefix . 'chatbot_conversations';
         $messages_table = $wpdb->prefix . 'chatbot_messages';
-        
+
         // Start transaction
         $wpdb->query('START TRANSACTION');
-        
+
         // Delete messages first
         $messages_deleted = $wpdb->delete(
             $messages_table,
             array('conversation_id' => $conversation_id),
             array('%d')
         );
-        
+
         // Then delete the conversation
         $conversation_deleted = $wpdb->delete(
             $conversations_table,
             array('id' => $conversation_id),
             array('%d')
         );
-        
+
         // Commit or rollback
         if ($messages_deleted !== false && $conversation_deleted !== false) {
             $wpdb->query('COMMIT');
@@ -662,54 +778,72 @@ class Chatbot_DB {
     
     /**
      * Get a single chatbot configuration by ID
-     * 
+     *
      * @param int $id Configuration ID
      * @return object|null The configuration object or null if not found
      */
     public function get_configuration($id) {
+        // Delegate to repository if available
+        if ($this->configuration_repository !== null) {
+            return $this->configuration_repository->find($id);
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_configurations';
-        
+
         $query = $wpdb->prepare(
             "SELECT * FROM $table WHERE id = %d",
             $id
         );
-        
+
         return $wpdb->get_row($query);
     }
-    
+
     /**
      * Get a chatbot configuration by name
-     * 
+     *
      * @param string $name Configuration name
      * @return object|null The configuration object or null if not found
      */
     public function get_configuration_by_name($name) {
+        // Delegate to repository if available
+        if ($this->configuration_repository !== null) {
+            return $this->configuration_repository->find_by_name($name);
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_configurations';
-        
+
         $query = $wpdb->prepare(
             "SELECT * FROM $table WHERE name = %s",
             $name
         );
-        
+
         return $wpdb->get_row($query);
     }
-    
+
     /**
      * Check if a configuration name already exists
-     * 
+     *
      * @param string $name Configuration name
      * @param int $exclude_id Optional ID to exclude from the check
      * @return bool Whether the name exists
      */
     public function configuration_name_exists($name, $exclude_id = 0) {
+        // Delegate to repository if available
+        if ($this->configuration_repository !== null) {
+            return $this->configuration_repository->name_exists($name, $exclude_id);
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
-        
+
         $table = $wpdb->prefix . 'chatbot_configurations';
-        
+
         if ($exclude_id > 0) {
             $query = $wpdb->prepare(
                 "SELECT COUNT(*) FROM $table WHERE name = %s AND id != %d",
@@ -721,16 +855,22 @@ class Chatbot_DB {
                 $name
             );
         }
-        
+
         return (int) $wpdb->get_var($query) > 0;
     }
-    
+
     /**
      * Get all chatbot configurations
-     * 
+     *
      * @return array An array of configuration objects
      */
     public function get_configurations() {
+        // Delegate to repository if available
+        if ($this->configuration_repository !== null) {
+            return $this->configuration_repository->get_all();
+        }
+
+        // Legacy implementation for backward compatibility
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_configurations';
