@@ -58,12 +58,10 @@ class Chatbot_Settings {
 
         // Register general settings
         register_setting('chatbot_settings', 'chatbot_welcome_message');
-        register_setting('chatbot_settings', 'chatbot_chat_greeting');
         register_setting('chatbot_settings', 'chatbot_primary_color'); // Single color setting
         register_setting('chatbot_settings', 'chatbot_button_icon');
         register_setting('chatbot_settings', 'chatbot_button_icon_type');
         register_setting('chatbot_settings', 'chatbot_button_icon_url');
-        register_setting('chatbot_settings', 'chatbot_typing_indicator_text');
 
         // Register rate limit settings
         register_setting('chatbot_settings', 'chatbot_rate_limit_per_minute', array(
@@ -143,22 +141,6 @@ class Chatbot_Settings {
             'chatbot_welcome_message',
             __('Welcome Message', 'chatbot-plugin'),
             array($this, 'render_welcome_message_field'),
-            'chatbot_settings',
-            'chatbot_general_settings'
-        );
-        
-        add_settings_field(
-            'chatbot_chat_greeting',
-            __('Chat Greeting', 'chatbot-plugin'),
-            array($this, 'render_chat_greeting_field'),
-            'chatbot_settings',
-            'chatbot_general_settings'
-        );
-        
-        add_settings_field(
-            'chatbot_typing_indicator_text',
-            __('Typing Indicator Text', 'chatbot-plugin'),
-            array($this, 'render_typing_indicator_text_field'),
             'chatbot_settings',
             'chatbot_general_settings'
         );

@@ -3,7 +3,7 @@
  * Plugin Name: AIPass Chat
  * Plugin URI: https://aipass.one
  * Description: AI-powered chatbot for WordPress. Connect to 161+ AI models including GPT-4 and Gemini via AIPass.
- * Version: 1.7.0
+ * Version: 1.8.18
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -17,8 +17,115 @@ if (!defined('WPINC')) {
     die;
 }
 
+// =============================================================================
+// CORS HANDLING FOR EMBED ENDPOINTS - MUST RUN BEFORE ANYTHING ELSE
+// =============================================================================
+// This handles CORS preflight (OPTIONS) requests before WordPress REST API loads
+// Without this, browsers will block cross-origin requests from embedded chatbots
+//
+// IMPORTANT: This code runs at plugin file load time, which is the earliest
+// point we can intercept requests in WordPress plugin context.
+// =============================================================================
+
+/**
+ * Check if current request is to embed endpoints
+ * Handles both pretty permalinks (/wp-json/) and query string (?rest_route=)
+ */
+function chatbot_is_embed_request() {
+    $request_uri = isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '';
+    $query_string = isset($_SERVER['QUERY_STRING']) ? $_SERVER['QUERY_STRING'] : '';
+
+    // Check URL path (pretty permalinks)
+    if (strpos($request_uri, '/wp-json/chatbot-plugin/v1/embed/') !== false) {
+        return true;
+    }
+
+    // Check query string (non-pretty permalinks)
+    if (strpos($query_string, 'rest_route=/chatbot-plugin/v1/embed/') !== false ||
+        strpos($request_uri, 'rest_route=/chatbot-plugin/v1/embed/') !== false) {
+        return true;
+    }
+
+    // Also check for REST_REQUEST constant (set by WordPress REST API)
+    if (defined('REST_REQUEST') && REST_REQUEST) {
+        if (strpos($request_uri, 'chatbot-plugin/v1/embed/') !== false) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Send CORS headers for embed endpoints
+ */
+function chatbot_send_embed_cors_headers() {
+    // Prevent duplicate headers
+    if (!headers_sent()) {
+        // Remove any existing CORS headers that WordPress might have set
+        if (function_exists('header_remove')) {
+            header_remove('Access-Control-Allow-Origin');
+            header_remove('Access-Control-Allow-Methods');
+            header_remove('Access-Control-Allow-Headers');
+            header_remove('Access-Control-Allow-Credentials');
+        }
+
+        // Set our permissive CORS headers
+        header('Access-Control-Allow-Origin: *');
+        header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE, HEAD');
+        header('Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept, Authorization, X-Session-ID, Cache-Control, X-WP-Nonce');
+        header('Access-Control-Max-Age: 86400');
+        header('Access-Control-Expose-Headers: X-WP-Total, X-WP-TotalPages');
+
+        // Explicitly disable credentials for wildcard origin
+        header('Access-Control-Allow-Credentials: false');
+    }
+}
+
+// Handle CORS immediately at plugin load time
+if (chatbot_is_embed_request()) {
+    chatbot_send_embed_cors_headers();
+
+    // For OPTIONS preflight requests, respond immediately
+    if (isset($_SERVER['REQUEST_METHOD']) && strtoupper($_SERVER['REQUEST_METHOD']) === 'OPTIONS') {
+        // Send a clean 200 response
+        header('Content-Type: text/plain; charset=UTF-8');
+        header('Content-Length: 0');
+        http_response_code(200);
+        exit(0);
+    }
+}
+
+// Also hook into WordPress send_headers for additional safety
+add_action('send_headers', function() {
+    if (chatbot_is_embed_request()) {
+        chatbot_send_embed_cors_headers();
+    }
+}, 1);
+
+// Hook into REST API initialization to ensure CORS is set
+add_action('rest_api_init', function() {
+    // Add filter to modify REST API responses for embed endpoints
+    add_filter('rest_pre_serve_request', function($served, $result, $request, $server) {
+        if (chatbot_is_embed_request()) {
+            chatbot_send_embed_cors_headers();
+        }
+        return $served;
+    }, 0, 4);
+
+    // Handle OPTIONS requests that make it to WordPress REST API
+    add_filter('rest_pre_dispatch', function($result, $server, $request) {
+        if (chatbot_is_embed_request() && $request->get_method() === 'OPTIONS') {
+            chatbot_send_embed_cors_headers();
+            return new WP_REST_Response(null, 200);
+        }
+        return $result;
+    }, 0, 3);
+}, 0);
+// =============================================================================
+
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.7.0');
+define('CHATBOT_PLUGIN_VERSION', '1.8.18');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CHATBOT_DEFAULT_MODEL', 'gemini/gemini-2.5-flash-lite'); // Default AI model for all API calls
@@ -41,6 +148,9 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-analytics.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-notifications.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-rate-limiter.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-data-retention.php';
+
+// Load embed API for external website embedding
+require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-embed-api.php';
 
 // Load new messaging platform architecture
 require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-messaging-platform.php';
@@ -585,6 +695,70 @@ function update_chatbot_database_tables() {
 
         chatbot_log('INFO', 'update_tables', 'Added n8n_settings column to configurations table');
     }
+
+    // Check for embed_token column (for external website embedding)
+    $check_embed_token_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_configurations',
+            'embed_token'
+        )
+    );
+
+    if (empty($check_embed_token_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding embed_token and embed_enabled columns to configurations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `embed_token` varchar(64) DEFAULT NULL AFTER `n8n_settings`",
+            $wpdb->prefix . 'chatbot_configurations'
+        );
+        $wpdb->query($alter_query);
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `embed_enabled` tinyint(1) DEFAULT 0 AFTER `embed_token`",
+            $wpdb->prefix . 'chatbot_configurations'
+        );
+        $wpdb->query($alter_query);
+
+        // Add index for embed_token for faster lookups
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD INDEX `embed_token` (`embed_token`)",
+            $wpdb->prefix . 'chatbot_configurations'
+        );
+        $wpdb->query($alter_query);
+
+        chatbot_log('INFO', 'update_tables', 'Added embed_token and embed_enabled columns to configurations table');
+    }
+
+    // Check for greeting column (per-chatbot greeting message)
+    $check_greeting_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_configurations',
+            'greeting'
+        )
+    );
+
+    if (empty($check_greeting_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding greeting column to configurations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `greeting` text DEFAULT NULL AFTER `embed_enabled`",
+            $wpdb->prefix . 'chatbot_configurations'
+        );
+        $wpdb->query($alter_query);
+
+        // Migrate global greeting setting to all existing chatbots
+        $global_greeting = get_option('chatbot_chat_greeting', 'Hello %s! How can I help you today?');
+        $wpdb->query($wpdb->prepare(
+            "UPDATE `{$wpdb->prefix}chatbot_configurations` SET `greeting` = %s WHERE `greeting` IS NULL",
+            $global_greeting
+        ));
+
+        chatbot_log('INFO', 'update_tables', 'Added greeting column to configurations table and migrated global setting');
+    }
 }
 add_action('plugins_loaded', 'update_chatbot_database_tables');
 
@@ -616,6 +790,14 @@ function chatbot_register_messaging_platforms() {
     do_action('chatbot_register_messaging_platforms', $manager);
 }
 add_action('init', 'chatbot_register_messaging_platforms', 5);
+
+/**
+ * Initialize embed API for external website embedding
+ */
+function chatbot_init_embed_api() {
+    Chatbot_Embed_API::get_instance();
+}
+add_action('init', 'chatbot_init_embed_api', 5);
 
 // Plugin deactivation
 function deactivate_chatbot_plugin() {

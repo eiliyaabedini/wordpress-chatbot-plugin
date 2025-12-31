@@ -730,4 +730,284 @@
         }
     });
 
+    // =================================================================
+    // Embed Code Modal Functionality
+    // =================================================================
+
+    var embedModal = {
+        currentConfigId: null,
+        currentNonce: null,
+        embedUrl: null,
+        embedToken: null,
+
+        init: function() {
+            var self = this;
+
+            // Open modal when clicking "Get Embed Code" button
+            $(document).on('click', '.chatbot-embed-code-btn', function() {
+                self.currentConfigId = $(this).data('config-id');
+                self.currentNonce = $(this).data('nonce');
+                self.openModal();
+            });
+
+            // Close modal
+            $(document).on('click', '.chatbot-modal-close, .chatbot-modal-overlay', function() {
+                self.closeModal();
+            });
+
+            // Enable embedding
+            $(document).on('click', '#enable-embed-btn', function() {
+                self.enableEmbed();
+            });
+
+            // Regenerate token
+            $(document).on('click', '#regenerate-token-btn', function() {
+                if (confirm('Are you sure? Existing embeds will stop working.')) {
+                    self.regenerateToken();
+                }
+            });
+
+            // Copy to clipboard
+            $(document).on('click', '#copy-embed-code', function() {
+                self.copyToClipboard();
+            });
+
+            // Update embed code when options change
+            $(document).on('change', 'input[name="embed-mode"], input[name="embed-theme"]', function() {
+                self.updateModeVisibility();
+                self.updateEmbedCode();
+            });
+
+            // Update embed code when target mode inputs change
+            $(document).on('input', '#embed-target-selector, #embed-avatar-url, #embed-bot-name, #embed-greeting, #embed-greeting-target', function() {
+                self.updateEmbedCode();
+            });
+
+            // Close modal on escape key
+            $(document).on('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    self.closeModal();
+                }
+            });
+        },
+
+        updateModeVisibility: function() {
+            var mode = $('input[name="embed-mode"]:checked').val();
+
+            if (mode === 'target') {
+                // Show target mode options, hide theme options
+                $('#target-mode-options').show();
+                $('#theme-options').hide();
+            } else {
+                // Hide target mode options, show theme options
+                $('#target-mode-options').hide();
+                $('#theme-options').show();
+            }
+        },
+
+        openModal: function() {
+            var self = this;
+            var $modal = $('#chatbot-embed-modal');
+
+            // Reset modal state - default to floating mode
+            $('input[name="embed-mode"][value="floating"]').prop('checked', true);
+            $('input[name="embed-theme"][value="light"]').prop('checked', true);
+            $('#embed-target-selector').val('.chat-interface');
+            $('#embed-avatar-url').val('');
+            $('#embed-bot-name').val('');
+            $('#embed-greeting').val('');
+            $('#embed-greeting-target').val('');
+            self.updateModeVisibility();
+
+            // Show modal
+            $modal.show();
+
+            // Fetch current embed status
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'chatbot_get_embed_code',
+                    config_id: self.currentConfigId,
+                    nonce: self.currentNonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        self.embedUrl = response.data.embed_url;
+                        self.embedToken = response.data.embed_token;
+
+                        if (response.data.embed_enabled && response.data.embed_token) {
+                            // Show embed code section
+                            $('#embed-not-enabled').hide();
+                            $('#embed-enabled').show();
+                            self.updateEmbedCode();
+                        } else {
+                            // Show enable button
+                            $('#embed-not-enabled').show();
+                            $('#embed-enabled').hide();
+                        }
+                    } else {
+                        alert('Error: ' + (response.data.message || 'Failed to get embed info'));
+                        self.closeModal();
+                    }
+                },
+                error: function() {
+                    alert('Failed to connect to server');
+                    self.closeModal();
+                }
+            });
+        },
+
+        closeModal: function() {
+            $('#chatbot-embed-modal').hide();
+        },
+
+        enableEmbed: function() {
+            var self = this;
+            var $btn = $('#enable-embed-btn');
+
+            $btn.prop('disabled', true).text('Enabling...');
+
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'chatbot_enable_embed',
+                    config_id: self.currentConfigId,
+                    nonce: self.currentNonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        self.embedUrl = response.data.embed_url;
+                        self.embedToken = response.data.embed_token;
+
+                        // Switch to embed code view
+                        $('#embed-not-enabled').hide();
+                        $('#embed-enabled').show();
+                        self.updateEmbedCode();
+
+                        // Update the button in the list
+                        $('.chatbot-embed-code-btn[data-config-id="' + self.currentConfigId + '"]')
+                            .data('embed-enabled', '1');
+                    } else {
+                        alert('Error: ' + (response.data.message || 'Failed to enable embedding'));
+                    }
+                },
+                error: function() {
+                    alert('Failed to connect to server');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text('Enable Embedding');
+                }
+            });
+        },
+
+        regenerateToken: function() {
+            var self = this;
+            var $btn = $('#regenerate-token-btn');
+
+            $btn.prop('disabled', true).text('Regenerating...');
+
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'chatbot_regenerate_embed_token',
+                    config_id: self.currentConfigId,
+                    nonce: self.currentNonce
+                },
+                success: function(response) {
+                    if (response.success) {
+                        self.embedToken = response.data.embed_token;
+                        self.updateEmbedCode();
+                        alert('Token regenerated successfully!');
+                    } else {
+                        alert('Error: ' + (response.data.message || 'Failed to regenerate token'));
+                    }
+                },
+                error: function() {
+                    alert('Failed to connect to server');
+                },
+                complete: function() {
+                    $btn.prop('disabled', false).text('Regenerate Token');
+                }
+            });
+        },
+
+        updateEmbedCode: function() {
+            var mode = $('input[name="embed-mode"]:checked').val();
+            var theme = $('input[name="embed-theme"]:checked').val();
+            var code = '';
+
+            if (mode === 'target') {
+                // Target mode - include target selector and optional settings
+                // Greeting now comes from per-chatbot config, not embed attributes
+                var targetSelector = $('#embed-target-selector').val() || '.chat-interface';
+                var avatarUrl = $('#embed-avatar-url').val();
+                var botName = $('#embed-bot-name').val();
+
+                code = '<script src="' + this.embedUrl + '"\n' +
+                       '  data-chatbot-token="' + this.embedToken + '"\n' +
+                       '  data-chatbot-mode="target"\n' +
+                       '  data-chatbot-target="' + this.escapeHtml(targetSelector) + '"';
+
+                if (botName && botName.trim()) {
+                    code += '\n  data-chatbot-bot-name="' + this.escapeHtml(botName.trim()) + '"';
+                }
+
+                if (avatarUrl && avatarUrl.trim()) {
+                    code += '\n  data-chatbot-avatar="' + this.escapeHtml(avatarUrl.trim()) + '"';
+                }
+
+                code += '>\n</script>';
+            } else {
+                // Floating or inline mode - include theme
+                code = '<script src="' + this.embedUrl + '"\n' +
+                       '  data-chatbot-token="' + this.embedToken + '"\n' +
+                       '  data-chatbot-mode="' + mode + '"\n' +
+                       '  data-chatbot-theme="' + theme + '">\n' +
+                       '</script>';
+            }
+
+            $('#embed-code-output').val(code);
+        },
+
+        escapeHtml: function(text) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        },
+
+        copyToClipboard: function() {
+            var $textarea = $('#embed-code-output');
+            var $btn = $('#copy-embed-code');
+
+            // Select the text
+            $textarea[0].select();
+            $textarea[0].setSelectionRange(0, 99999); // For mobile
+
+            // Copy using Clipboard API or fallback
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText($textarea.val()).then(function() {
+                    $btn.text('Copied!');
+                    setTimeout(function() {
+                        $btn.text('Copy to Clipboard');
+                    }, 2000);
+                });
+            } else {
+                // Fallback for older browsers
+                document.execCommand('copy');
+                $btn.text('Copied!');
+                setTimeout(function() {
+                    $btn.text('Copy to Clipboard');
+                }, 2000);
+            }
+        }
+    };
+
+    // Initialize embed modal on document ready
+    $(document).ready(function() {
+        embedModal.init();
+    });
+
 })(jQuery);

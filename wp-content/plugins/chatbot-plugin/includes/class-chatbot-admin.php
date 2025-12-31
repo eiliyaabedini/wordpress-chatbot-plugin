@@ -39,6 +39,11 @@ class Chatbot_Admin {
         add_action('wp_ajax_chatbot_search_content', array($this, 'ajax_search_content'));
         add_action('wp_ajax_chatbot_get_post_tokens', array($this, 'ajax_get_post_tokens'));
 
+        // Register AJAX handlers for embed functionality
+        add_action('wp_ajax_chatbot_get_embed_code', array($this, 'ajax_get_embed_code'));
+        add_action('wp_ajax_chatbot_enable_embed', array($this, 'ajax_enable_embed'));
+        add_action('wp_ajax_chatbot_regenerate_embed_token', array($this, 'ajax_regenerate_embed_token'));
+
         // Handle admin actions
         add_action('admin_init', array($this, 'handle_admin_actions'));
 
@@ -450,6 +455,19 @@ class Chatbot_Admin {
                                         <input type="text" name="chatbot_config_name" id="chatbot_config_name" class="regular-text" value="<?php echo esc_attr($name); ?>" required>
                                         <p class="description"><?php _e('Enter a unique name for this chatbot. This will be used in the shortcode.', 'chatbot-plugin'); ?></p>
                                         <p class="description"><?php _e('Example shortcode:', 'chatbot-plugin'); ?> <code>[chatbot name="<?php echo esc_attr($name ?: 'product'); ?>"]</code></p>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row">
+                                        <label for="chatbot_greeting"><?php _e('Greeting Message', 'chatbot-plugin'); ?></label>
+                                    </th>
+                                    <td>
+                                        <?php
+                                        $default_greeting = 'Hello %s! How can I help you today?';
+                                        $greeting = $editing && isset($config->greeting) ? $config->greeting : $default_greeting;
+                                        ?>
+                                        <textarea name="chatbot_greeting" id="chatbot_greeting" class="large-text" rows="2"><?php echo esc_textarea($greeting); ?></textarea>
+                                        <p class="description"><?php _e('The greeting message shown when a chat begins. Use %s where the visitor\'s name should appear.', 'chatbot-plugin'); ?></p>
                                     </td>
                                 </tr>
                                 <tr>
@@ -2015,6 +2033,7 @@ class Chatbot_Admin {
                             <tr>
                                 <th scope="col"><?php _e('Name', 'chatbot-plugin'); ?></th>
                                 <th scope="col"><?php _e('Shortcode', 'chatbot-plugin'); ?></th>
+                                <th scope="col"><?php _e('Embed', 'chatbot-plugin'); ?></th>
                                 <th scope="col"><?php _e('Conversations', 'chatbot-plugin'); ?></th>
                                 <th scope="col"><?php _e('Actions', 'chatbot-plugin'); ?></th>
                             </tr>
@@ -2025,11 +2044,20 @@ class Chatbot_Admin {
                                     <td><?php echo esc_html($config->name); ?></td>
                                     <td><code>[chatbot name="<?php echo esc_attr($config->name); ?>"]</code></td>
                                     <td>
-                                        <?php 
-                                        $conversation_count = $db->get_conversation_count_by_chatbot($config->id); 
+                                        <button type="button" class="button button-small chatbot-embed-code-btn"
+                                                data-config-id="<?php echo esc_attr($config->id); ?>"
+                                                data-config-name="<?php echo esc_attr($config->name); ?>"
+                                                data-embed-enabled="<?php echo !empty($config->embed_enabled) ? '1' : '0'; ?>"
+                                                data-nonce="<?php echo wp_create_nonce('chatbot_embed_code'); ?>">
+                                            <?php _e('Get Embed Code', 'chatbot-plugin'); ?>
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <?php
+                                        $conversation_count = $db->get_conversation_count_by_chatbot($config->id);
                                         ?>
                                         <a href="<?php echo admin_url('admin.php?page=chatbot-conversations' . ($config->id ? '&chatbot=' . $config->id : '')); ?>">
-                                            <?php echo number_format_i18n($conversation_count); ?> 
+                                            <?php echo number_format_i18n($conversation_count); ?>
                                             <?php echo _n('conversation', 'conversations', $conversation_count, 'chatbot-plugin'); ?>
                                         </a>
                                     </td>
@@ -2065,6 +2093,160 @@ class Chatbot_Admin {
                 </div>
             <?php endif; ?>
         </div>
+
+        <!-- Embed Code Modal -->
+        <div id="chatbot-embed-modal" class="chatbot-modal" style="display: none;">
+            <div class="chatbot-modal-overlay"></div>
+            <div class="chatbot-modal-content">
+                <div class="chatbot-modal-header">
+                    <h2><?php _e('Embed Code', 'chatbot-plugin'); ?></h2>
+                    <button type="button" class="chatbot-modal-close">&times;</button>
+                </div>
+                <div class="chatbot-modal-body">
+                    <div id="embed-not-enabled" style="display: none;">
+                        <p><?php _e('Embedding is not enabled for this chatbot. Click the button below to enable it and generate an embed token.', 'chatbot-plugin'); ?></p>
+                        <button type="button" class="button button-primary" id="enable-embed-btn">
+                            <?php _e('Enable Embedding', 'chatbot-plugin'); ?>
+                        </button>
+                    </div>
+                    <div id="embed-enabled" style="display: none;">
+                        <p><?php _e('Copy the code below and paste it into any website to embed this chatbot.', 'chatbot-plugin'); ?></p>
+
+                        <h4><?php _e('Display Mode', 'chatbot-plugin'); ?></h4>
+                        <div class="embed-options" style="margin-bottom: 15px;">
+                            <label style="display: inline-block; margin-right: 20px;">
+                                <input type="radio" name="embed-mode" value="floating" checked>
+                                <?php _e('Floating Button', 'chatbot-plugin'); ?>
+                            </label>
+                            <label style="display: inline-block; margin-right: 20px;">
+                                <input type="radio" name="embed-mode" value="inline">
+                                <?php _e('Inline Widget', 'chatbot-plugin'); ?>
+                            </label>
+                            <label style="display: inline-block;">
+                                <input type="radio" name="embed-mode" value="target">
+                                <?php _e('Target Element', 'chatbot-plugin'); ?>
+                            </label>
+                        </div>
+
+                        <!-- Target mode options -->
+                        <div id="target-mode-options" style="display: none; margin-bottom: 15px; padding: 15px; background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 4px;">
+                            <h4 style="margin-top: 0;"><?php _e('Target Mode Settings', 'chatbot-plugin'); ?></h4>
+                            <p class="description" style="margin-bottom: 10px;">
+                                <?php _e('Target mode injects the chatbot into an existing HTML element. Your CSS will apply directly (no Shadow DOM isolation).', 'chatbot-plugin'); ?>
+                            </p>
+                            <div style="margin-bottom: 10px;">
+                                <label for="embed-target-selector"><strong><?php _e('CSS Selector', 'chatbot-plugin'); ?></strong></label>
+                                <input type="text" id="embed-target-selector" value=".chat-interface" style="width: 100%; margin-top: 5px;" placeholder=".chat-interface or #my-chat">
+                                <p class="description"><?php _e('The CSS selector for the element to inject the chatbot into.', 'chatbot-plugin'); ?></p>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label for="embed-bot-name"><strong><?php _e('Bot Name', 'chatbot-plugin'); ?></strong></label>
+                                <input type="text" id="embed-bot-name" value="" style="width: 100%; margin-top: 5px;" placeholder="AI Assistant">
+                                <p class="description"><?php _e('Optional. Name displayed in the chat header. Leave empty to use server config.', 'chatbot-plugin'); ?></p>
+                            </div>
+                            <div style="margin-bottom: 10px;">
+                                <label for="embed-avatar-url"><strong><?php _e('Avatar Image URL', 'chatbot-plugin'); ?></strong></label>
+                                <input type="text" id="embed-avatar-url" value="" style="width: 100%; margin-top: 5px;" placeholder="https://example.com/avatar.png">
+                                <p class="description"><?php _e('Optional. URL of the avatar image to display in the chat header.', 'chatbot-plugin'); ?></p>
+                            </div>
+                        </div>
+
+                        <!-- Theme options (for floating/inline modes) -->
+                        <div id="theme-options">
+                            <h4><?php _e('Theme', 'chatbot-plugin'); ?></h4>
+                            <div class="embed-options" style="margin-bottom: 15px;">
+                                <label style="display: inline-block; margin-right: 20px;">
+                                    <input type="radio" name="embed-theme" value="light" checked>
+                                    <?php _e('Light', 'chatbot-plugin'); ?>
+                                </label>
+                                <label style="display: inline-block;">
+                                    <input type="radio" name="embed-theme" value="dark">
+                                    <?php _e('Dark', 'chatbot-plugin'); ?>
+                                </label>
+                            </div>
+                        </div>
+
+                        <h4><?php _e('Embed Code', 'chatbot-plugin'); ?></h4>
+                        <textarea id="embed-code-output" readonly rows="6" style="width: 100%; font-family: monospace; font-size: 12px; padding: 10px; background: #f5f5f5; border: 1px solid #ddd; border-radius: 4px;"></textarea>
+
+                        <div style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button type="button" class="button button-primary" id="copy-embed-code">
+                                <?php _e('Copy to Clipboard', 'chatbot-plugin'); ?>
+                            </button>
+                            <button type="button" class="button" id="regenerate-token-btn">
+                                <?php _e('Regenerate Token', 'chatbot-plugin'); ?>
+                            </button>
+                        </div>
+
+                        <p class="description" style="margin-top: 10px;">
+                            <?php _e('The embed code includes a unique token for this chatbot. If you regenerate the token, existing embeds will stop working.', 'chatbot-plugin'); ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            .chatbot-modal {
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                z-index: 100000;
+            }
+            .chatbot-modal-overlay {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: rgba(0, 0, 0, 0.5);
+            }
+            .chatbot-modal-content {
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                background: #fff;
+                border-radius: 8px;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+                width: 90%;
+                max-width: 600px;
+                max-height: 90vh;
+                overflow: auto;
+            }
+            .chatbot-modal-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 15px 20px;
+                border-bottom: 1px solid #e0e0e0;
+            }
+            .chatbot-modal-header h2 {
+                margin: 0;
+                font-size: 18px;
+            }
+            .chatbot-modal-close {
+                background: none;
+                border: none;
+                font-size: 24px;
+                cursor: pointer;
+                color: #666;
+                padding: 0;
+                line-height: 1;
+            }
+            .chatbot-modal-close:hover {
+                color: #333;
+            }
+            .chatbot-modal-body {
+                padding: 20px;
+            }
+            .chatbot-modal-body h4 {
+                margin: 0 0 8px 0;
+                font-size: 14px;
+            }
+        </style>
         <?php
     }
     
@@ -3323,6 +3505,7 @@ class Chatbot_Admin {
         $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
         $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
         $telegram_bot_token = isset($_POST['chatbot_telegram_bot_token']) ? sanitize_text_field($_POST['chatbot_telegram_bot_token']) : '';
+        $greeting = isset($_POST['chatbot_greeting']) ? sanitize_textarea_field($_POST['chatbot_greeting']) : 'Hello %s! How can I help you today?';
 
         // Validate knowledge_sources is valid JSON if provided
         if (!empty($knowledge_sources)) {
@@ -3395,7 +3578,7 @@ class Chatbot_Admin {
         ));
 
         // Add the configuration
-        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token);
+        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $greeting);
         
         if ($result) {
             // Success
@@ -3471,6 +3654,7 @@ class Chatbot_Admin {
         $persona = isset($_POST['chatbot_persona']) ? sanitize_textarea_field($_POST['chatbot_persona']) : '';
         $knowledge_sources = isset($_POST['chatbot_knowledge_sources']) ? sanitize_text_field($_POST['chatbot_knowledge_sources']) : '';
         $telegram_bot_token = isset($_POST['chatbot_telegram_bot_token']) ? sanitize_text_field($_POST['chatbot_telegram_bot_token']) : '';
+        $greeting = isset($_POST['chatbot_greeting']) ? sanitize_textarea_field($_POST['chatbot_greeting']) : 'Hello %s! How can I help you today?';
 
         // Build n8n settings JSON
         $n8n_enabled = isset($_POST['chatbot_n8n_enabled']) && $_POST['chatbot_n8n_enabled'] === '1';
@@ -3591,7 +3775,7 @@ class Chatbot_Admin {
         ));
 
         // Update the configuration
-        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $n8n_settings);
+        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $n8n_settings, $greeting);
         
         if ($result) {
             // Success
@@ -3617,6 +3801,153 @@ class Chatbot_Admin {
         
         wp_safe_redirect($redirect_url);
         exit;
+    }
+
+    /**
+     * AJAX handler to get embed code for a chatbot
+     */
+    public function ajax_get_embed_code() {
+        // Verify nonce and permissions
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_embed_code')) {
+            wp_send_json_error(array('message' => 'Security check failed'));
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+            return;
+        }
+
+        $config_id = isset($_POST['config_id']) ? intval($_POST['config_id']) : 0;
+        if ($config_id <= 0) {
+            wp_send_json_error(array('message' => 'Invalid configuration ID'));
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'chatbot_configurations';
+
+        $config = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, name, embed_token, embed_enabled FROM $table WHERE id = %d",
+            $config_id
+        ));
+
+        if (!$config) {
+            wp_send_json_error(array('message' => 'Configuration not found'));
+            return;
+        }
+
+        $embed_url = CHATBOT_PLUGIN_URL . 'assets/js/chatbot-embed.js';
+
+        wp_send_json_success(array(
+            'config_id' => $config->id,
+            'config_name' => $config->name,
+            'embed_enabled' => !empty($config->embed_enabled),
+            'embed_token' => $config->embed_token,
+            'embed_url' => $embed_url,
+        ));
+    }
+
+    /**
+     * AJAX handler to enable embedding and generate token
+     */
+    public function ajax_enable_embed() {
+        // Verify nonce and permissions
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_embed_code')) {
+            wp_send_json_error(array('message' => 'Security check failed'));
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+            return;
+        }
+
+        $config_id = isset($_POST['config_id']) ? intval($_POST['config_id']) : 0;
+        if ($config_id <= 0) {
+            wp_send_json_error(array('message' => 'Invalid configuration ID'));
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'chatbot_configurations';
+
+        // Generate new token
+        $token = Chatbot_Embed_API::generate_token();
+
+        // Update configuration
+        $result = $wpdb->update(
+            $table,
+            array(
+                'embed_token' => $token,
+                'embed_enabled' => 1,
+            ),
+            array('id' => $config_id),
+            array('%s', '%d'),
+            array('%d')
+        );
+
+        if ($result === false) {
+            wp_send_json_error(array('message' => 'Failed to enable embedding'));
+            return;
+        }
+
+        chatbot_log('INFO', 'admin', "Enabled embedding for config ID: $config_id");
+
+        $embed_url = CHATBOT_PLUGIN_URL . 'assets/js/chatbot-embed.js';
+
+        wp_send_json_success(array(
+            'embed_token' => $token,
+            'embed_url' => $embed_url,
+        ));
+    }
+
+    /**
+     * AJAX handler to regenerate embed token
+     */
+    public function ajax_regenerate_embed_token() {
+        // Verify nonce and permissions
+        if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'chatbot_embed_code')) {
+            wp_send_json_error(array('message' => 'Security check failed'));
+            return;
+        }
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => 'Unauthorized'));
+            return;
+        }
+
+        $config_id = isset($_POST['config_id']) ? intval($_POST['config_id']) : 0;
+        if ($config_id <= 0) {
+            wp_send_json_error(array('message' => 'Invalid configuration ID'));
+            return;
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'chatbot_configurations';
+
+        // Generate new token
+        $token = Chatbot_Embed_API::generate_token();
+
+        // Update configuration
+        $result = $wpdb->update(
+            $table,
+            array('embed_token' => $token),
+            array('id' => $config_id),
+            array('%s'),
+            array('%d')
+        );
+
+        if ($result === false) {
+            wp_send_json_error(array('message' => 'Failed to regenerate token'));
+            return;
+        }
+
+        chatbot_log('INFO', 'admin', "Regenerated embed token for config ID: $config_id");
+
+        wp_send_json_success(array(
+            'embed_token' => $token,
+        ));
     }
 }
 
