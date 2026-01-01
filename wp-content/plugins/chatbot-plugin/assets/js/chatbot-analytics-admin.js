@@ -222,9 +222,10 @@
         // Create a DOMPurify config to only allow safe tags
         if (typeof DOMPurify !== 'undefined') {
             // If DOMPurify is available, use it to sanitize the HTML
+            // IMPORTANT: Include 'button' for question suggestions and 'canvas' for charts
             contentDiv.html(DOMPurify.sanitize(formattedMessage, {
-                ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'ol', 'li', 'br', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'code'],
-                ALLOWED_ATTR: ['href', 'target', 'class', 'id', 'style']
+                ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'ul', 'ol', 'li', 'br', 'span', 'div', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'pre', 'code', 'button', 'canvas'],
+                ALLOWED_ATTR: ['href', 'target', 'class', 'id', 'style', 'type', 'width', 'height']
             }));
         } else {
             // If DOMPurify is not available, use a more restrictive approach

@@ -3,7 +3,7 @@
  * Plugin Name: AIPass Chat
  * Plugin URI: https://aipass.one
  * Description: AI-powered chatbot for WordPress. Connect to 161+ AI models including GPT-4 and Gemini via AIPass.
- * Version: 1.8.18
+ * Version: 1.8.19
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -125,7 +125,7 @@ add_action('rest_api_init', function() {
 // =============================================================================
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.8.18');
+define('CHATBOT_PLUGIN_VERSION', '1.8.19');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CHATBOT_DEFAULT_MODEL', 'gemini/gemini-2.5-flash-lite'); // Default AI model for all API calls
