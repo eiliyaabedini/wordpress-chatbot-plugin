@@ -259,7 +259,11 @@ class Chatbot_Handler {
         $conversation = $db->get_public_conversation($conversation_id, $conversation_token);
 
         if (!$conversation) {
-            wp_send_json_error(array('message' => 'Conversation not found.'));
+            wp_send_json_success(array(
+                'messages' => array(),
+                'conversation_status' => 'not_found',
+                'stale_conversation' => true,
+            ));
         }
 
         $messages = $db->get_messages($conversation_id);
@@ -300,7 +304,10 @@ class Chatbot_Handler {
         $conversation = $db->get_public_conversation($conversation_id, $conversation_token);
 
         if (!$conversation) {
-            wp_send_json_error(array('message' => 'Conversation not found.'));
+            wp_send_json_success(array(
+                'message' => 'Conversation already ended or no longer exists.',
+                'stale_conversation' => true,
+            ));
         }
 
         $result = $db->set_conversation_status($conversation_id, 'ended', true);
