@@ -53,13 +53,21 @@ class Chatbot_Addon_Manager {
     private function ensure_addons_directory() {
         if (!file_exists($this->custom_addons_dir)) {
             wp_mkdir_p($this->custom_addons_dir);
-            
-            // Write a simple index.php to prevent directory listing
-            file_put_contents($this->custom_addons_dir . 'index.php', '<?php // Silence is golden');
-            
-            // Also write a .htaccess to prevent execution of arbitrary files except PHP classes we check
-            file_put_contents($this->custom_addons_dir . '.htaccess', "Deny from all\n<Files ~ \"^class-chatbot-.*-addon\\.php$\">\nOrder Allow,Deny\nAllow from all\n</Files>");
         }
+
+        // Prevent directory listing and direct browser execution. WordPress loads
+        // addon files with include_once; browsers should not execute them.
+        file_put_contents($this->custom_addons_dir . 'index.php', '<?php // Silence is golden');
+        file_put_contents($this->custom_addons_dir . '.htaccess', "Require all denied\nDeny from all\n");
+
+        // IIS fallback for hosts that honor web.config instead of .htaccess.
+        file_put_contents(
+            $this->custom_addons_dir . 'web.config',
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" .
+            "<configuration><system.webServer><security><requestFiltering>" .
+            "<hiddenSegments><add segment=\"chatbot-addons\" /></hiddenSegments>" .
+            "</requestFiltering></security></system.webServer></configuration>\n"
+        );
     }
 
     /**
@@ -152,6 +160,13 @@ class Chatbot_Addon_Manager {
     }
 
     /**
+     * Get the protected directory where custom addon files are stored.
+     */
+    public function get_custom_addons_dir() {
+        return $this->custom_addons_dir;
+    }
+
+    /**
      * Delete an addon file from the uploads directory
      */
     public function delete_addon($id) {
@@ -216,6 +231,11 @@ class Chatbot_Addon_Manager {
      * @return bool True if validation succeeds, false otherwise
      */
     public function validate_addon_code($code, &$error_message, &$addon_id) {
+        if (!$this->has_wordpress_guard($code)) {
+            $error_message = __("Security validation failed. Addon code must start with a WordPress guard: if (!defined('WPINC')) { die; }", 'chatbot-plugin');
+            return false;
+        }
+
         // Parse class name: Chatbot_[Name]_Addon
         if (!preg_match('/\bclass\s+(Chatbot_([A-Za-z0-9_]+)_Addon)\b/i', $code, $matches)) {
             $error_message = __("Class validation failed. The code must define a class named like 'Chatbot_[Name]_Addon' (e.g. Chatbot_My_Custom_Addon).", 'chatbot-plugin');
@@ -256,17 +276,7 @@ class Chatbot_Addon_Manager {
                 $error_message = implode("\n", $output);
             }
         } else {
-            // Fallback: only include to check syntax if class does not exist yet to prevent fatal redeclaration error
-            if (class_exists($class_name)) {
-                $is_syntax_valid = true;
-            } else {
-                try {
-                    include $temp_filename;
-                    $is_syntax_valid = true;
-                } catch (Throwable $e) {
-                    $error_message = $e->getMessage();
-                }
-            }
+            $error_message = __("PHP syntax validation is unavailable because exec() is disabled on this server. Refusing to save executable addon code without lint validation.", 'chatbot-plugin');
         }
 
         // Delete temp file immediately
@@ -275,6 +285,16 @@ class Chatbot_Addon_Manager {
         }
 
         return $is_syntax_valid;
+    }
+
+    /**
+     * Check that addon code starts with a guard that blocks direct web execution.
+     */
+    private function has_wordpress_guard($code) {
+        return (bool) preg_match(
+            '/^\s*<\?php\s*(?:\/\*.*?\*\/\s*|\/\/[^\r\n]*(?:\r?\n)\s*)*if\s*\(\s*!\s*defined\s*\(\s*[\'"]WPINC[\'"]\s*\)\s*\)\s*\{\s*(?:die|exit)\s*\(?\s*\)?\s*;\s*\}/s',
+            $code
+        );
     }
 
     /**

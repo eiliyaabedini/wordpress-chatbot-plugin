@@ -6,10 +6,15 @@ This guide explains how to deploy custom capabilities to this WordPress chatbot 
 Your addon must be a valid PHP class structure that:
 1. Extends the base class `Chatbot_Addon`.
 2. Matches the filename class style. If the addon ID is `my-weather`, the file name must be `class-chatbot-my-weather-addon.php` and the class name must be `Chatbot_My_Weather_Addon`.
+3. Starts with the WordPress direct-access guard: `if (!defined('WPINC')) { die; }`.
 
 ### Example Code Blueprint:
 ```php
 <?php
+if (!defined('WPINC')) {
+    die;
+}
+
 class Chatbot_My_Weather_Addon extends Chatbot_Addon {
     public function __construct() {
         $this->id = 'my-weather';
@@ -66,9 +71,9 @@ Post the payload containing the addon settings and code to the REST target endpo
 ```json
 {
     "addon_id": "my-weather",
-    "code": "<?php\nclass Chatbot_My_Weather_Addon extends Chatbot_Addon { ... }"
+    "code": "<?php\nif (!defined('WPINC')) { die; }\nclass Chatbot_My_Weather_Addon extends Chatbot_Addon { ... }"
 }
 ```
 
 ### Execution Safeguards:
-The server will validate the PHP code using class compilation tests before finalizing the deploy. If there are syntax errors, the upload will fail with a 400 error description.
+The server will validate the PHP code using class compilation tests before finalizing the deploy. Addon files without the direct-access guard or with syntax errors will fail with a 400 error description. Uploaded addon files are stored in a protected uploads subdirectory and are loaded only by WordPress.

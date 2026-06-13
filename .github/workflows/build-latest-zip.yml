@@ -1,0 +1,72 @@
+name: Build Latest Plugin Zip
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_SLUG: chatbot-plugin
+  ZIP_NAME: chatbot-plugin-latest.zip
+  RELEASE_TAG: latest
+
+jobs:
+  build-latest-zip:
+    name: Build and publish latest zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build WordPress plugin zip
+        run: |
+          set -euo pipefail
+
+          mkdir -p build/release
+          rsync -a --delete \
+            --exclude=".DS_Store" \
+            --exclude="*.zip" \
+            "wp-content/plugins/${PLUGIN_SLUG}/" \
+            "build/release/${PLUGIN_SLUG}/"
+
+          cd build/release
+          zip -r "../../${ZIP_NAME}" "${PLUGIN_SLUG}"
+          cd ../..
+
+          unzip -t "${ZIP_NAME}"
+
+      - name: Move latest tag to this commit
+        run: |
+          set -euo pipefail
+
+          git tag -f "${RELEASE_TAG}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${RELEASE_TAG}" --force
+
+      - name: Create or update latest release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          release_title="Latest plugin zip"
+          release_notes="Automated plugin zip build from commit ${GITHUB_SHA}."
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release edit "${RELEASE_TAG}" \
+              --title "${release_title}" \
+              --notes "${release_notes}"
+          else
+            gh release create "${RELEASE_TAG}" \
+              --title "${release_title}" \
+              --notes "${release_notes}"
+          fi
+
+          gh release upload "${RELEASE_TAG}" "${ZIP_NAME}" --clobber
+

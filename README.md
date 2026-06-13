@@ -15,7 +15,7 @@ A powerful WordPress plugin that adds an AI-powered interactive chatbot to your 
 
 ## Installation
 
-1. Download the latest release zip file from the [Releases](https://github.com/eiliyaabedini/wordpress-chatbot-plugin/releases) page
+1. Download the latest plugin zip: [chatbot-plugin-latest.zip](https://github.com/eiliyaabedini/wordpress-chatbot-plugin/releases/download/latest/chatbot-plugin-latest.zip)
 2. Log in to your WordPress admin dashboard
 3. Navigate to Plugins > Add New
 4. Click the "Upload Plugin" button at the top of the page
@@ -92,11 +92,13 @@ This project uses DDEV for local WordPress development.
 ### Creating a Deployable Zip
 
 Either:
-1. Download the latest release from GitHub, or
+1. Download the latest release zip from GitHub: [chatbot-plugin-latest.zip](https://github.com/eiliyaabedini/wordpress-chatbot-plugin/releases/download/latest/chatbot-plugin-latest.zip), or
 2. Use WP-CLI to create a zip file:
    ```
    ddev exec "cd wp-content/plugins && zip -r chatbot-plugin.zip chatbot-plugin"
    ```
+
+GitHub Actions rebuilds and republishes `chatbot-plugin-latest.zip` on every push to `main`, keeping the download link above unchanged.
 
 ## Support
 

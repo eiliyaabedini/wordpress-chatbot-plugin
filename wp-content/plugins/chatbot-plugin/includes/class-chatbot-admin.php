@@ -4102,11 +4102,7 @@ class Chatbot_Admin {
                                 $action_message = sprintf(__('Mismatch between class name and addon ID. The class defines addon ID "%s", but you specified "%s".', 'chatbot-plugin'), $extracted_addon_id, $addon_id);
                                 $action_success = false;
                             } else {
-                                $upload_dir = wp_upload_dir();
-                                $target_dir = $upload_dir['basedir'] . '/chatbot-addons/';
-                                if (!file_exists($target_dir)) {
-                                    wp_mkdir_p($target_dir);
-                                }
+                                $target_dir = $manager->get_custom_addons_dir();
                                 $final_file = $target_dir . 'class-chatbot-' . $extracted_addon_id . '-addon.php';
                                 if (file_put_contents($final_file, $code) !== false) {
                                     wp_safe_redirect(admin_url('admin.php?page=chatbot-addons&success_save=1'));
@@ -4135,11 +4131,7 @@ class Chatbot_Admin {
                             $action_message = __('Invalid file type. Only PHP and ZIP files are allowed.', 'chatbot-plugin');
                             $action_success = false;
                         } else {
-                            $upload_dir = wp_upload_dir();
-                            $target_dir = $upload_dir['basedir'] . '/chatbot-addons/';
-                            if (!file_exists($target_dir)) {
-                                wp_mkdir_p($target_dir);
-                            }
+                            $target_dir = $manager->get_custom_addons_dir();
 
                             if ($file_ext === 'php') {
                                 $code = file_get_contents($file_tmp);
@@ -4360,6 +4352,7 @@ class Chatbot_Admin {
                         </h2>
                         <p class="description" style="margin-bottom: 15px;">
                             <?php _e('Upload an addon PHP file (e.g. class-chatbot-myaddon-addon.php) or a ZIP archive containing native addon files to install it on this site.', 'chatbot-plugin'); ?>
+                            <?php _e('Each addon file must start with the WordPress guard: if (!defined(\'WPINC\')) { die; }', 'chatbot-plugin'); ?>
                         </p>
                         <form method="post" enctype="multipart/form-data" style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
                             <?php wp_nonce_field('chatbot_addons_upload_nonce'); ?>
@@ -4487,7 +4480,7 @@ class Chatbot_Admin {
 
                         <div class="card" style="max-width: 100%; margin-top: 0; padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: none;">
                             <h2 style="margin-top: 0;"><?php echo !empty($edit_id) ? __('Edit Addon Code', 'chatbot-plugin') : __('Write New Addon Code', 'chatbot-plugin'); ?></h2>
-                            <p class="description"><?php _e('Write raw PHP classes that extend the Chatbot_Addon class. Code validation runs automatically when saving to prevent ParseErrors.', 'chatbot-plugin'); ?></p>
+                            <p class="description"><?php _e('Write raw PHP classes that extend the Chatbot_Addon class. Code must start with the WordPress direct-access guard and validation runs automatically when saving to prevent ParseErrors.', 'chatbot-plugin'); ?></p>
 
                             <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; margin-top: 20px;">
                                 <div>
@@ -4621,6 +4614,7 @@ class Chatbot_Admin {
                             }, 2000);
                         });
                     });
+                    </script>
                 <!-- Dynamic Addon Tabs -->
                 <?php elseif ($active_addon !== null): ?>
                     <div class="card" style="max-width: 100%; margin-top: 0; padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: none;">
@@ -4671,6 +4665,10 @@ class Chatbot_Admin {
      */
     private function get_addon_editor_template() {
         return "<?php\n" .
+               "if (!defined('WPINC')) {\n" .
+               "    die;\n" .
+               "}\n" .
+               "\n" .
                "/**\n" .
                " * Chatbot Custom Addon Template\n" .
                " */\n" .
@@ -4764,10 +4762,15 @@ class Chatbot_Admin {
                "Your addon must be a valid PHP class structure that:\n" .
                "1. Extends the base class `Chatbot_Addon`.\n" .
                "2. Matches the filename class style. If the addon ID is `my-weather`, the file name must be `class-chatbot-my-weather-addon.php` and the class name must be `Chatbot_My_Weather_Addon`.\n" .
+               "3. Starts with the WordPress direct-access guard: `if (!defined('WPINC')) { die; }`.\n" .
                "\n" .
                "### Example Code Blueprint:\n" .
                "```php\n" .
                "<?php\n" .
+               "if (!defined('WPINC')) {\n" .
+               "    die;\n" .
+               "}\n" .
+               "\n" .
                "class Chatbot_My_Weather_Addon extends Chatbot_Addon {\n" .
                "    public function __construct() {\n" .
                "        \$this->id = 'my-weather';\n" .
@@ -4824,12 +4827,12 @@ class Chatbot_Admin {
                "```json\n" .
                "{\n" .
                "    \"addon_id\": \"my-weather\",\n" .
-               "    \"code\": \"<?php\\nclass Chatbot_My_Weather_Addon extends Chatbot_Addon { ... }\"\n" .
+               "    \"code\": \"<?php\\nif (!defined('WPINC')) { die; }\\nclass Chatbot_My_Weather_Addon extends Chatbot_Addon { ... }\"\n" .
                "}\n" .
                "```\n" .
                "\n" .
                "### Execution Safeguards:\n" .
-               "The server will validate the PHP code using class compilation tests before finalizing the deploy. If there are syntax errors, the upload will fail with a 400 error description.\n";
+               "The server will validate the PHP code using class compilation tests before finalizing the deploy. Addon files without the direct-access guard or with syntax errors will fail with a 400 error description. Uploaded addon files are stored in a protected uploads subdirectory and are loaded only by WordPress.\n";
     }
 }
 

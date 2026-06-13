@@ -139,8 +139,8 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
     public function execute_tool($tool_name, array $args, array $context = array()) {
         if ($tool_name === 'list_bookings') {
             $date = sanitize_text_field($args['date'] ?? '');
-            if (empty($date)) {
-                return new WP_Error('invalid_param', 'Missing date parameter');
+            if (!$this->is_valid_date($date)) {
+                return new WP_Error('invalid_date', 'Invalid date parameter. Use YYYY-MM-DD format.');
             }
 
             // Query posts of type chatbot_booking with meta_key _booking_date = $date
@@ -192,12 +192,53 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
                 return new WP_Error('invalid_param', 'Missing required parameters. Title, date, start_time, and email are required.');
             }
 
-            // Simple conflict checker: check if there's an overlapping booking
+            if (!$this->is_valid_date($date)) {
+                return new WP_Error('invalid_date', 'Invalid date format. Use YYYY-MM-DD.');
+            }
+
+            if ($date < current_time('Y-m-d')) {
+                return new WP_Error('invalid_date', 'Bookings cannot be created in the past.');
+            }
+
+            if (!is_email($email)) {
+                return new WP_Error('invalid_email', 'Invalid email address.');
+            }
+
+            if ($duration <= 0 || $duration > 1440) {
+                return new WP_Error('invalid_duration', 'Invalid duration. Use a duration between 1 and 1440 minutes.');
+            }
+
             $new_start_minutes = $this->time_to_minutes($start_time);
             if ($new_start_minutes === false) {
                 return new WP_Error('invalid_time', 'Invalid start time format. Use HH:MM in 24h format.');
             }
             $new_end_minutes = $new_start_minutes + $duration;
+            if ($new_end_minutes > 1440) {
+                return new WP_Error('invalid_time', 'Invalid booking time. The booking cannot end after 23:59.');
+            }
+
+            $working_hours_start = $this->normalize_time($this->settings['working_hours_start'] ?? '', '09:00');
+            $working_hours_end = $this->normalize_time($this->settings['working_hours_end'] ?? '', '17:00');
+            $working_start_minutes = $this->time_to_minutes($working_hours_start);
+            $working_end_minutes = $this->time_to_minutes($working_hours_end);
+
+            if ($working_start_minutes === false || $working_end_minutes === false || $working_start_minutes >= $working_end_minutes) {
+                $working_hours_start = '09:00';
+                $working_hours_end = '17:00';
+                $working_start_minutes = 9 * 60;
+                $working_end_minutes = 17 * 60;
+            }
+
+            if ($new_start_minutes < $working_start_minutes || $new_end_minutes > $working_end_minutes) {
+                return new WP_Error(
+                    'outside_working_hours',
+                    sprintf(
+                        'Booking is outside working hours. Available hours are %s-%s.',
+                        $working_hours_start,
+                        $working_hours_end
+                    )
+                );
+            }
 
             // Fetch existing bookings on that date
             $existing_bookings = get_posts(array(
@@ -306,10 +347,23 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
      * Sanitize settings inputs
      */
     public function sanitize_settings(array $input) {
+        $notification_email = sanitize_email($input['notification_email'] ?? '');
+        if (empty($notification_email) || !is_email($notification_email)) {
+            $notification_email = get_option('admin_email');
+        }
+
+        $working_hours_start = $this->normalize_time(sanitize_text_field($input['working_hours_start'] ?? ''), '09:00');
+        $working_hours_end = $this->normalize_time(sanitize_text_field($input['working_hours_end'] ?? ''), '17:00');
+
+        if ($this->time_to_minutes($working_hours_start) >= $this->time_to_minutes($working_hours_end)) {
+            $working_hours_start = '09:00';
+            $working_hours_end = '17:00';
+        }
+
         return array(
-            'notification_email'  => sanitize_email($input['notification_email'] ?? ''),
-            'working_hours_start' => sanitize_text_field($input['working_hours_start'] ?? '09:00'),
-            'working_hours_end'   => sanitize_text_field($input['working_hours_end'] ?? '17:00'),
+            'notification_email'  => $notification_email,
+            'working_hours_start' => $working_hours_start,
+            'working_hours_end'   => $working_hours_end,
         );
     }
 
@@ -907,11 +961,29 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
      * Convert HH:MM time string to total minutes
      */
     private function time_to_minutes($time) {
-        $parts = explode(':', $time);
-        if (count($parts) < 2) {
+        if (!is_string($time) || !preg_match('/^([01]\d|2[0-3]):([0-5]\d)$/', $time, $matches)) {
             return false;
         }
-        return intval($parts[0]) * 60 + intval($parts[1]);
+        return intval($matches[1]) * 60 + intval($matches[2]);
+    }
+
+    /**
+     * Validate a date in YYYY-MM-DD format.
+     */
+    private function is_valid_date($date) {
+        if (!is_string($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return false;
+        }
+
+        $parts = explode('-', $date);
+        return checkdate((int) $parts[1], (int) $parts[2], (int) $parts[0]);
+    }
+
+    /**
+     * Return a strict HH:MM value or a default.
+     */
+    private function normalize_time($time, $default) {
+        return $this->time_to_minutes($time) === false ? $default : $time;
     }
 
     /**
@@ -1073,4 +1145,3 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
         <?php
     }
 }
-
