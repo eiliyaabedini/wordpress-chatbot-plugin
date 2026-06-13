@@ -77,3 +77,22 @@ Post the payload containing the addon settings and code to the REST target endpo
 
 ### Execution Safeguards:
 The server will validate the PHP code using class compilation tests before finalizing the deploy. Addon files without the direct-access guard or with syntax errors will fail with a 400 error description. Uploaded addon files are stored in a protected uploads subdirectory and are loaded only by WordPress.
+
+## 3. Read Diagnostic Logs
+Use the same API key to inspect redacted plugin diagnostics after uploading or testing an addon.
+
+### Logs Endpoint:
+* **Target URL**: `{site_url}/wp-json/chatbot-plugin/v1/agent/logs`
+* **HTTP Method**: `GET`
+* **HTTP Header**: `X-Chatbot-Addon-API-Key: {api_key}`
+* **Optional Query Parameter**: `max_bytes=300000` (maximum 1048576)
+
+### Example:
+```bash
+curl -H "X-Chatbot-Addon-API-Key: {api_key}" "{site_url}/wp-json/chatbot-plugin/v1/agent/logs?max_bytes=300000"
+```
+
+The response contains `diagnostics` and `logs`. Token-like values are redacted before logs are saved.
+
+### Clear Logs:
+To clear diagnostic logs after a completed debugging session, send a POST request to `{site_url}/wp-json/chatbot-plugin/v1/agent/logs/clear` with the same `X-Chatbot-Addon-API-Key` header.

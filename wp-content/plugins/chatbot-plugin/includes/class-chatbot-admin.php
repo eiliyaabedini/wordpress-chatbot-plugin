@@ -4754,6 +4754,8 @@ class Chatbot_Admin {
      */
     private function get_addon_agent_skill_markdown($api_key) {
         $endpoint = site_url('wp-json/chatbot-plugin/v1/addons/update');
+        $logs_endpoint = site_url('wp-json/chatbot-plugin/v1/agent/logs');
+        $clear_logs_endpoint = site_url('wp-json/chatbot-plugin/v1/agent/logs/clear');
         return "# AI Agent Skill: Creating & Updating Chatbot Addons\n" .
                "\n" .
                "This guide explains how to deploy custom capabilities to this WordPress chatbot as local PHP addons.\n" .
@@ -4832,7 +4834,26 @@ class Chatbot_Admin {
                "```\n" .
                "\n" .
                "### Execution Safeguards:\n" .
-               "The server will validate the PHP code using class compilation tests before finalizing the deploy. Addon files without the direct-access guard or with syntax errors will fail with a 400 error description. Uploaded addon files are stored in a protected uploads subdirectory and are loaded only by WordPress.\n";
+               "The server will validate the PHP code using class compilation tests before finalizing the deploy. Addon files without the direct-access guard or with syntax errors will fail with a 400 error description. Uploaded addon files are stored in a protected uploads subdirectory and are loaded only by WordPress.\n" .
+               "\n" .
+               "## 3. Read Diagnostic Logs\n" .
+               "Use the same API key to inspect redacted plugin diagnostics after uploading or testing an addon.\n" .
+               "\n" .
+               "### Logs Endpoint:\n" .
+               "* **Target URL**: `{$logs_endpoint}`\n" .
+               "* **HTTP Method**: `GET`\n" .
+               "* **HTTP Header**: `X-Chatbot-Addon-API-Key: {$api_key}`\n" .
+               "* **Optional Query Parameter**: `max_bytes=300000` (maximum 1048576)\n" .
+               "\n" .
+               "### Example:\n" .
+               "```bash\n" .
+               "curl -H \"X-Chatbot-Addon-API-Key: {$api_key}\" \"{$logs_endpoint}?max_bytes=300000\"\n" .
+               "```\n" .
+               "\n" .
+               "The response contains `diagnostics` and `logs`. Token-like values are redacted before logs are saved.\n" .
+               "\n" .
+               "### Clear Logs:\n" .
+               "To clear diagnostic logs after a completed debugging session, send a POST request to `{$clear_logs_endpoint}` with the same `X-Chatbot-Addon-API-Key` header.\n";
     }
 }
 

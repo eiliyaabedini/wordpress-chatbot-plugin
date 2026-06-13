@@ -549,32 +549,25 @@ class Chatbot_Settings {
      * Build a redacted diagnostic summary for support/debugging.
      */
     private function get_diagnostic_summary() {
-        $token_expiry = (int) get_option('chatbot_aipass_token_expiry', 0);
-        $token_expiry_display = $token_expiry > 0
-            ? gmdate('Y-m-d H:i:s', $token_expiry) . ' UTC (' . human_time_diff(time(), $token_expiry) . ($token_expiry >= time() ? ' from now' : ' ago') . ')'
-            : __('Not set', 'chatbot-plugin');
+        if (!function_exists('chatbot_get_diagnostic_summary')) {
+            return array();
+        }
 
-        $cooldown_until = get_transient('chatbot_aipass_refresh_cooldown');
-        $cooldown_display = ($cooldown_until !== false && $cooldown_until > time())
-            ? human_time_diff(time(), $cooldown_until) . ' remaining'
-            : __('No', 'chatbot-plugin');
-
-        $refresh_lock = get_transient('chatbot_aipass_refresh_lock') !== false ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin');
-        $log_file = function_exists('chatbot_get_log_file_path') ? chatbot_get_log_file_path() : '';
+        $summary = chatbot_get_diagnostic_summary();
 
         return array(
-            __('Plugin version', 'chatbot-plugin') => defined('CHATBOT_PLUGIN_VERSION') ? CHATBOT_PLUGIN_VERSION : __('Unknown', 'chatbot-plugin'),
-            __('WordPress version', 'chatbot-plugin') => get_bloginfo('version'),
-            __('PHP version', 'chatbot-plugin') => PHP_VERSION,
-            __('Site URL', 'chatbot-plugin') => home_url(),
-            __('AIPass enabled', 'chatbot-plugin') => get_option('chatbot_aipass_enabled', true) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
-            __('Access token stored', 'chatbot-plugin') => get_option('chatbot_aipass_access_token', '') !== '' ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
-            __('Refresh token stored', 'chatbot-plugin') => get_option('chatbot_aipass_refresh_token', '') !== '' ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
-            __('Token expiry', 'chatbot-plugin') => $token_expiry_display,
-            __('Refresh cooldown active', 'chatbot-plugin') => $cooldown_display,
-            __('Refresh lock active', 'chatbot-plugin') => $refresh_lock,
-            __('Selected model', 'chatbot-plugin') => get_option('chatbot_ai_model', defined('CHATBOT_DEFAULT_MODEL') ? CHATBOT_DEFAULT_MODEL : ''),
-            __('Log file writable', 'chatbot-plugin') => (!empty($log_file) && is_writable(dirname($log_file))) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Plugin version', 'chatbot-plugin') => $summary['plugin_version'] ?? __('Unknown', 'chatbot-plugin'),
+            __('WordPress version', 'chatbot-plugin') => $summary['wordpress_version'] ?? '',
+            __('PHP version', 'chatbot-plugin') => $summary['php_version'] ?? '',
+            __('Site URL', 'chatbot-plugin') => $summary['site_url'] ?? '',
+            __('AIPass enabled', 'chatbot-plugin') => !empty($summary['aipass_enabled']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Access token stored', 'chatbot-plugin') => !empty($summary['access_token_stored']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Refresh token stored', 'chatbot-plugin') => !empty($summary['refresh_token_stored']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Token expiry', 'chatbot-plugin') => $summary['token_expiry'] ?? __('Not set', 'chatbot-plugin'),
+            __('Refresh cooldown active', 'chatbot-plugin') => $summary['refresh_cooldown_active'] ?? __('No', 'chatbot-plugin'),
+            __('Refresh lock active', 'chatbot-plugin') => !empty($summary['refresh_lock_active']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Selected model', 'chatbot-plugin') => $summary['selected_model'] ?? '',
+            __('Log file writable', 'chatbot-plugin') => !empty($summary['log_file_writable']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
         );
     }
     

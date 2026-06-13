@@ -362,6 +362,38 @@ function chatbot_clear_log_files() {
 }
 
 /**
+ * Build a redacted diagnostic summary for support and agent tooling.
+ */
+function chatbot_get_diagnostic_summary() {
+    $token_expiry = (int) get_option('chatbot_aipass_token_expiry', 0);
+    $token_expiry_display = $token_expiry > 0
+        ? gmdate('Y-m-d H:i:s', $token_expiry) . ' UTC (' . human_time_diff(time(), $token_expiry) . ($token_expiry >= time() ? ' from now' : ' ago') . ')'
+        : 'Not set';
+
+    $cooldown_until = get_transient('chatbot_aipass_refresh_cooldown');
+    $cooldown_display = ($cooldown_until !== false && $cooldown_until > time())
+        ? human_time_diff(time(), $cooldown_until) . ' remaining'
+        : 'No';
+
+    $log_file = chatbot_get_log_file_path();
+
+    return array(
+        'plugin_version' => defined('CHATBOT_PLUGIN_VERSION') ? CHATBOT_PLUGIN_VERSION : 'unknown',
+        'wordpress_version' => get_bloginfo('version'),
+        'php_version' => PHP_VERSION,
+        'site_url' => home_url(),
+        'aipass_enabled' => (bool) get_option('chatbot_aipass_enabled', true),
+        'access_token_stored' => get_option('chatbot_aipass_access_token', '') !== '',
+        'refresh_token_stored' => get_option('chatbot_aipass_refresh_token', '') !== '',
+        'token_expiry' => $token_expiry_display,
+        'refresh_cooldown_active' => $cooldown_display,
+        'refresh_lock_active' => get_transient('chatbot_aipass_refresh_lock') !== false,
+        'selected_model' => get_option('chatbot_ai_model', defined('CHATBOT_DEFAULT_MODEL') ? CHATBOT_DEFAULT_MODEL : ''),
+        'log_file_writable' => (!empty($log_file) && is_writable(dirname($log_file))),
+    );
+}
+
+/**
  * Helper function for standardized logging
  * 
  * @param string $level Log level (INFO, DEBUG, ERROR)

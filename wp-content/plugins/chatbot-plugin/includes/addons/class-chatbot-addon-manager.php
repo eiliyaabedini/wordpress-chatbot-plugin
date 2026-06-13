@@ -306,21 +306,44 @@ class Chatbot_Addon_Manager {
             'callback' => array($this, 'rest_update_addon'),
             'permission_callback' => '__return_true', // Authentication done via API key
         ));
+
+        register_rest_route('chatbot-plugin/v1', '/agent/logs', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'rest_get_agent_logs'),
+            'permission_callback' => '__return_true', // Authentication done via API key
+        ));
+
+        register_rest_route('chatbot-plugin/v1', '/agent/logs/clear', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'rest_clear_agent_logs'),
+            'permission_callback' => '__return_true', // Authentication done via API key
+        ));
     }
 
     /**
-     * REST Callback: Update or upload an addon
+     * Authenticate REST agent calls using the addon API key.
      */
-    public function rest_update_addon($request) {
-        // Authenticate via API key
+    private function authenticate_agent_request($request) {
         $api_key = $request->get_header('X-Chatbot-Addon-API-Key');
         if (empty($api_key)) {
             $api_key = $request->get_param('api_key');
         }
 
         $stored_key = get_option('chatbot_addons_api_key');
-        if (empty($stored_key) || $api_key !== $stored_key) {
+        if (empty($stored_key) || empty($api_key) || !hash_equals((string) $stored_key, (string) $api_key)) {
             return new WP_REST_Response(array('success' => false, 'message' => 'Unauthorized: Invalid API Key'), 401);
+        }
+
+        return true;
+    }
+
+    /**
+     * REST Callback: Update or upload an addon
+     */
+    public function rest_update_addon($request) {
+        $auth_result = $this->authenticate_agent_request($request);
+        if ($auth_result instanceof WP_REST_Response) {
+            return $auth_result;
         }
 
         // Get params
@@ -368,6 +391,61 @@ class Chatbot_Addon_Manager {
             'success' => true,
             'message' => "Addon '{$addon_id}' has been uploaded and validated successfully!"
         ), 200);
+    }
+
+    /**
+     * REST Callback: Read redacted diagnostic logs for AI agent workflows.
+     */
+    public function rest_get_agent_logs($request) {
+        $auth_result = $this->authenticate_agent_request($request);
+        if ($auth_result instanceof WP_REST_Response) {
+            return $auth_result;
+        }
+
+        $max_bytes = absint($request->get_param('max_bytes'));
+        if ($max_bytes <= 0) {
+            $max_bytes = 300000;
+        }
+        $max_bytes = min($max_bytes, 1048576);
+
+        $log_contents = function_exists('chatbot_get_log_contents') ? chatbot_get_log_contents($max_bytes) : '';
+        $diagnostics = function_exists('chatbot_get_diagnostic_summary') ? chatbot_get_diagnostic_summary() : array();
+
+        if (function_exists('chatbot_log')) {
+            chatbot_log('INFO', 'agent_logs', 'Agent diagnostic logs read via REST API', array(
+                'max_bytes' => $max_bytes,
+                'has_logs' => trim($log_contents) !== '',
+            ));
+        }
+
+        return new WP_REST_Response(array(
+            'success' => true,
+            'generated_at' => gmdate('Y-m-d H:i:s') . ' UTC',
+            'max_bytes' => $max_bytes,
+            'diagnostics' => $diagnostics,
+            'logs' => trim($log_contents) !== '' ? $log_contents : 'No plugin logs have been written yet.',
+        ), 200);
+    }
+
+    /**
+     * REST Callback: Clear diagnostic logs for AI agent workflows.
+     */
+    public function rest_clear_agent_logs($request) {
+        $auth_result = $this->authenticate_agent_request($request);
+        if ($auth_result instanceof WP_REST_Response) {
+            return $auth_result;
+        }
+
+        $cleared = function_exists('chatbot_clear_log_files') ? chatbot_clear_log_files() : false;
+
+        if (function_exists('chatbot_log')) {
+            chatbot_log($cleared ? 'INFO' : 'ERROR', 'agent_logs', $cleared ? 'Agent cleared diagnostic logs via REST API' : 'Agent failed to clear diagnostic logs via REST API');
+        }
+
+        return new WP_REST_Response(array(
+            'success' => (bool) $cleared,
+            'message' => $cleared ? 'Diagnostic logs cleared.' : 'Failed to clear diagnostic logs.',
+        ), $cleared ? 200 : 500);
     }
 
     /**
