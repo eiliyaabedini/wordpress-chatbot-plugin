@@ -27,6 +27,10 @@ class Chatbot_Settings {
         
         // Register settings
         add_action('admin_init', array($this, 'register_settings'));
+
+        // Log download/clear actions
+        add_action('admin_post_chatbot_download_logs', array($this, 'download_logs'));
+        add_action('admin_post_chatbot_clear_logs', array($this, 'clear_logs'));
     }
     
     /**
@@ -309,30 +313,35 @@ class Chatbot_Settings {
                 <a href="?page=chatbot-settings&tab=data-retention" class="nav-tab <?php echo $active_tab === 'data-retention' ? 'nav-tab-active' : ''; ?>">
                     <?php _e('Data Retention', 'chatbot-plugin'); ?>
                 </a>
+                <a href="?page=chatbot-settings&tab=logs" class="nav-tab <?php echo $active_tab === 'logs' ? 'nav-tab-active' : ''; ?>">
+                    <?php _e('Logs', 'chatbot-plugin'); ?>
+                </a>
             </h2>
-            
-            <form method="post" action="options.php">
-                <?php
-                if ($active_tab === 'general') {
-                    settings_fields('chatbot_settings');
-                    do_settings_sections('chatbot_settings');
-                } elseif ($active_tab === 'notifications') {
-                    // Debug log for Notifications tab rendering
-                    error_log('Chatbot: Rendering Notifications settings tab');
 
-                    settings_fields('chatbot_notification_settings');
-                    do_settings_sections('chatbot_notification_settings');
-                } elseif ($active_tab === 'security') {
-                    // Security tab content
-                    $this->render_security_tab();
-                } elseif ($active_tab === 'data-retention') {
-                    // Data Retention tab content
-                    $this->render_data_retention_tab();
-                }
-                
-                submit_button();
-                ?>
-            </form>
+            <?php if ($active_tab === 'general' || $active_tab === 'notifications'): ?>
+                <form method="post" action="options.php">
+                    <?php
+                    if ($active_tab === 'general') {
+                        settings_fields('chatbot_settings');
+                        do_settings_sections('chatbot_settings');
+                    } else {
+                        // Debug log for Notifications tab rendering
+                        error_log('Chatbot: Rendering Notifications settings tab');
+
+                        settings_fields('chatbot_notification_settings');
+                        do_settings_sections('chatbot_notification_settings');
+                    }
+
+                    submit_button();
+                    ?>
+                </form>
+            <?php elseif ($active_tab === 'security'): ?>
+                <?php $this->render_security_tab(); ?>
+            <?php elseif ($active_tab === 'data-retention'): ?>
+                <?php $this->render_data_retention_tab(); ?>
+            <?php elseif ($active_tab === 'logs'): ?>
+                <?php $this->render_logs_tab(); ?>
+            <?php endif; ?>
 
             <?php if ($active_tab === 'notifications'): ?>
                 <div class="card" style="max-width: 800px; margin-top: 20px;">
@@ -343,6 +352,230 @@ class Chatbot_Settings {
             <?php endif; ?>
         </div>
         <?php
+    }
+
+    /**
+     * Download diagnostic logs as a text file.
+     */
+    public function download_logs() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to download logs.', 'chatbot-plugin'));
+        }
+
+        check_admin_referer('chatbot_download_logs');
+
+        $filename = 'aipass-chat-logs-' . gmdate('Ymd-His') . '.txt';
+        $contents = $this->get_log_export_text();
+
+        nocache_headers();
+        header('Content-Type: text/plain; charset=utf-8');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('X-Content-Type-Options: nosniff');
+
+        echo $contents;
+        exit;
+    }
+
+    /**
+     * Clear diagnostic logs.
+     */
+    public function clear_logs() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to clear logs.', 'chatbot-plugin'));
+        }
+
+        check_admin_referer('chatbot_clear_logs');
+
+        $cleared = function_exists('chatbot_clear_log_files') ? chatbot_clear_log_files() : false;
+        $redirect_url = add_query_arg(
+            array(
+                'page' => 'chatbot-settings',
+                'tab' => 'logs',
+                'logs_cleared' => $cleared ? '1' : '0',
+            ),
+            admin_url('admin.php')
+        );
+
+        wp_safe_redirect($redirect_url);
+        exit;
+    }
+
+    /**
+     * Render the diagnostic logs tab.
+     */
+    private function render_logs_tab() {
+        $log_contents = function_exists('chatbot_get_log_contents') ? chatbot_get_log_contents(300000) : '';
+        $log_file = function_exists('chatbot_get_log_file_path') ? chatbot_get_log_file_path() : '';
+        $log_size = (!empty($log_file) && file_exists($log_file)) ? size_format(filesize($log_file)) : __('0 bytes', 'chatbot-plugin');
+        $download_url = wp_nonce_url(admin_url('admin-post.php?action=chatbot_download_logs'), 'chatbot_download_logs');
+        $clear_url = wp_nonce_url(admin_url('admin-post.php?action=chatbot_clear_logs'), 'chatbot_clear_logs');
+
+        if (isset($_GET['logs_cleared'])) {
+            $cleared = sanitize_text_field($_GET['logs_cleared']) === '1';
+            echo '<div class="notice notice-' . ($cleared ? 'success' : 'error') . ' is-dismissible"><p>';
+            echo $cleared ? esc_html__('Logs cleared successfully.', 'chatbot-plugin') : esc_html__('Could not clear logs. Please check file permissions.', 'chatbot-plugin');
+            echo '</p></div>';
+        }
+
+        ?>
+        <style>
+            .chatbot-logs-card {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 6px;
+                padding: 20px;
+                max-width: 1100px;
+                margin-top: 20px;
+            }
+            .chatbot-logs-card h2 {
+                margin-top: 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #eee;
+            }
+            .chatbot-log-actions {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+                margin: 15px 0;
+            }
+            #chatbot-log-viewer {
+                width: 100%;
+                min-height: 420px;
+                font-family: Consolas, Monaco, monospace;
+                font-size: 12px;
+                line-height: 1.5;
+                white-space: pre;
+                background: #101418;
+                color: #d7e0ea;
+                border: 1px solid #2d3741;
+                border-radius: 4px;
+                padding: 12px;
+                box-sizing: border-box;
+            }
+            .chatbot-diagnostics-grid {
+                display: grid;
+                grid-template-columns: 220px 1fr;
+                gap: 8px 18px;
+                max-width: 760px;
+            }
+            .chatbot-diagnostics-grid dt {
+                font-weight: 600;
+            }
+            .chatbot-diagnostics-grid dd {
+                margin: 0;
+            }
+        </style>
+
+        <div class="chatbot-logs-card">
+            <h2><?php _e('Diagnostic Logs', 'chatbot-plugin'); ?></h2>
+            <p><?php _e('Use these logs when troubleshooting AIPass disconnects, token refresh failures, API errors, and conversation issues. Sensitive token values are redacted before logs are saved.', 'chatbot-plugin'); ?></p>
+
+            <dl class="chatbot-diagnostics-grid">
+                <?php foreach ($this->get_diagnostic_summary() as $label => $value): ?>
+                    <dt><?php echo esc_html($label); ?></dt>
+                    <dd><?php echo esc_html($value); ?></dd>
+                <?php endforeach; ?>
+            </dl>
+
+            <div class="chatbot-log-actions">
+                <button type="button" class="button button-primary" id="chatbot-copy-logs"><?php _e('Copy Logs', 'chatbot-plugin'); ?></button>
+                <a class="button button-secondary" href="<?php echo esc_url($download_url); ?>"><?php _e('Download Logs', 'chatbot-plugin'); ?></a>
+                <a class="button button-link-delete" href="<?php echo esc_url($clear_url); ?>" onclick="return confirm('<?php echo esc_js(__('Clear all diagnostic logs?', 'chatbot-plugin')); ?>');"><?php _e('Clear Logs', 'chatbot-plugin'); ?></a>
+                <span class="description"><?php printf(__('Current log size: %s', 'chatbot-plugin'), esc_html($log_size)); ?></span>
+                <span id="chatbot-copy-logs-result" class="description"></span>
+            </div>
+
+            <textarea id="chatbot-log-viewer" readonly><?php echo esc_textarea($this->get_log_export_text()); ?></textarea>
+        </div>
+
+        <script type="text/javascript">
+        jQuery(document).ready(function($) {
+            $('#chatbot-copy-logs').on('click', function() {
+                var textarea = document.getElementById('chatbot-log-viewer');
+                var result = $('#chatbot-copy-logs-result');
+
+                function showCopied() {
+                    result.text('<?php echo esc_js(__('Copied to clipboard.', 'chatbot-plugin')); ?>');
+                    setTimeout(function() {
+                        result.text('');
+                    }, 3000);
+                }
+
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(textarea.value).then(showCopied, function() {
+                        textarea.select();
+                        document.execCommand('copy');
+                        showCopied();
+                    });
+                } else {
+                    textarea.select();
+                    document.execCommand('copy');
+                    showCopied();
+                }
+            });
+        });
+        </script>
+        <?php
+    }
+
+    /**
+     * Build the full text included in the logs text area and download.
+     */
+    private function get_log_export_text() {
+        $lines = array(
+            'AIPass Chat Diagnostic Export',
+            'Generated: ' . gmdate('Y-m-d H:i:s') . ' UTC',
+            '',
+            'Diagnostic Summary',
+            '------------------',
+        );
+
+        foreach ($this->get_diagnostic_summary() as $label => $value) {
+            $lines[] = $label . ': ' . $value;
+        }
+
+        $lines[] = '';
+        $lines[] = 'Recent Plugin Logs';
+        $lines[] = '------------------';
+
+        $log_contents = function_exists('chatbot_get_log_contents') ? chatbot_get_log_contents(1048576) : '';
+        $lines[] = trim($log_contents) !== '' ? rtrim($log_contents) : 'No plugin logs have been written yet.';
+
+        return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Build a redacted diagnostic summary for support/debugging.
+     */
+    private function get_diagnostic_summary() {
+        $token_expiry = (int) get_option('chatbot_aipass_token_expiry', 0);
+        $token_expiry_display = $token_expiry > 0
+            ? gmdate('Y-m-d H:i:s', $token_expiry) . ' UTC (' . human_time_diff(time(), $token_expiry) . ($token_expiry >= time() ? ' from now' : ' ago') . ')'
+            : __('Not set', 'chatbot-plugin');
+
+        $cooldown_until = get_transient('chatbot_aipass_refresh_cooldown');
+        $cooldown_display = ($cooldown_until !== false && $cooldown_until > time())
+            ? human_time_diff(time(), $cooldown_until) . ' remaining'
+            : __('No', 'chatbot-plugin');
+
+        $refresh_lock = get_transient('chatbot_aipass_refresh_lock') !== false ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin');
+        $log_file = function_exists('chatbot_get_log_file_path') ? chatbot_get_log_file_path() : '';
+
+        return array(
+            __('Plugin version', 'chatbot-plugin') => defined('CHATBOT_PLUGIN_VERSION') ? CHATBOT_PLUGIN_VERSION : __('Unknown', 'chatbot-plugin'),
+            __('WordPress version', 'chatbot-plugin') => get_bloginfo('version'),
+            __('PHP version', 'chatbot-plugin') => PHP_VERSION,
+            __('Site URL', 'chatbot-plugin') => home_url(),
+            __('AIPass enabled', 'chatbot-plugin') => get_option('chatbot_aipass_enabled', true) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Access token stored', 'chatbot-plugin') => get_option('chatbot_aipass_access_token', '') !== '' ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Refresh token stored', 'chatbot-plugin') => get_option('chatbot_aipass_refresh_token', '') !== '' ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Token expiry', 'chatbot-plugin') => $token_expiry_display,
+            __('Refresh cooldown active', 'chatbot-plugin') => $cooldown_display,
+            __('Refresh lock active', 'chatbot-plugin') => $refresh_lock,
+            __('Selected model', 'chatbot-plugin') => get_option('chatbot_ai_model', defined('CHATBOT_DEFAULT_MODEL') ? CHATBOT_DEFAULT_MODEL : ''),
+            __('Log file writable', 'chatbot-plugin') => (!empty($log_file) && is_writable(dirname($log_file))) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+        );
     }
     
     /**

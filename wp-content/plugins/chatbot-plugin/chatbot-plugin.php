@@ -206,6 +206,162 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-message-pipeline.ph
 require_once CHATBOT_PLUGIN_PATH . 'includes/messaging/class-chatbot-platform-web.php';
 
 /**
+ * Get the directory used for plugin diagnostic logs.
+ */
+function chatbot_get_log_dir() {
+    $upload_dir = wp_upload_dir();
+    if (!empty($upload_dir['error'])) {
+        return '';
+    }
+
+    return trailingslashit($upload_dir['basedir']) . 'chatbot-logs';
+}
+
+/**
+ * Ensure the diagnostic log directory exists and blocks direct browser access.
+ */
+function chatbot_ensure_log_directory() {
+    $log_dir = chatbot_get_log_dir();
+    if (empty($log_dir)) {
+        return '';
+    }
+
+    if (!file_exists($log_dir)) {
+        wp_mkdir_p($log_dir);
+    }
+
+    if (!is_dir($log_dir) || !is_writable($log_dir)) {
+        return '';
+    }
+
+    @file_put_contents(trailingslashit($log_dir) . 'index.php', '<?php // Silence is golden');
+    @file_put_contents(trailingslashit($log_dir) . '.htaccess', "Require all denied\nDeny from all\n");
+    @file_put_contents(
+        trailingslashit($log_dir) . 'web.config',
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" .
+        "<configuration><system.webServer><security><requestFiltering>" .
+        "<hiddenSegments><add segment=\"chatbot-logs\" /></hiddenSegments>" .
+        "</requestFiltering></security></system.webServer></configuration>\n"
+    );
+
+    return $log_dir;
+}
+
+/**
+ * Get the primary diagnostic log file path.
+ */
+function chatbot_get_log_file_path() {
+    $log_dir = chatbot_ensure_log_directory();
+    if (empty($log_dir)) {
+        return '';
+    }
+
+    $filename = get_option('chatbot_diagnostic_log_filename', '');
+    if (!is_string($filename) || !preg_match('/^chatbot-[A-Za-z0-9]{24}\.log$/', $filename)) {
+        try {
+            $random_name = substr(bin2hex(random_bytes(18)), 0, 24);
+        } catch (Exception $e) {
+            $random_name = substr(md5(uniqid('', true)), 0, 24);
+        }
+
+        $filename = 'chatbot-' . $random_name . '.log';
+        update_option('chatbot_diagnostic_log_filename', $filename, false);
+    }
+
+    $log_file = trailingslashit($log_dir) . $filename;
+    $legacy_file = trailingslashit($log_dir) . 'chatbot.log';
+    if (file_exists($legacy_file) && !file_exists($log_file)) {
+        @rename($legacy_file, $log_file);
+    }
+
+    return $log_file;
+}
+
+/**
+ * Append one sanitized line to the plugin diagnostic log file.
+ */
+function chatbot_append_log_line($line) {
+    static $is_writing = false;
+
+    if ($is_writing) {
+        return;
+    }
+
+    $is_writing = true;
+    $log_file = chatbot_get_log_file_path();
+
+    if (!empty($log_file)) {
+        $max_bytes = 2 * 1024 * 1024;
+        $previous_file = dirname($log_file) . '/chatbot.previous.log';
+
+        if (file_exists($log_file) && filesize($log_file) > $max_bytes) {
+            if (file_exists($previous_file)) {
+                @unlink($previous_file);
+            }
+            @rename($log_file, $previous_file);
+        }
+
+        $entry = '[' . gmdate('Y-m-d H:i:s') . ' UTC] ' . $line . PHP_EOL;
+        @file_put_contents($log_file, $entry, FILE_APPEND | LOCK_EX);
+    }
+
+    $is_writing = false;
+}
+
+/**
+ * Write a log line to PHP error log and the plugin diagnostic log file.
+ */
+function chatbot_write_log($line) {
+    error_log($line);
+    chatbot_append_log_line($line);
+}
+
+/**
+ * Read the newest portion of the diagnostic log file.
+ */
+function chatbot_get_log_contents($max_bytes = 262144) {
+    $log_file = chatbot_get_log_file_path();
+    if (empty($log_file) || !file_exists($log_file)) {
+        return '';
+    }
+
+    $file_size = filesize($log_file);
+    if ($file_size === false || $file_size <= $max_bytes) {
+        return file_get_contents($log_file);
+    }
+
+    $handle = fopen($log_file, 'rb');
+    if (!$handle) {
+        return '';
+    }
+
+    fseek($handle, -1 * $max_bytes, SEEK_END);
+    $contents = stream_get_contents($handle);
+    fclose($handle);
+
+    return "[Showing the newest {$max_bytes} bytes of a larger log file]\n" . $contents;
+}
+
+/**
+ * Clear diagnostic log files.
+ */
+function chatbot_clear_log_files() {
+    $log_file = chatbot_get_log_file_path();
+    if (empty($log_file)) {
+        return false;
+    }
+
+    $cleared = true;
+    foreach (array($log_file, dirname($log_file) . '/chatbot.previous.log') as $file) {
+        if (file_exists($file) && !@unlink($file)) {
+            $cleared = false;
+        }
+    }
+
+    return $cleared;
+}
+
+/**
  * Helper function for standardized logging
  * 
  * @param string $level Log level (INFO, DEBUG, ERROR)
@@ -252,7 +408,7 @@ function chatbot_log($level, $context, $message, $data = null) {
                 $data_string = substr($data_string, 0, 500) . '... (truncated)';
             }
 
-            error_log($log_prefix . $message . ' Data: ' . $data_string);
+            chatbot_write_log($log_prefix . $message . ' Data: ' . $data_string);
         } else {
             // For simple values, check if it might be sensitive
             $potentially_sensitive = false;
@@ -269,14 +425,14 @@ function chatbot_log($level, $context, $message, $data = null) {
 
             if ($potentially_sensitive) {
                 // Only log the type and length of potentially sensitive data
-                error_log($log_prefix . $message . ' Data type: ' . gettype($data) . ', Length: ' . (is_string($data) ? strlen($data) : 'N/A'));
+                chatbot_write_log($log_prefix . $message . ' Data type: ' . gettype($data) . ', Length: ' . (is_string($data) ? strlen($data) : 'N/A'));
             } else {
                 // Regular logging for non-sensitive data
-                error_log($log_prefix . $message . ' Data: ' . $data);
+                chatbot_write_log($log_prefix . $message . ' Data: ' . $data);
             }
         }
     } else {
-        error_log($log_prefix . $message);
+        chatbot_write_log($log_prefix . $message);
     }
 }
 
