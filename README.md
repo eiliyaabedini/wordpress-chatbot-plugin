@@ -98,7 +98,7 @@ Either:
    ddev exec "cd wp-content/plugins && zip -r chatbot-plugin.zip chatbot-plugin"
    ```
 
-GitHub Actions rebuilds and republishes `chatbot-plugin-latest.zip` on every push to `main`, keeping the download link above unchanged.
+GitHub Actions rebuilds and republishes `chatbot-plugin-latest.zip` on every push to `main`, keeping the download link above unchanged. The release zip automatically bumps the patch version, so a source version like `1.8.20` publishes as `1.8.21`; manually raising the source version later, for example to `1.9.1`, resets the release sequence from that version.
 
 ## Support
 

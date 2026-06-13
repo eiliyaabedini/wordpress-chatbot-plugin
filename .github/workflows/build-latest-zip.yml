@@ -25,7 +25,54 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve next plugin version
+        id: version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          plugin_file="wp-content/plugins/${PLUGIN_SLUG}/${PLUGIN_SLUG}.php"
+          source_version="$(sed -nE 's/^[[:space:]]+\* Version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' "${plugin_file}" | head -n1)"
+          if [[ -z "${source_version}" ]]; then
+            echo "Could not find plugin version in ${plugin_file}" >&2
+            exit 1
+          fi
+
+          previous_version=""
+          if release_body="$(gh release view "${RELEASE_TAG}" --json body -q .body 2>/dev/null)"; then
+            previous_version="$(printf '%s\n' "${release_body}" | sed -nE 's/^- Plugin version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*$/\1/p' | head -n1)"
+          fi
+
+          bump_patch() {
+            local major minor patch
+            IFS=. read -r major minor patch <<< "$1"
+            printf '%s.%s.%s\n' "${major}" "${minor}" "$((patch + 1))"
+          }
+
+          version_is_greater() {
+            [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n1)" == "$1" && "$1" != "$2" ]]
+          }
+
+          if [[ -z "${previous_version}" ]]; then
+            next_version="$(bump_patch "${source_version}")"
+          elif version_is_greater "${source_version}" "${previous_version}"; then
+            next_version="${source_version}"
+          else
+            next_version="$(bump_patch "${previous_version}")"
+          fi
+
+          echo "source_version=${source_version}" >> "${GITHUB_OUTPUT}"
+          echo "previous_version=${previous_version}" >> "${GITHUB_OUTPUT}"
+          echo "next_version=${next_version}" >> "${GITHUB_OUTPUT}"
+
+          echo "Source version: ${source_version}"
+          echo "Previous release version: ${previous_version:-none}"
+          echo "Next release version: ${next_version}"
+
       - name: Build WordPress plugin zip
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.next_version }}
         run: |
           set -euo pipefail
 
@@ -35,6 +82,17 @@ jobs:
             --exclude="*.zip" \
             "wp-content/plugins/${PLUGIN_SLUG}/" \
             "build/release/${PLUGIN_SLUG}/"
+
+          plugin_file="build/release/${PLUGIN_SLUG}/${PLUGIN_SLUG}.php"
+          readme_file="build/release/${PLUGIN_SLUG}/readme.txt"
+
+          perl -0pi -e "s/(\\* Version:\\s*)[0-9]+\\.[0-9]+\\.[0-9]+/\${1}${NEXT_VERSION}/" "${plugin_file}"
+          perl -0pi -e "s/(define\\('CHATBOT_PLUGIN_VERSION',\\s*')[^']+('\\);)/\${1}${NEXT_VERSION}\${2}/" "${plugin_file}"
+          perl -0pi -e "s/(Stable tag:\\s*)[0-9]+\\.[0-9]+\\.[0-9]+/\${1}${NEXT_VERSION}/" "${readme_file}"
+
+          grep -q "Version: ${NEXT_VERSION}" "${plugin_file}"
+          grep -q "CHATBOT_PLUGIN_VERSION', '${NEXT_VERSION}'" "${plugin_file}"
+          grep -q "Stable tag: ${NEXT_VERSION}" "${readme_file}"
 
           cd build/release
           zip -r "../../${ZIP_NAME}" "${PLUGIN_SLUG}"
@@ -56,7 +114,13 @@ jobs:
           set -euo pipefail
 
           release_title="Latest plugin zip"
-          release_notes="Automated plugin zip build from commit ${GITHUB_SHA}."
+          release_notes="$(cat <<EOF
+- Plugin version: ${{ steps.version.outputs.next_version }}
+- Source version: ${{ steps.version.outputs.source_version }}
+- Commit: ${GITHUB_SHA}
+- Automated plugin zip build from GitHub Actions.
+EOF
+          )"
 
           if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
             gh release edit "${RELEASE_TAG}" \
@@ -69,4 +133,3 @@ jobs:
           fi
 
           gh release upload "${RELEASE_TAG}" "${ZIP_NAME}" --clobber
-
