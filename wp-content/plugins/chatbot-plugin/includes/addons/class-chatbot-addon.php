@@ -131,4 +131,24 @@ abstract class Chatbot_Addon {
     public function sanitize_settings(array $input) {
         return $input; // Optional override in subclass
     }
+
+    /**
+     * Get custom admin tabs for this addon when active.
+     * Overriden by addons that want to register tabs in the Addons page.
+     *
+     * @return array Array of tab_id => tab_label
+     */
+    public function get_admin_tabs() {
+        return array();
+    }
+
+    /**
+     * Render the content for a custom admin tab.
+     *
+     * @param string $tab The tab ID.
+     */
+    public function render_admin_tab($tab) {
+        // Optional override in subclass
+    }
 }
+

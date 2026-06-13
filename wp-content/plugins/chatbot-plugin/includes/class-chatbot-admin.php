@@ -4270,6 +4270,21 @@ class Chatbot_Admin {
         $edit_id = isset($_GET['edit_id']) ? sanitize_key($_GET['edit_id']) : '';
         $editing_addon = null;
         $editor_code = '';
+        $active_addon = null;
+        $addon_subtab = '';
+
+        if (strpos($active_tab, 'addon-') === 0) {
+            $addon_id = substr($active_tab, 6);
+            $active_addon = $manager->get_addon($addon_id);
+            if ($active_addon && $manager->is_addon_globally_active($addon_id)) {
+                $addon_tabs = $active_addon->get_admin_tabs();
+                if (!empty($addon_tabs)) {
+                    $addon_subtab = isset($_GET['subtab']) ? sanitize_text_field($_GET['subtab']) : array_keys($addon_tabs)[0];
+                }
+            } else {
+                $active_tab = 'installed';
+            }
+        }
 
         if (!empty($edit_id)) {
             $editing_addon = $manager->get_addon($edit_id);
@@ -4316,6 +4331,21 @@ class Chatbot_Admin {
                 <a href="<?php echo admin_url('admin.php?page=chatbot-addons&tab=agent'); ?>" class="nav-tab <?php echo $active_tab === 'agent' ? 'nav-tab-active' : ''; ?>">
                     <span class="dashicons dashicons-translation" style="margin-top: 3px; margin-right: 5px;"></span><?php _e('AI Agent Integration (Skill)', 'chatbot-plugin'); ?>
                 </a>
+                <?php 
+                foreach ($all_addons as $addon_id => $addon) {
+                    if ($manager->is_addon_globally_active($addon_id)) {
+                        $addon_tabs = $addon->get_admin_tabs();
+                        if (!empty($addon_tabs)) {
+                            $addon_tab_slug = 'addon-' . $addon_id;
+                            ?>
+                            <a href="<?php echo admin_url('admin.php?page=chatbot-addons&tab=' . $addon_tab_slug); ?>" class="nav-tab <?php echo $active_tab === $addon_tab_slug ? 'nav-tab-active' : ''; ?>">
+                                <span class="dashicons <?php echo esc_attr($addon->get_icon()); ?>" style="margin-top: 3px; margin-right: 5px;"></span><?php echo esc_html($addon->get_name()); ?>
+                            </a>
+                            <?php
+                        }
+                    }
+                }
+                ?>
             </nav>
 
             <div class="chatbot-addons-content-wrap">
@@ -4591,7 +4621,45 @@ class Chatbot_Admin {
                             }, 2000);
                         });
                     });
-                    </script>
+                <!-- Dynamic Addon Tabs -->
+                <?php elseif ($active_addon !== null): ?>
+                    <div class="card" style="max-width: 100%; margin-top: 0; padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: none;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f1; padding-bottom: 15px; margin-bottom: 20px;">
+                            <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">
+                                <span class="dashicons <?php echo esc_attr($active_addon->get_icon()); ?>" style="color: #8A4FFF; font-size: 20px; width: 20px; height: 20px;"></span>
+                                <?php echo esc_html($active_addon->get_name()); ?>
+                            </h2>
+                            <span class="description" style="font-size: 13px; font-style: italic;">
+                                <?php echo esc_html($active_addon->get_description()); ?>
+                            </span>
+                        </div>
+
+                        <?php 
+                        $addon_tabs = $active_addon->get_admin_tabs();
+                        if (count($addon_tabs) > 1): 
+                        ?>
+                            <ul class="subsubsub" style="float: none; margin: 0 0 20px 0; border-bottom: 1px solid #f0f0f1; padding-bottom: 10px; list-style: none; padding-left: 0;">
+                                <?php 
+                                $i = 0;
+                                foreach ($addon_tabs as $sub_key => $sub_label): 
+                                    $i++;
+                                    $sub_url = admin_url('admin.php?page=chatbot-addons&tab=' . $active_tab . '&subtab=' . $sub_key);
+                                    $is_sub_active = ($addon_subtab === $sub_key);
+                                    ?>
+                                    <li style="display: inline-block; margin: 0; padding: 0;">
+                                        <a href="<?php echo esc_url($sub_url); ?>" class="<?php echo $is_sub_active ? 'current' : ''; ?>" style="font-weight: <?php echo $is_sub_active ? '600' : 'normal'; ?>; color: <?php echo $is_sub_active ? '#8A4FFF' : '#2271b1'; ?>; text-decoration: none; padding: 0 10px 0 0; font-size: 14px;">
+                                            <?php echo esc_html($sub_label); ?>
+                                        </a>
+                                        <?php if ($i < count($addon_tabs)): ?><span style="color: #c3c4c7; margin-right: 10px;">|</span><?php endif; ?>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
+
+                        <div class="addon-tab-content-area" style="margin-top: 15px;">
+                            <?php $active_addon->render_admin_tab($addon_subtab); ?>
+                        </div>
+                    </div>
                 <?php endif; ?>
             </div>
         </div>

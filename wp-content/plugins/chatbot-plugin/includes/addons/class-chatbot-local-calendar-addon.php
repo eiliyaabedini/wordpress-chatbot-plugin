@@ -25,11 +25,6 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
         
         // Register Custom Post Type on init
         add_action('init', array($this, 'register_post_type'));
-
-        // Register Calendar View submenu under Chatbot main menu
-        if (is_admin()) {
-            add_action('admin_menu', array($this, 'register_calendar_menu'));
-        }
     }
 
     /**
@@ -64,8 +59,7 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
             'hierarchical'          => false,
             'public'                => false,
             'show_ui'               => true,
-            'show_in_menu'          => 'chatbot-plugin', // Show as submenu under Chatbot main menu
-            'menu_position'         => 20,
+            'show_in_menu'          => false, // Hidden from sidebar menu, managed in Addons page
             'show_in_nav_menus'     => false,
             'can_export'            => true,
             'has_archive'           => false,
@@ -919,4 +913,164 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
         }
         return intval($parts[0]) * 60 + intval($parts[1]);
     }
+
+    /**
+     * Get custom admin tabs for this addon when active.
+     */
+    public function get_admin_tabs() {
+        return array(
+            'calendar-view' => __('Calendar View', 'chatbot-plugin'),
+            'bookings-list' => __('Bookings List', 'chatbot-plugin'),
+        );
+    }
+
+    /**
+     * Render the content for a custom admin tab.
+     */
+    public function render_admin_tab($tab) {
+        if ($tab === 'bookings-list') {
+            $this->render_bookings_list_page();
+        } else {
+            $this->render_calendar_page();
+        }
+    }
+
+    /**
+     * Render a premium bookings list table
+     */
+    public function render_bookings_list_page() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.', 'chatbot-plugin'));
+        }
+
+        // Handle deletion if requested
+        if (isset($_GET['delete_booking_id'])) {
+            $booking_id = (int)$_GET['delete_booking_id'];
+            if (check_admin_referer('chatbot_delete_booking_' . $booking_id)) {
+                wp_delete_post($booking_id, true);
+                echo '<div class="notice notice-success is-dismissible"><p>' . __('Booking deleted successfully.', 'chatbot-plugin') . '</p></div>';
+            }
+        }
+
+        // Fetch bookings with pagination
+        $paged = isset($_GET['paged_num']) ? max(1, (int)$_GET['paged_num']) : 1;
+        $posts_per_page = 15;
+        
+        $query = new WP_Query(array(
+            'post_type'      => 'chatbot_booking',
+            'post_status'    => 'any',
+            'posts_per_page' => $posts_per_page,
+            'paged'          => $paged,
+            'meta_key'       => '_booking_date',
+            'orderby'        => 'meta_value',
+            'order'          => 'DESC'
+        ));
+
+        $bookings = $query->posts;
+        $total_pages = $query->max_num_pages;
+        ?>
+        <div style="background: #fff; border: 1px solid #c3c4c7; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0; font-size: 18px; font-weight: 700; color: #1d2327;">
+                    <?php _e('All Appointments & Bookings', 'chatbot-plugin'); ?>
+                </h2>
+                <a href="<?php echo admin_url('post-new.php?post_type=chatbot_booking'); ?>" class="button button-primary" target="_blank">
+                    <?php _e('Add New Booking Manually', 'chatbot-plugin'); ?>
+                </a>
+            </div>
+
+            <?php if (empty($bookings)): ?>
+                <p style="text-align: center; color: #646970; font-style: italic; padding: 30px 0;">
+                    <?php _e('No bookings found.', 'chatbot-plugin'); ?>
+                </p>
+            <?php else: ?>
+                <table class="wp-list-table widefat fixed striped table-view-list" style="border: none; box-shadow: none;">
+                    <thead>
+                        <tr>
+                            <th style="font-weight: 600; padding: 12px 10px;"><?php _e('Client/Title', 'chatbot-plugin'); ?></th>
+                            <th style="font-weight: 600; padding: 12px 10px;"><?php _e('Date & Time', 'chatbot-plugin'); ?></th>
+                            <th style="font-weight: 600; padding: 12px 10px;"><?php _e('Duration', 'chatbot-plugin'); ?></th>
+                            <th style="font-weight: 600; padding: 12px 10px;"><?php _e('Email', 'chatbot-plugin'); ?></th>
+                            <th style="font-weight: 600; padding: 12px 10px;"><?php _e('Notes', 'chatbot-plugin'); ?></th>
+                            <th style="font-weight: 600; padding: 12px 10px; text-align: right;"><?php _e('Actions', 'chatbot-plugin'); ?></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($bookings as $b): 
+                            $date = get_post_meta($b->ID, '_booking_date', true);
+                            $time = get_post_meta($b->ID, '_booking_time', true);
+                            $duration = get_post_meta($b->ID, '_booking_duration', true);
+                            $email = get_post_meta($b->ID, '_booking_email', true);
+                            $desc = get_post_meta($b->ID, '_booking_description', true);
+                            
+                            $formatted_date = !empty($date) ? date_i18n(get_option('date_format'), strtotime($date)) : __('N/A', 'chatbot-plugin');
+                            ?>
+                            <tr>
+                                <td style="padding: 12px 10px; font-weight: 500; vertical-align: middle;">
+                                    <strong><?php echo esc_html($b->post_title); ?></strong>
+                                </td>
+                                <td style="padding: 12px 10px; vertical-align: middle;">
+                                    <span class="dashicons dashicons-calendar-alt" style="font-size: 16px; width: 16px; height: 16px; margin-right: 4px; vertical-align: text-bottom; color: #8A4FFF;"></span>
+                                    <?php echo esc_html($formatted_date); ?>
+                                    <span style="color: #646970; margin-left: 5px;">@ <?php echo esc_html($time ?: '00:00'); ?></span>
+                                </td>
+                                <td style="padding: 12px 10px; vertical-align: middle;">
+                                    <?php echo sprintf(__('%s min', 'chatbot-plugin'), esc_html($duration ?: '0')); ?>
+                                </td>
+                                <td style="padding: 12px 10px; vertical-align: middle;">
+                                    <?php if (!empty($email)): ?>
+                                        <a href="mailto:<?php echo esc_attr($email); ?>" style="color: #8A4FFF; text-decoration: none;">
+                                            <?php echo esc_html($email); ?>
+                                        </a>
+                                    <?php else: ?>
+                                        <span style="color: #a7aaad; font-style: italic;"><?php _e('None', 'chatbot-plugin'); ?></span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="padding: 12px 10px; vertical-align: middle; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?php echo esc_attr($desc); ?>">
+                                    <?php echo esc_html($desc ?: '-'); ?>
+                                </td>
+                                <td style="padding: 12px 10px; text-align: right; vertical-align: middle;">
+                                    <a href="<?php echo get_edit_post_link($b->ID); ?>" class="button button-small" target="_blank" style="margin-right: 4px;">
+                                        <?php _e('Edit', 'chatbot-plugin'); ?>
+                                    </a>
+                                    <?php 
+                                    $delete_url = wp_nonce_url(
+                                        add_query_arg(array('tab' => 'addon-local-calendar', 'subtab' => 'bookings-list', 'delete_booking_id' => $b->ID), admin_url('admin.php?page=chatbot-addons')),
+                                        'chatbot_delete_booking_' . $b->ID
+                                    );
+                                    ?>
+                                    <a href="<?php echo esc_url($delete_url); ?>" class="button button-small" style="color: #c62828; border-color: #c62828;" onclick="return confirm('<?php esc_attr_e('Are you sure you want to delete this booking?', 'chatbot-plugin'); ?>');">
+                                        <?php _e('Delete', 'chatbot-plugin'); ?>
+                                    </a>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <?php if ($total_pages > 1): ?>
+                    <div class="tablenav" style="margin-top: 15px;">
+                        <div class="tablenav-pages">
+                            <span class="displaying-num"><?php printf(_n('%s item', '%s items', $query->found_posts, 'chatbot-plugin'), number_format_i18n($query->found_posts)); ?></span>
+                            <span class="pagination-links">
+                                <?php if ($paged > 1): ?>
+                                    <a class="prev-page button" href="<?php echo esc_url(add_query_arg('paged_num', $paged - 1)); ?>">&lsaquo;</a>
+                                <?php endif; ?>
+                                <span class="paging-input">
+                                    <span class="current-page"><?php echo $paged; ?></span>
+                                    <?php _e('of', 'chatbot-plugin'); ?>
+                                    <span class="total-pages"><?php echo $total_pages; ?></span>
+                                </span>
+                                <?php if ($paged < $total_pages): ?>
+                                    <a class="next-page button" href="<?php echo esc_url(add_query_arg('paged_num', $paged + 1)); ?>">&rsaquo;</a>
+                                <?php endif; ?>
+                            </span>
+                        </div>
+                    </div>
+                <?php endif; ?>
+            <?php endif; wp_reset_postdata(); ?>
+        </div>
+        <?php
+    }
 }
+
