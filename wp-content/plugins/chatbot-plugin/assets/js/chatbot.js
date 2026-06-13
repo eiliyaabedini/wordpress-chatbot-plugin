@@ -915,6 +915,7 @@
 
             // Store conversation ID to end on server
             const convIdToEnd = conversationId;
+            const convTokenToEnd = conversationToken;
 
             // Immediately reset to welcome screen
             resetChat();
@@ -926,7 +927,7 @@
                 data: {
                     action: 'chatbot_end_conversation',
                     conversation_id: convIdToEnd,
-                    conversation_token: conversationToken,
+                    conversation_token: convTokenToEnd,
                     nonce: chatbotPluginVars.nonce
                 }
             });
@@ -1008,6 +1009,8 @@
                     }
                     
                     if (response.success) {
+                        chatbotMessages.find('.chatbot-system-message.chatbot-reconnecting-message').remove();
+
                         // Hide loading indicator and make sure messages area is visible
                         $('#chatbot-loading').hide();
                         chatbotMessages.show();
@@ -1124,6 +1127,31 @@
                                 hideTypingIndicator();
                             }
                         }
+                    } else {
+                        const errorMessage = response.data && response.data.message ? response.data.message : '';
+                        if (
+                            errorMessage === 'Conversation not found.' ||
+                            errorMessage === 'Invalid conversation token.' ||
+                            errorMessage === 'Conversation token required.'
+                        ) {
+                            clearStoredConversation();
+                            if (pollInterval) {
+                                clearInterval(pollInterval);
+                                pollInterval = null;
+                            }
+                            conversationId = null;
+                            conversationToken = '';
+                            visitorName = '';
+                            waitingForName = true;
+                            chatbotMessages.empty();
+                            showWelcomeMessage();
+                            chatbotInput.prop('disabled', false).attr('placeholder', 'Enter your name...');
+                            chatbotSendBtn.prop('disabled', false);
+                            chatbotEndBtn.prop('disabled', false);
+                            return;
+                        }
+
+                        chatbotMessages.find('.chatbot-system-message.chatbot-reconnecting-message').text(errorMessage || 'Could not reconnect. Please try again.');
                     }
                 },
                 error: function() {
@@ -1131,6 +1159,14 @@
                     $('#chatbot-loading').hide();
                 }
             });
+        }
+
+        function clearStoredConversation() {
+            localStorage.removeItem('chatbot_conversation_id');
+            localStorage.removeItem('chatbot_conversation_token');
+            localStorage.removeItem('chatbot_visitor_name');
+            localStorage.removeItem('chatbot_config_name');
+            localStorage.removeItem('chatbot_is_open');
         }
         
         // Add character counter to input options row
@@ -1258,7 +1294,7 @@
             chatbotInput.attr('placeholder', 'Type your message...');
 
             // Show reconnection message
-            chatbotMessages.append('<div class="chatbot-system-message">Reconnecting...</div>');
+            chatbotMessages.append('<div class="chatbot-system-message chatbot-reconnecting-message">Reconnecting...</div>');
 
             // Start polling for new messages
             startPolling();
