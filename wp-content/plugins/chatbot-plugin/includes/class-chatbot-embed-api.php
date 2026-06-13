@@ -500,7 +500,7 @@ class Chatbot_Embed_API {
 
         // End the conversation
         $db = Chatbot_DB::get_instance();
-        $db->end_conversation($conversation->id);
+        $db->set_conversation_status($conversation->id, 'ended', true);
 
 
         return new WP_REST_Response(array(

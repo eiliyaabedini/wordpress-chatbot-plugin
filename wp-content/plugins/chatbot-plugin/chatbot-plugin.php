@@ -361,6 +361,7 @@ function create_chatbot_database_tables() {
     $sql_conversations = "CREATE TABLE $table_conversations (
         id bigint(20) NOT NULL AUTO_INCREMENT,
         visitor_name varchar(100) NOT NULL,
+        public_token varchar(64) DEFAULT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
         status varchar(20) DEFAULT 'active' NOT NULL,
@@ -368,8 +369,14 @@ function create_chatbot_database_tables() {
         ended_at datetime DEFAULT NULL,
         archived_at datetime DEFAULT NULL,
         telegram_chat_id bigint(20) DEFAULT NULL,
+        chatbot_config_id bigint(20) DEFAULT NULL,
+        chatbot_config_name varchar(100) DEFAULT NULL,
+        platform_type varchar(20) DEFAULT 'web',
+        platform_chat_id varchar(100) DEFAULT NULL,
         PRIMARY KEY  (id),
-        KEY telegram_chat_id (telegram_chat_id)
+        KEY telegram_chat_id (telegram_chat_id),
+        KEY public_token (public_token),
+        KEY platform_lookup (platform_type, platform_chat_id, chatbot_config_id)
     ) $charset_collate;";
     
     // Table for messages
@@ -396,10 +403,15 @@ function create_chatbot_database_tables() {
         persona text,
         knowledge_sources text,
         telegram_bot_token varchar(100) DEFAULT NULL,
+        n8n_settings text DEFAULT NULL,
+        embed_token varchar(64) DEFAULT NULL,
+        embed_enabled tinyint(1) DEFAULT 0,
+        greeting text DEFAULT NULL,
         created_at datetime DEFAULT CURRENT_TIMESTAMP NOT NULL,
         updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
         PRIMARY KEY  (id),
-        UNIQUE KEY name (name)
+        UNIQUE KEY name (name),
+        KEY embed_token (embed_token)
     ) $charset_collate;";
     
     // Include WordPress database upgrade functions
@@ -674,6 +686,35 @@ function update_chatbot_database_tables() {
         chatbot_log('INFO', 'update_tables', 'Added platform columns to conversations table');
     }
 
+    // Check for public_token column in conversations table. This token binds public
+    // browser requests to the conversation they created.
+    $check_public_token_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $wpdb->prefix . 'chatbot_conversations',
+            'public_token'
+        )
+    );
+
+    if (empty($check_public_token_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding public_token column to conversations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `public_token` varchar(64) DEFAULT NULL AFTER `visitor_name`",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD INDEX `public_token` (`public_token`)",
+            $wpdb->prefix . 'chatbot_conversations'
+        );
+        $wpdb->query($alter_query);
+
+        chatbot_log('INFO', 'update_tables', 'Added public_token column to conversations table');
+    }
+
     // Check for n8n_settings column in configurations table (for n8n integration per chatbot)
     $check_n8n_settings_column = $wpdb->get_var(
         $wpdb->prepare(
@@ -864,9 +905,17 @@ class Chatbot_Plugin {
         );
 
         wp_enqueue_script(
+            'dompurify',
+            'https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js',
+            array(),
+            '3.2.6',
+            true
+        );
+
+        wp_enqueue_script(
             'chatbot-plugin-script',
             CHATBOT_PLUGIN_URL . 'assets/js/chatbot.js',
-            array('jquery', 'marked-js'),
+            array('jquery', 'marked-js', 'dompurify'),
             CHATBOT_PLUGIN_VERSION,
             true
         );

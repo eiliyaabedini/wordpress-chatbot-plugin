@@ -271,10 +271,20 @@
                 // Fallback: get from SDK methods
                 accessToken = AiPass.getAccessTokenSync ? AiPass.getAccessTokenSync() : await AiPass.getAccessToken();
 
+                // The public getTokenInfo() method does not expose the refresh token.
+                // Read the SDK's configured storage payload as a fallback so the
+                // WordPress backend can continue refreshing server-side requests.
+                const storedTokenData = getStoredSdkTokenData();
+                if (storedTokenData) {
+                    refreshToken = storedTokenData.refresh_token || null;
+                    expiresIn = storedTokenData.expires_in || null;
+                }
+
                 // Get expiry info from getTokenInfo()
                 const tokenInfo = AiPass.getTokenInfo ? AiPass.getTokenInfo() : null;
-                if (tokenInfo) {
-                    expiresIn = tokenInfo.expiresIn || null;
+                if (!expiresIn && tokenInfo && tokenInfo.expiresIn) {
+                    // SDK returns milliseconds; backend expects seconds.
+                    expiresIn = Math.max(1, Math.floor(tokenInfo.expiresIn / 1000));
                 }
             }
 
@@ -322,6 +332,18 @@
             } else {
                 alert('Error connecting to AIPass: ' + error.message);
             }
+        }
+    }
+
+    function getStoredSdkTokenData() {
+        try {
+            const config = AiPass.getConfig ? AiPass.getConfig() : {};
+            const storageKey = config.storageKey || 'aipass_oauth_token';
+            const raw = window.localStorage ? window.localStorage.getItem(storageKey) : null;
+            return raw ? JSON.parse(raw) : null;
+        } catch (error) {
+            console.warn('Could not read AIPass SDK token storage:', error);
+            return null;
         }
     }
 

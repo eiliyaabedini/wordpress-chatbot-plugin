@@ -123,6 +123,7 @@ class Chatbot_Handler {
         
         wp_send_json_success(array(
             'conversation_id' => $conversation_id,
+            'conversation_token' => $db->get_conversation($conversation_id)->public_token,
             'message' => 'Conversation started.'
         ));
     }
@@ -139,7 +140,8 @@ class Chatbot_Handler {
         // Get parameters
         $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : 0;
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
-        $sender_type = isset($_POST['sender_type']) ? sanitize_text_field($_POST['sender_type']) : 'user';
+        $sender_type = 'user';
+        $conversation_token = isset($_POST['conversation_token']) ? sanitize_text_field($_POST['conversation_token']) : '';
 
         if (empty($message) || empty($conversation_id)) {
             wp_send_json_error(array('message' => 'Missing required parameters.'));
@@ -177,7 +179,7 @@ class Chatbot_Handler {
 
         // Check if the conversation is active
         $db = Chatbot_DB::get_instance();
-        $conversation = $db->get_conversation($conversation_id);
+        $conversation = $db->get_public_conversation($conversation_id, $conversation_token);
 
         if (!$conversation || $conversation->status !== 'active') {
             wp_send_json_error(array('message' => 'Conversation is not active.'));
@@ -246,6 +248,7 @@ class Chatbot_Handler {
         
         // Get conversation ID
         $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : 0;
+        $conversation_token = isset($_POST['conversation_token']) ? sanitize_text_field($_POST['conversation_token']) : '';
         
         if (empty($conversation_id)) {
             wp_send_json_error(array('message' => 'No conversation ID provided.'));
@@ -253,6 +256,12 @@ class Chatbot_Handler {
         
         // Get messages from the database
         $db = Chatbot_DB::get_instance();
+        $conversation = $db->get_public_conversation($conversation_id, $conversation_token);
+
+        if (!$conversation) {
+            wp_send_json_error(array('message' => 'Conversation not found.'));
+        }
+
         $messages = $db->get_messages($conversation_id);
 
         // Filter out 'function' type messages - they are for admin visibility only
@@ -261,7 +270,6 @@ class Chatbot_Handler {
         }));
 
         // Get conversation status
-        $conversation = $db->get_conversation($conversation_id);
         $conversation_status = $conversation ? $conversation->status : 'unknown';
 
         wp_send_json_success(array(
@@ -281,6 +289,7 @@ class Chatbot_Handler {
         
         // Get conversation ID
         $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : 0;
+        $conversation_token = isset($_POST['conversation_token']) ? sanitize_text_field($_POST['conversation_token']) : '';
         
         if (empty($conversation_id)) {
             wp_send_json_error(array('message' => 'No conversation ID provided.'));
@@ -288,6 +297,12 @@ class Chatbot_Handler {
         
         // Update the conversation status
         $db = Chatbot_DB::get_instance();
+        $conversation = $db->get_public_conversation($conversation_id, $conversation_token);
+
+        if (!$conversation) {
+            wp_send_json_error(array('message' => 'Conversation not found.'));
+        }
+
         $result = $db->set_conversation_status($conversation_id, 'ended', true);
         
         if (!$result) {

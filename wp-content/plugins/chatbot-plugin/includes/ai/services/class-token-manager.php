@@ -268,15 +268,30 @@ class Chatbot_Token_Manager {
         // Use mutex to prevent concurrent refresh attempts
         $lock_key = 'chatbot_aipass_refresh_lock';
         $lock_timeout = 30;
+        $refresh_token_used = $this->refresh_token;
 
         $existing_lock = get_transient($lock_key);
         if ($existing_lock !== false) {
-            // Wait for other process to complete
-            usleep(500000); // 0.5 seconds
+            // Wait for other process to complete. AIPass rotates refresh tokens, so
+            // racing with another refresh can make this process hold a stale token.
+            for ($i = 0; $i < 10; $i++) {
+                usleep(500000); // 0.5 seconds
+
+                if (get_transient($lock_key) === false) {
+                    $this->load_tokens();
+                    if (!empty($this->access_token) && !$this->is_token_expiring()) {
+                        return array('success' => true);
+                    }
+                    break;
+                }
+            }
+
             $this->load_tokens();
             if (!empty($this->access_token) && !$this->is_token_expiring()) {
                 return array('success' => true);
             }
+
+            $refresh_token_used = $this->refresh_token;
         }
 
         // Acquire lock
@@ -289,7 +304,7 @@ class Chatbot_Token_Manager {
         // Prepare refresh request
         $request_body = array(
             'grantType' => 'refresh_token',
-            'refreshToken' => $this->refresh_token,
+            'refreshToken' => $refresh_token_used,
             'clientId' => $this->client_id,
         );
 
@@ -313,6 +328,17 @@ class Chatbot_Token_Manager {
 
             // Clear tokens if refresh token is invalid
             if ($response_code === 401 || $response_code === 400) {
+                $stored_refresh_token = get_option($this->option_refresh_token, '');
+                if (!empty($stored_refresh_token) && $stored_refresh_token !== $refresh_token_used) {
+                    delete_transient($lock_key);
+                    $this->load_tokens();
+                    if (!empty($this->access_token) && !$this->is_token_expiring()) {
+                        if (function_exists('chatbot_log')) {
+                            chatbot_log('INFO', 'token_manager', 'Refresh token was rotated by another process; keeping current tokens');
+                        }
+                        return array('success' => true);
+                    }
+                }
                 $this->clear_tokens();
             }
 
@@ -333,7 +359,7 @@ class Chatbot_Token_Manager {
 
         // Update tokens
         $new_access = $response['access_token'];
-        $new_refresh = $response['refresh_token'] ?? $this->refresh_token;
+        $new_refresh = $response['refresh_token'] ?? $refresh_token_used;
         $expires_in = isset($response['expires_in']) ? (int) $response['expires_in'] : null;
 
         $this->save_tokens($new_access, $new_refresh, $expires_in);

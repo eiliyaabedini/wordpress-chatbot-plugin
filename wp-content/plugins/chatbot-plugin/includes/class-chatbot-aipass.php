@@ -962,6 +962,7 @@ class Chatbot_AIPass {
         $lock_timeout = 30; // Lock expires after 30 seconds (failsafe)
         $max_wait_attempts = 10; // Max times to check if refresh completed
         $wait_interval = 500000; // 0.5 seconds in microseconds
+        $refresh_token_used = $this->refresh_token;
 
         // Try to acquire lock
         $existing_lock = get_transient($lock_key);
@@ -996,6 +997,7 @@ class Chatbot_AIPass {
             }
 
             chatbot_log('WARN', 'refresh_access_token', 'Lock timeout or failed refresh, proceeding with own refresh');
+            $refresh_token_used = $this->refresh_token;
         }
 
         // Acquire the lock
@@ -1005,7 +1007,7 @@ class Chatbot_AIPass {
         // Prepare request body for token refresh
         $request_body = array(
             'grantType' => 'refresh_token',
-            'refreshToken' => $this->refresh_token,
+            'refreshToken' => $refresh_token_used,
             'clientId' => $this->client_id
         );
 
@@ -1059,6 +1061,16 @@ class Chatbot_AIPass {
 
             // If refresh token is invalid or expired, clear all tokens
             if ($response_code === 401 || $response_code === 400) {
+                $stored_refresh_token = get_option('chatbot_aipass_refresh_token', '');
+                if (!empty($stored_refresh_token) && $stored_refresh_token !== $refresh_token_used) {
+                    delete_transient($lock_key);
+                    $this->refresh_configuration();
+                    if (!empty($this->access_token) && $this->token_expiry > time() + 300) {
+                        chatbot_log('INFO', 'refresh_access_token', 'Refresh token was rotated by another process; keeping current tokens');
+                        return array('success' => true);
+                    }
+                }
+
                 chatbot_log('WARN', 'refresh_access_token', 'Refresh token invalid, clearing all tokens');
                 update_option('chatbot_aipass_access_token', '');
                 update_option('chatbot_aipass_refresh_token', '');
@@ -1095,7 +1107,7 @@ class Chatbot_AIPass {
 
         // Update stored tokens
         $new_access_token = $response_body['access_token'];
-        $new_refresh_token = isset($response_body['refresh_token']) ? $response_body['refresh_token'] : $this->refresh_token;
+        $new_refresh_token = isset($response_body['refresh_token']) ? $response_body['refresh_token'] : $refresh_token_used;
 
         // Get expires_in from API response, fallback to 30 days (2592000 seconds) if not provided
         $expires_in = isset($response_body['expires_in']) ? intval($response_body['expires_in']) : 2592000;
@@ -2006,6 +2018,21 @@ class Chatbot_AIPass {
             return;
         }
 
+        if (strlen($text) > 2000) {
+            wp_send_json_error(array('message' => 'Text is too long for speech generation'));
+            return;
+        }
+
+        if (class_exists('Chatbot_Rate_Limiter')) {
+            $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+            $rate_check = $rate_limiter->can_send_message('tts_' . $rate_limiter->get_user_identifier(), $text);
+            if (!$rate_check['allowed']) {
+                wp_send_json_error(array('message' => $rate_check['message']));
+                return;
+            }
+            $rate_limiter->increment_rate_counters('tts_' . $rate_limiter->get_user_identifier());
+        }
+
         $result = $this->generate_speech($text, 'tts-1', $voice);
 
         if ($result['success']) {
@@ -2049,11 +2076,18 @@ class Chatbot_AIPass {
         }
 
         // Decode base64 audio
-        $decoded_audio = base64_decode($audio_data);
+        $decoded_audio = base64_decode($audio_data, true);
         if ($decoded_audio === false) {
             return array(
                 'success' => false,
                 'error' => 'Invalid audio data'
+            );
+        }
+
+        if (strlen($decoded_audio) > 10 * 1024 * 1024) {
+            return array(
+                'success' => false,
+                'error' => 'Audio file is too large'
             );
         }
 
@@ -2169,6 +2203,22 @@ class Chatbot_AIPass {
         if (empty($audio_data)) {
             wp_send_json_error(array('message' => 'No audio data provided'));
             return;
+        }
+
+        if (strlen($audio_data) > 14 * 1024 * 1024) {
+            wp_send_json_error(array('message' => 'Audio file is too large'));
+            return;
+        }
+
+        if (class_exists('Chatbot_Rate_Limiter')) {
+            $rate_limiter = Chatbot_Rate_Limiter::get_instance();
+            $identifier = 'stt_' . $rate_limiter->get_user_identifier();
+            $rate_check = $rate_limiter->can_send_message($identifier);
+            if (!$rate_check['allowed']) {
+                wp_send_json_error(array('message' => $rate_check['message']));
+                return;
+            }
+            $rate_limiter->increment_rate_counters($identifier);
         }
 
         $result = $this->transcribe_audio($audio_data);

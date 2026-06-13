@@ -96,11 +96,14 @@ class Chatbot_DB {
      * @return int|false The conversation ID or false on failure
      */
     public function create_conversation($visitor_name, $chatbot_config_id = null, $chatbot_config_name = null, $telegram_chat_id = null, $platform_type = null, $platform_chat_id = null) {
+        $public_token = $this->generate_public_token();
+
         // Delegate to repository if available
         if ($this->conversation_repository !== null) {
             $data = array(
                 'visitor_name' => $visitor_name,
                 'status' => 'active',
+                'public_token' => $public_token,
             );
 
             if (!empty($chatbot_config_id)) {
@@ -130,10 +133,11 @@ class Chatbot_DB {
 
         $data = array(
             'visitor_name' => sanitize_text_field($visitor_name),
+            'public_token' => $public_token,
             'status' => 'active'
         );
 
-        $formats = array('%s', '%s');
+        $formats = array('%s', '%s', '%s');
 
         // Add chatbot configuration if provided
         if (!empty($chatbot_config_id)) {
@@ -175,6 +179,36 @@ class Chatbot_DB {
         }
 
         return $wpdb->insert_id;
+    }
+
+    /**
+     * Generate the public conversation token used by browser clients.
+     *
+     * @return string
+     */
+    public function generate_public_token() {
+        return bin2hex(random_bytes(32));
+    }
+
+    /**
+     * Verify that a public request owns a conversation.
+     *
+     * @param int    $conversation_id The conversation ID.
+     * @param string $public_token    The browser-held public token.
+     * @return object|null The conversation on success, null on failure.
+     */
+    public function get_public_conversation($conversation_id, $public_token) {
+        $conversation = $this->get_conversation($conversation_id);
+
+        if (!$conversation || empty($public_token) || empty($conversation->public_token)) {
+            return null;
+        }
+
+        if (!hash_equals((string) $conversation->public_token, (string) $public_token)) {
+            return null;
+        }
+
+        return $conversation;
     }
     
     /**

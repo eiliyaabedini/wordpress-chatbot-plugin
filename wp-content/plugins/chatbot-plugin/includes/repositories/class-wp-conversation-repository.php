@@ -61,6 +61,11 @@ class Chatbot_WP_Conversation_Repository implements Chatbot_Conversation_Reposit
         );
         $formats = array('%s', '%s');
 
+        if (!empty($data['public_token'])) {
+            $insert_data['public_token'] = sanitize_text_field($data['public_token']);
+            $formats[] = '%s';
+        }
+
         if (!empty($data['chatbot_config_id'])) {
             $insert_data['chatbot_config_id'] = intval($data['chatbot_config_id']);
             $formats[] = '%d';

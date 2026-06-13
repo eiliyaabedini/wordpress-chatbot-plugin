@@ -26,6 +26,7 @@
         let audioChunks = [];
         let ttsQueue = []; // Queue for TTS requests
         let ttsProcessing = false; // Flag to prevent concurrent TTS
+        let conversationToken = localStorage.getItem('chatbot_conversation_token') || '';
         const chatbotMicBtn = $('.chatbot-mic-btn');
         const chatbotTtsToggle = $('#chatbot-tts-autoplay');
 
@@ -495,13 +496,21 @@
             }
 
             try {
+                if (typeof DOMPurify === 'undefined') {
+                    return $('<div>').text(text).html().replace(/\n/g, '<br>');
+                }
+
                 // Parse markdown
                 let html = marked.parse(text);
 
                 // Make links open in new tab and add security attributes
                 html = html.replace(/<a /g, '<a target="_blank" rel="noopener noreferrer" ');
 
-                return html;
+                return DOMPurify.sanitize(html, {
+                    ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'b', 'i', 'ul', 'ol', 'li', 'a', 'code', 'pre', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'hr'],
+                    ALLOWED_ATTR: ['href', 'target', 'rel', 'title'],
+                    ALLOW_DATA_ATTR: false
+                });
             } catch (e) {
                 console.error('Markdown parsing error:', e);
                 // Fallback to plain text
@@ -748,9 +757,11 @@
                 success: function(response) {
                     if (response.success) {
                         conversationId = response.data.conversation_id;
+                        conversationToken = response.data.conversation_token || '';
 
                         // Save to localStorage
                         localStorage.setItem('chatbot_conversation_id', conversationId);
+                        localStorage.setItem('chatbot_conversation_token', conversationToken);
                         localStorage.setItem('chatbot_visitor_name', visitorName);
                         localStorage.setItem('chatbot_config_name', configName);
 
@@ -865,6 +876,7 @@
                 const formData = new FormData();
                 formData.append('action', action);
                 formData.append('conversation_id', conversationId);
+                formData.append('conversation_token', conversationToken);
                 formData.append('message', message);
                 formData.append('visitor_name', visitorName || 'Visitor');
                 formData.append('nonce', chatbotPluginVars.nonce);
@@ -885,6 +897,7 @@
                 ajaxOptions.data = {
                     action: action,
                     conversation_id: conversationId,
+                    conversation_token: conversationToken,
                     message: message,
                     sender_type: 'user',
                     nonce: chatbotPluginVars.nonce
@@ -913,6 +926,7 @@
                 data: {
                     action: 'chatbot_end_conversation',
                     conversation_id: convIdToEnd,
+                    conversation_token: conversationToken,
                     nonce: chatbotPluginVars.nonce
                 }
             });
@@ -922,11 +936,13 @@
         function resetChat() {
             // Reset conversation variables
             conversationId = null;
+            conversationToken = '';
             visitorName = '';
             waitingForName = true;
 
             // Clear localStorage
             localStorage.removeItem('chatbot_conversation_id');
+            localStorage.removeItem('chatbot_conversation_token');
             localStorage.removeItem('chatbot_visitor_name');
             localStorage.removeItem('chatbot_config_name');
 
@@ -981,6 +997,7 @@
                 data: {
                     action: 'chatbot_get_messages',
                     conversation_id: conversationId,
+                    conversation_token: conversationToken,
                     nonce: chatbotPluginVars.nonce
                 },
                 success: function(response) {
@@ -1031,6 +1048,7 @@
                             
                             // Clear localStorage to prevent auto-resuming this conversation
                             localStorage.removeItem('chatbot_conversation_id');
+                            localStorage.removeItem('chatbot_conversation_token');
                             localStorage.removeItem('chatbot_visitor_name');
                             localStorage.removeItem('chatbot_config_name');
                             
@@ -1219,18 +1237,20 @@
         
         // Check if there's a stored conversation in localStorage
         const storedConversationId = localStorage.getItem('chatbot_conversation_id');
+        const storedConversationToken = localStorage.getItem('chatbot_conversation_token');
         const storedVisitorName = localStorage.getItem('chatbot_visitor_name');
         const storedConfigName = localStorage.getItem('chatbot_config_name');
         const currentConfigName = $('.chatbot-container').attr('data-config-name') || '';
         
         // Only restore if conversation exists and either there's no config name specified
         // or the stored config name matches the current config name
-        const shouldRestore = storedConversationId && storedVisitorName && 
+        const shouldRestore = storedConversationId && storedConversationToken && storedVisitorName &&
                              (currentConfigName === '' || storedConfigName === currentConfigName);
         
         if (shouldRestore) {
             // Resume conversation
             conversationId = storedConversationId;
+            conversationToken = storedConversationToken;
             visitorName = storedVisitorName;
             waitingForName = false;
 
@@ -1248,6 +1268,7 @@
         $(window).on('beforeunload', function() {
             if (conversationId) {
                 localStorage.setItem('chatbot_conversation_id', conversationId);
+                localStorage.setItem('chatbot_conversation_token', conversationToken);
                 localStorage.setItem('chatbot_visitor_name', visitorName);
                 localStorage.setItem('chatbot_is_open', chatbotContainer.hasClass('active') ? 'true' : 'false');
                 

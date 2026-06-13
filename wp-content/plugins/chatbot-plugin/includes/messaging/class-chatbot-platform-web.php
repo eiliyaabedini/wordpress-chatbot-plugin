@@ -142,6 +142,7 @@ class Chatbot_Platform_Web {
         // Get message from request
         $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
         $conversation_id = isset($_POST['conversation_id']) ? intval($_POST['conversation_id']) : null;
+        $conversation_token = isset($_POST['conversation_token']) ? sanitize_text_field($_POST['conversation_token']) : '';
         $config_id = isset($_POST['chatbot_config_id']) ? intval($_POST['chatbot_config_id']) : null;
         $visitor_name = isset($_POST['visitor_name']) ? sanitize_text_field($_POST['visitor_name']) : 'Visitor';
 
@@ -150,6 +151,16 @@ class Chatbot_Platform_Web {
         }
         if ($config_id === 0) {
             $config_id = null;
+        }
+
+        if ($conversation_id !== null) {
+            $db = Chatbot_DB::get_instance();
+            $conversation = $db->get_public_conversation($conversation_id, $conversation_token);
+
+            if (!$conversation || $conversation->status !== 'active') {
+                wp_send_json_error(['message' => 'Conversation is not active']);
+                return;
+            }
         }
 
         // Process file uploads
