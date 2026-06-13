@@ -316,6 +316,12 @@ class Chatbot_Token_Manager {
         $response_code = $this->api_client->get_last_response_code();
 
         if ($response === null) {
+            if (function_exists('chatbot_log')) {
+                chatbot_log('ERROR', 'token_manager', 'Token refresh request failed', array(
+                    'error' => $this->api_client->get_last_error() ?? 'Connection error',
+                ));
+            }
+
             delete_transient($lock_key);
             return array(
                 'success' => false,
@@ -325,6 +331,14 @@ class Chatbot_Token_Manager {
 
         if ($response_code !== 200) {
             $error_msg = $this->extract_error_message($response);
+
+            if (function_exists('chatbot_log')) {
+                chatbot_log('ERROR', 'token_manager', 'Token refresh failed', array(
+                    'status_code' => $response_code,
+                    'error' => $error_msg,
+                    'response_keys' => is_array($response) ? array_keys($response) : array(),
+                ));
+            }
 
             // Clear tokens if refresh token is invalid
             if ($response_code === 401 || $response_code === 400) {
@@ -339,6 +353,13 @@ class Chatbot_Token_Manager {
                         return array('success' => true);
                     }
                 }
+
+                if (function_exists('chatbot_log')) {
+                    chatbot_log('WARN', 'token_manager', 'Refresh token rejected, clearing stored AIPass tokens', array(
+                        'status_code' => $response_code,
+                    ));
+                }
+
                 $this->clear_tokens();
             }
 
@@ -350,6 +371,13 @@ class Chatbot_Token_Manager {
         }
 
         if (!isset($response['access_token'])) {
+            if (function_exists('chatbot_log')) {
+                chatbot_log('ERROR', 'token_manager', 'Token refresh response missing access token', array(
+                    'status_code' => $response_code,
+                    'response_keys' => is_array($response) ? array_keys($response) : array(),
+                ));
+            }
+
             delete_transient($lock_key);
             return array(
                 'success' => false,
@@ -367,7 +395,11 @@ class Chatbot_Token_Manager {
         delete_transient($lock_key);
 
         if (function_exists('chatbot_log')) {
-            chatbot_log('INFO', 'token_manager', 'Token refreshed successfully');
+            chatbot_log('INFO', 'token_manager', 'Token refreshed successfully', array(
+                'has_rotated_refresh' => isset($response['refresh_token']),
+                'expires_in' => $expires_in ?? $this->default_expiry,
+                'expiry_date' => gmdate('Y-m-d H:i:s', $this->token_expiry) . ' UTC',
+            ));
         }
 
         return array('success' => true);

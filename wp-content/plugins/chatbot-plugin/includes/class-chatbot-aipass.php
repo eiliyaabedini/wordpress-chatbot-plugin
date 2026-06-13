@@ -82,9 +82,21 @@ class Chatbot_AIPass {
      */
     public function register_settings() {
         // Register user-specific settings only (NOT client credentials)
-        register_setting('chatbot_ai_settings', 'chatbot_aipass_access_token');
-        register_setting('chatbot_ai_settings', 'chatbot_aipass_refresh_token');
-        register_setting('chatbot_ai_settings', 'chatbot_aipass_token_expiry');
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_access_token', array(
+            'type' => 'string',
+            'sanitize_callback' => 'chatbot_sanitize_aipass_access_token_option',
+            'default' => '',
+        ));
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_refresh_token', array(
+            'type' => 'string',
+            'sanitize_callback' => 'chatbot_sanitize_aipass_refresh_token_option',
+            'default' => '',
+        ));
+        register_setting('chatbot_ai_settings', 'chatbot_aipass_token_expiry', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'chatbot_sanitize_aipass_token_expiry_option',
+            'default' => 0,
+        ));
         register_setting('chatbot_ai_settings', 'chatbot_aipass_enabled', array(
             'type' => 'boolean',
             'default' => true, // AIPass is the default integration method
@@ -491,13 +503,33 @@ class Chatbot_AIPass {
             return $this->render_callback_page(false, 'Connection failed: ' . $token_result['error']);
         }
 
+        $access_token = $token_result['access_token'] ?? '';
+        $refresh_token = $token_result['refresh_token'] ?? '';
+        $expires_in = isset($token_result['expires_in']) ? absint($token_result['expires_in']) : HOUR_IN_SECONDS;
+
+        if (empty($refresh_token)) {
+            $refresh_token = get_option('chatbot_aipass_refresh_token', '');
+            chatbot_log('WARN', 'process_callback', 'Token exchange did not include refresh token, preserving existing value if available', array(
+                'preserved_existing_refresh' => !empty($refresh_token),
+            ));
+        }
+
+        if ($expires_in <= 0) {
+            $expires_in = HOUR_IN_SECONDS;
+            chatbot_log('WARN', 'process_callback', 'Token exchange did not include valid expiry, using one-hour fallback');
+        }
+
         // Store tokens
-        update_option('chatbot_aipass_access_token', $token_result['access_token']);
-        update_option('chatbot_aipass_refresh_token', $token_result['refresh_token']);
-        update_option('chatbot_aipass_token_expiry', time() + $token_result['expires_in']);
+        update_option('chatbot_aipass_access_token', $access_token);
+        update_option('chatbot_aipass_refresh_token', $refresh_token);
+        update_option('chatbot_aipass_token_expiry', time() + $expires_in);
         update_option('chatbot_aipass_enabled', true);
 
-        chatbot_log('INFO', 'process_callback', 'AIPass connected successfully');
+        chatbot_log('INFO', 'process_callback', 'AIPass connected successfully', array(
+            'stored_refresh' => !empty($refresh_token),
+            'expires_in_seconds' => $expires_in,
+            'expires_at' => gmdate('Y-m-d H:i:s', time() + $expires_in) . ' UTC',
+        ));
 
         return $this->render_callback_page(true, '');
     }
@@ -866,9 +898,32 @@ class Chatbot_AIPass {
             return;
         }
 
-        $access_token = sanitize_text_field($_POST['access_token']);
-        $refresh_token = sanitize_text_field($_POST['refresh_token']);
-        $expires_in = intval($_POST['expires_in']);
+        $access_token = isset($_POST['access_token']) ? sanitize_text_field(wp_unslash($_POST['access_token'])) : '';
+        $refresh_token = isset($_POST['refresh_token']) ? sanitize_text_field(wp_unslash($_POST['refresh_token'])) : '';
+        $expires_in = isset($_POST['expires_in']) ? absint($_POST['expires_in']) : 0;
+
+        if (empty($access_token)) {
+            chatbot_log('ERROR', 'store_tokens', 'No access token provided');
+            wp_send_json_error(array('message' => 'No access token provided'));
+            return;
+        }
+
+        $refresh_token_from_payload = !empty($refresh_token);
+        if (empty($refresh_token)) {
+            $existing_refresh_token = get_option('chatbot_aipass_refresh_token', '');
+
+            if (!empty($existing_refresh_token)) {
+                $refresh_token = $existing_refresh_token;
+                chatbot_log('WARN', 'store_tokens', 'Refresh token missing from payload, preserving existing refresh token');
+            } else {
+                chatbot_log('WARN', 'store_tokens', 'Refresh token missing from payload and no stored refresh token exists');
+            }
+        }
+
+        if ($expires_in <= 0) {
+            $expires_in = HOUR_IN_SECONDS;
+            chatbot_log('WARN', 'store_tokens', 'Token expiry missing from payload, using one-hour fallback');
+        }
 
         // Store tokens
         update_option('chatbot_aipass_access_token', $access_token);
@@ -876,7 +931,12 @@ class Chatbot_AIPass {
         update_option('chatbot_aipass_token_expiry', time() + $expires_in);
         update_option('chatbot_aipass_enabled', true);
 
-        chatbot_log('INFO', 'store_tokens', 'AIPass tokens stored successfully');
+        chatbot_log('INFO', 'store_tokens', 'AIPass tokens stored successfully', array(
+            'had_refresh_payload' => $refresh_token_from_payload,
+            'stored_refresh' => !empty($refresh_token),
+            'expires_in_seconds' => $expires_in,
+            'expires_at' => gmdate('Y-m-d H:i:s', time() + $expires_in) . ' UTC',
+        ));
 
         wp_send_json_success(array('message' => 'Tokens stored'));
     }
@@ -1791,8 +1851,11 @@ class Chatbot_AIPass {
             return;
         }
 
+        $existing_refresh_token = get_option('chatbot_aipass_refresh_token', '');
+
         chatbot_log('INFO', 'sync_token_from_sdk', 'Syncing tokens from SDK to backend', array(
             'has_refresh_token' => !empty($refresh_token),
+            'has_existing_refresh_token' => !empty($existing_refresh_token),
             'has_expires_in' => $expires_in > 0
         ));
 
@@ -1803,6 +1866,8 @@ class Chatbot_AIPass {
         if (!empty($refresh_token)) {
             update_option('chatbot_aipass_refresh_token', $refresh_token);
             chatbot_log('INFO', 'sync_token_from_sdk', 'Refresh token stored');
+        } elseif (!empty($existing_refresh_token)) {
+            chatbot_log('INFO', 'sync_token_from_sdk', 'No refresh token provided, preserving existing refresh token');
         } else {
             chatbot_log('WARN', 'sync_token_from_sdk', 'No refresh token provided - automatic token refresh may not work');
         }

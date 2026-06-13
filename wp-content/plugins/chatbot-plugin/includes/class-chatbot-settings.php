@@ -56,9 +56,21 @@ class Chatbot_Settings {
             'type' => 'boolean',
             'default' => true,
         ));
-        register_setting('chatbot_settings', 'chatbot_aipass_access_token');
-        register_setting('chatbot_settings', 'chatbot_aipass_refresh_token');
-        register_setting('chatbot_settings', 'chatbot_aipass_token_expiry');
+        register_setting('chatbot_settings', 'chatbot_aipass_access_token', array(
+            'type' => 'string',
+            'sanitize_callback' => 'chatbot_sanitize_aipass_access_token_option',
+            'default' => '',
+        ));
+        register_setting('chatbot_settings', 'chatbot_aipass_refresh_token', array(
+            'type' => 'string',
+            'sanitize_callback' => 'chatbot_sanitize_aipass_refresh_token_option',
+            'default' => '',
+        ));
+        register_setting('chatbot_settings', 'chatbot_aipass_token_expiry', array(
+            'type' => 'integer',
+            'sanitize_callback' => 'chatbot_sanitize_aipass_token_expiry_option',
+            'default' => 0,
+        ));
 
         // Register general settings
         register_setting('chatbot_settings', 'chatbot_welcome_message');

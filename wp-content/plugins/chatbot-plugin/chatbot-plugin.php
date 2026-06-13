@@ -468,6 +468,177 @@ function chatbot_log($level, $context, $message, $data = null) {
     }
 }
 
+/**
+ * AIPass options whose lifecycle should be visible in diagnostic logs.
+ */
+function chatbot_get_aipass_lifecycle_options() {
+    return array(
+        'chatbot_aipass_access_token',
+        'chatbot_aipass_refresh_token',
+        'chatbot_aipass_token_expiry',
+        'chatbot_aipass_enabled',
+    );
+}
+
+/**
+ * Build a non-secret description of an AIPass option value.
+ */
+function chatbot_describe_aipass_option_value($option, $value) {
+    if ($option === 'chatbot_aipass_access_token' || $option === 'chatbot_aipass_refresh_token') {
+        $value = is_scalar($value) ? (string) $value : '';
+
+        return array(
+            'stored' => $value !== '',
+            'chars' => strlen($value),
+        );
+    }
+
+    if ($option === 'chatbot_aipass_token_expiry') {
+        $timestamp = is_numeric($value) ? (int) $value : 0;
+
+        return array(
+            'set' => $timestamp > 0,
+            'timestamp' => $timestamp,
+            'utc' => $timestamp > 0 ? gmdate('Y-m-d H:i:s', $timestamp) . ' UTC' : 'Not set',
+            'seconds_from_now' => $timestamp > 0 ? $timestamp - time() : null,
+        );
+    }
+
+    if ($option === 'chatbot_aipass_enabled') {
+        return array(
+            'enabled' => (bool) $value,
+        );
+    }
+
+    return array(
+        'stored' => !empty($value),
+    );
+}
+
+/**
+ * Capture request context for diagnostic option lifecycle logs.
+ */
+function chatbot_get_log_request_context() {
+    $context = array(
+        'method' => isset($_SERVER['REQUEST_METHOD']) ? sanitize_text_field(wp_unslash($_SERVER['REQUEST_METHOD'])) : '',
+        'is_admin' => is_admin(),
+        'is_ajax' => function_exists('wp_doing_ajax') ? wp_doing_ajax() : (defined('DOING_AJAX') && DOING_AJAX),
+        'is_rest' => defined('REST_REQUEST') && REST_REQUEST,
+    );
+
+    if (!empty($_REQUEST['action'])) {
+        $context['action'] = sanitize_text_field(wp_unslash($_REQUEST['action']));
+    }
+
+    if (!empty($_SERVER['REQUEST_URI'])) {
+        $request_uri = sanitize_text_field(wp_unslash($_SERVER['REQUEST_URI']));
+        $context['uri_path'] = parse_url($request_uri, PHP_URL_PATH) ?: '';
+
+        $query = parse_url($request_uri, PHP_URL_QUERY);
+        if (!empty($query)) {
+            parse_str($query, $query_params);
+            $context['query_keys'] = array_keys($query_params);
+        }
+    }
+
+    if (defined('WP_CLI') && WP_CLI) {
+        $context['wp_cli'] = true;
+    }
+
+    return $context;
+}
+
+/**
+ * Preserve stored AIPass token-like values if a settings form submits an empty hidden field.
+ */
+function chatbot_sanitize_preserved_aipass_secret_option($value, $option_name) {
+    $value = is_scalar($value) ? sanitize_text_field(wp_unslash($value)) : '';
+
+    if ($value === '') {
+        $existing = get_option($option_name, '');
+
+        if ($existing !== '') {
+            chatbot_log('WARN', 'aipass_settings_sanitize', 'Prevented empty settings value from clearing stored AIPass option', array(
+                'option' => $option_name,
+                'existing' => chatbot_describe_aipass_option_value($option_name, $existing),
+                'request' => chatbot_get_log_request_context(),
+            ));
+
+            return $existing;
+        }
+    }
+
+    return $value;
+}
+
+function chatbot_sanitize_aipass_access_token_option($value) {
+    return chatbot_sanitize_preserved_aipass_secret_option($value, 'chatbot_aipass_access_token');
+}
+
+function chatbot_sanitize_aipass_refresh_token_option($value) {
+    return chatbot_sanitize_preserved_aipass_secret_option($value, 'chatbot_aipass_refresh_token');
+}
+
+function chatbot_sanitize_aipass_token_expiry_option($value) {
+    $expiry = is_scalar($value) ? absint($value) : 0;
+
+    if ($expiry <= 0) {
+        $existing = absint(get_option('chatbot_aipass_token_expiry', 0));
+
+        if ($existing > 0) {
+            chatbot_log('WARN', 'aipass_settings_sanitize', 'Prevented empty settings value from clearing AIPass expiry', array(
+                'option' => 'chatbot_aipass_token_expiry',
+                'existing' => chatbot_describe_aipass_option_value('chatbot_aipass_token_expiry', $existing),
+                'request' => chatbot_get_log_request_context(),
+            ));
+
+            return $existing;
+        }
+    }
+
+    return $expiry;
+}
+
+function chatbot_log_aipass_option_added($option, $value) {
+    if (!in_array($option, chatbot_get_aipass_lifecycle_options(), true)) {
+        return;
+    }
+
+    chatbot_log('INFO', 'aipass_option_lifecycle', 'AIPass option added', array(
+        'option' => $option,
+        'new' => chatbot_describe_aipass_option_value($option, $value),
+        'request' => chatbot_get_log_request_context(),
+    ));
+}
+
+function chatbot_log_aipass_option_updated($option, $old_value, $value) {
+    if (!in_array($option, chatbot_get_aipass_lifecycle_options(), true)) {
+        return;
+    }
+
+    chatbot_log('INFO', 'aipass_option_lifecycle', 'AIPass option updated', array(
+        'option' => $option,
+        'old' => chatbot_describe_aipass_option_value($option, $old_value),
+        'new' => chatbot_describe_aipass_option_value($option, $value),
+        'request' => chatbot_get_log_request_context(),
+    ));
+}
+
+function chatbot_log_aipass_option_deleted($option) {
+    if (!in_array($option, chatbot_get_aipass_lifecycle_options(), true)) {
+        return;
+    }
+
+    chatbot_log('WARN', 'aipass_option_lifecycle', 'AIPass option deleted', array(
+        'option' => $option,
+        'request' => chatbot_get_log_request_context(),
+    ));
+}
+
+add_action('added_option', 'chatbot_log_aipass_option_added', 10, 2);
+add_action('updated_option', 'chatbot_log_aipass_option_updated', 10, 3);
+add_action('deleted_option', 'chatbot_log_aipass_option_deleted', 10, 1);
+
 // Plugin activation
 function activate_chatbot_plugin() {
     chatbot_log('INFO', 'activation', 'Plugin activation started');
