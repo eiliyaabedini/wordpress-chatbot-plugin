@@ -112,6 +112,16 @@ class Chatbot_Admin {
             'chatbot-conversations',
             array($this, 'display_conversations_page')
         );
+
+        // Addons submenu
+        add_submenu_page(
+            'chatbot-plugin',
+            __('Addons', 'aipass-chat'),
+            __('Addons', 'aipass-chat'),
+            'manage_options',
+            'chatbot-addons',
+            array($this, 'display_addons_page')
+        );
     }
 
     /**
@@ -1341,6 +1351,49 @@ class Chatbot_Admin {
                             <!-- End WhatsApp Section -->
                         </div>
                         <!-- End integrations-grid -->
+
+                        <!-- WordPress-Native Addons (Integrations) Section -->
+                        <div class="integration-card" style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; margin-top: 20px;">
+                            <h3 style="margin-top: 0; display: flex; align-items: center; gap: 10px;">
+                                <span style="background: #8A4FFF; color: #fff; padding: 8px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;">
+                                    <span class="dashicons dashicons-admin-plugins" style="font-size: 20px; width: 20px; height: 20px;"></span>
+                                </span>
+                                <?php _e('WordPress-Native Addons', 'chatbot-plugin'); ?>
+                            </h3>
+                            <p style="color: #666; margin-bottom: 15px;">
+                                <?php _e('Enable or disable native integrations that execute directly within your WordPress environment (e.g. Local Booking Calendar). Manage and create addons under the Chatbot > Addons menu.', 'chatbot-plugin'); ?>
+                            </p>
+                            <?php
+                            if (class_exists('Chatbot_Addon_Manager')) {
+                                $addon_manager = Chatbot_Addon_Manager::get_instance();
+                                $all_addons = $addon_manager->get_addons();
+                                
+                                $addon_settings_json = $editing && isset($config->addon_settings) ? $config->addon_settings : '';
+                                $addon_status = !empty($addon_settings_json) ? json_decode($addon_settings_json, true) : array();
+
+                                if (empty($all_addons)) {
+                                    echo '<p class="description" style="color: #d63638; background: #fcf0f1; padding: 10px; border-left: 4px solid #d63638;">' . __('No native addons found. Go to Chatbot > Addons to create or load addons.', 'chatbot-plugin') . '</p>';
+                                } else {
+                                    echo '<table class="form-table" style="margin: 0;"><tbody>';
+                                    foreach ($all_addons as $addon_id => $addon) {
+                                        $is_enabled = isset($addon_status[$addon_id]['enabled']) ? (bool) $addon_status[$addon_id]['enabled'] : false;
+                                        echo '<tr>';
+                                        echo '<th scope="row" style="width: 250px; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">';
+                                        echo '<label style="display: flex; align-items: center; gap: 8px;">';
+                                        echo '<input type="checkbox" name="chatbot_addons[' . esc_attr($addon_id) . '][enabled]" value="1" ' . checked($is_enabled, true, false) . '>';
+                                        echo '<strong>' . esc_html($addon->get_name()) . '</strong>';
+                                        echo '</label>';
+                                        echo '</th>';
+                                        echo '<td style="padding: 10px 0; border-bottom: 1px solid #f0f0f0;">';
+                                        echo '<span class="description">' . esc_html($addon->get_description()) . '</span>';
+                                        echo '</td>';
+                                        echo '</tr>';
+                                    }
+                                    echo '</tbody></table>';
+                                }
+                            }
+                            ?>
+                        </div>
 
                         <!-- n8n Workflow Automation Section (full width) -->
                         <div class="integration-card" style="background: #fff; border: 1px solid #c3c4c7; border-radius: 4px; padding: 20px; margin-top: 20px;">
@@ -3567,6 +3620,18 @@ class Chatbot_Admin {
             $system_prompt = $this->build_system_prompt($knowledge, $persona);
         }
 
+        // Parse chatbot_addons
+        $addon_settings_raw = isset($_POST['chatbot_addons']) ? $_POST['chatbot_addons'] : array();
+        $addon_settings_array = array();
+        if (is_array($addon_settings_raw)) {
+            foreach ($addon_settings_raw as $addon_id => $addon_data) {
+                $addon_settings_array[sanitize_key($addon_id)] = array(
+                    'enabled' => isset($addon_data['enabled']) ? true : false
+                );
+            }
+        }
+        $addon_settings = wp_json_encode($addon_settings_array);
+
         // Log what we're attempting to add
         chatbot_log('DEBUG', 'process_add_configuration', 'Adding configuration with separate fields', array(
             'name' => $name,
@@ -3574,11 +3639,12 @@ class Chatbot_Admin {
             'persona_length' => strlen($persona),
             'system_prompt_length' => strlen($system_prompt),
             'knowledge_sources' => $knowledge_sources,
-            'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty'
+            'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty',
+            'has_addon_settings' => !empty($addon_settings)
         ));
 
         // Add the configuration
-        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $greeting);
+        $result = $db->add_configuration($name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $greeting, $addon_settings);
         
         if ($result) {
             // Success
@@ -3761,6 +3827,18 @@ class Chatbot_Admin {
             $system_prompt = $this->build_system_prompt($knowledge, $persona);
         }
 
+        // Parse chatbot_addons
+        $addon_settings_raw = isset($_POST['chatbot_addons']) ? $_POST['chatbot_addons'] : array();
+        $addon_settings_array = array();
+        if (is_array($addon_settings_raw)) {
+            foreach ($addon_settings_raw as $addon_id => $addon_data) {
+                $addon_settings_array[sanitize_key($addon_id)] = array(
+                    'enabled' => isset($addon_data['enabled']) ? true : false
+                );
+            }
+        }
+        $addon_settings = wp_json_encode($addon_settings_array);
+
         // Log what we're attempting to update
         chatbot_log('DEBUG', 'process_update_configuration', 'Updating configuration with separate fields', array(
             'id' => $id,
@@ -3771,11 +3849,12 @@ class Chatbot_Admin {
             'knowledge_sources' => $knowledge_sources,
             'telegram_bot_token' => !empty($telegram_bot_token) ? 'set' : 'empty',
             'n8n_enabled' => $n8n_enabled ? 'yes' : 'no',
-            'n8n_action_count' => count($n8n_actions)
+            'n8n_action_count' => count($n8n_actions),
+            'has_addon_settings' => !empty($addon_settings)
         ));
 
         // Update the configuration
-        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $n8n_settings, $greeting);
+        $result = $db->update_configuration($id, $name, $system_prompt, $knowledge, $persona, $knowledge_sources, $telegram_bot_token, $n8n_settings, $greeting, $addon_settings);
         
         if ($result) {
             // Success
@@ -3948,6 +4027,602 @@ class Chatbot_Admin {
         wp_send_json_success(array(
             'embed_token' => $token,
         ));
+    }
+
+    /**
+     * Render and handle the Addons admin page
+     */
+    public function display_addons_page() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.', 'chatbot-plugin'));
+        }
+
+        $manager = Chatbot_Addon_Manager::get_instance();
+        $all_addons = $manager->get_addons();
+        
+        $action_message = '';
+        $action_success = true;
+
+        // Ensure API Key exists
+        $api_key = get_option('chatbot_addons_api_key');
+        if (empty($api_key)) {
+            $api_key = bin2hex(random_bytes(32));
+            update_option('chatbot_addons_api_key', $api_key);
+        }
+
+        // Handle POST Requests
+        if (isset($_POST['chatbot_addons_action'])) {
+            $post_action = sanitize_text_field($_POST['chatbot_addons_action']);
+            
+            if ($post_action === 'save_global_settings') {
+                if (check_admin_referer('chatbot_addons_global_nonce')) {
+                    // Save global configurations for addons
+                    foreach ($all_addons as $id => $addon) {
+                        $addon_post_key = 'chatbot_addon_' . str_replace('-', '_', $id);
+                        if (isset($_POST[$addon_post_key])) {
+                            $sanitized = $addon->sanitize_settings($_POST[$addon_post_key]);
+                            $manager->save_addon_global_settings($id, $sanitized);
+                        }
+                    }
+                    $action_message = __('Global addon settings updated successfully!', 'chatbot-plugin');
+                    $action_success = true;
+                    // Reload settings
+                    $all_addons = $manager->get_addons();
+                }
+            }
+            
+            if ($post_action === 'regenerate_api_key') {
+                if (check_admin_referer('chatbot_addons_key_nonce')) {
+                    $api_key = bin2hex(random_bytes(32));
+                    update_option('chatbot_addons_api_key', $api_key);
+                    $action_message = __('New API key generated successfully!', 'chatbot-plugin');
+                    $action_success = true;
+                }
+            }
+
+            if ($post_action === 'save_addon_code') {
+                if (check_admin_referer('chatbot_addons_code_nonce')) {
+                    $addon_id = sanitize_key($_POST['addon_id'] ?? '');
+                    $addon_name = sanitize_text_field($_POST['addon_name'] ?? '');
+                    $addon_description = sanitize_textarea_field($_POST['addon_description'] ?? '');
+                    $code = wp_unslash($_POST['addon_code'] ?? '');
+
+                    if (empty($addon_id) || empty($code)) {
+                        $action_message = __('Addon ID and PHP code are required.', 'chatbot-plugin');
+                        $action_success = false;
+                    } elseif (!preg_match('/^[a-z0-9-_]+$/', $addon_id)) {
+                        $action_message = __('Invalid Addon ID. Use lowercase letters, numbers, and dashes only.', 'chatbot-plugin');
+                        $action_success = false;
+                    } else {
+                        // Validate compile status
+                        $upload_dir = wp_upload_dir();
+                        $target_dir = $upload_dir['basedir'] . '/chatbot-addons/';
+                        
+                        if (!file_exists($target_dir)) {
+                            wp_mkdir_p($target_dir);
+                        }
+
+                        $temp_file = $target_dir . 'temp-edit-' . time() . '.php';
+                        file_put_contents($temp_file, $code);
+
+                        $is_syntax_valid = false;
+                        $error_message = '';
+
+                        // Determine class name to check
+                        $class_name = str_replace('-', ' ', $addon_id);
+                        $class_name = ucwords($class_name);
+                        $class_name = str_replace(' ', '_', $class_name);
+                        $class_name = 'Chatbot_' . $class_name . '_Addon';
+
+                        if (function_exists('exec')) {
+                            $output = array();
+                            $return_var = 1;
+                            exec('php -l ' . escapeshellarg($temp_file), $output, $return_var);
+                            if ($return_var === 0) {
+                                $is_syntax_valid = true;
+                            } else {
+                                $error_message = implode("\n", $output);
+                            }
+                        } else {
+                            // Fallback: only include to check syntax if class does not exist yet to prevent fatal redeclaration error
+                            if (class_exists($class_name)) {
+                                $is_syntax_valid = true;
+                            } else {
+                                try {
+                                    include $temp_file;
+                                    $is_syntax_valid = true;
+                                } catch (Throwable $e) {
+                                    $error_message = $e->getMessage();
+                                }
+                            }
+                        }
+
+                        if (file_exists($temp_file)) {
+                            unlink($temp_file);
+                        }
+
+                        if (!$is_syntax_valid) {
+                            $action_message = __('PHP Compilation Error: ', 'chatbot-plugin') . $error_message;
+                            $action_success = false;
+                        } else {
+                            // Class existence and base class checks using safe static analysis
+                            if (!preg_match('/\bclass\s+' . preg_quote($class_name, '/') . '\b/i', $code)) {
+                                $action_message = sprintf(__('Validation error: Class "%s" is not defined in the code.', 'chatbot-plugin'), $class_name);
+                                $action_success = false;
+                            } elseif (!preg_match('/\bclass\s+' . preg_quote($class_name, '/') . '\s+([^\{]*\s+)?extends\s+Chatbot_Addon\b/i', $code)) {
+                                $action_message = sprintf(__('Validation error: Class "%s" must extend "Chatbot_Addon" base class.', 'chatbot-plugin'), $class_name);
+                                $action_success = false;
+                            } else {
+                                // Save file
+                                $final_file = $target_dir . 'class-chatbot-' . $addon_id . '-addon.php';
+                                file_put_contents($final_file, $code);
+                                
+                                // Re-trigger reload
+                                wp_safe_redirect(admin_url('admin.php?page=chatbot-addons&success_save=1'));
+                                exit;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle deletion GET/POST request
+        if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['addon_id'])) {
+            if (check_admin_referer('chatbot_delete_addon_' . $_GET['addon_id'])) {
+                $del_id = sanitize_key($_GET['addon_id']);
+                $deleted = $manager->delete_addon($del_id);
+                if ($deleted) {
+                    wp_safe_redirect(admin_url('admin.php?page=chatbot-addons&success_delete=1'));
+                    exit;
+                } else {
+                    $action_message = __('Failed to delete addon or addon is built-in.', 'chatbot-plugin');
+                    $action_success = false;
+                }
+            }
+        }
+
+        // Success parameter redirects
+        if (isset($_GET['success_save'])) {
+            $action_message = __('Addon saved and validated successfully!', 'chatbot-plugin');
+            $action_success = true;
+        }
+        if (isset($_GET['success_delete'])) {
+            $action_message = __('Addon deleted successfully!', 'chatbot-plugin');
+            $action_success = true;
+        }
+
+        // Determine active tab
+        $active_tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'installed';
+        $edit_id = isset($_GET['edit_id']) ? sanitize_key($_GET['edit_id']) : '';
+        $editing_addon = null;
+        $editor_code = '';
+
+        if (!empty($edit_id)) {
+            $editing_addon = $manager->get_addon($edit_id);
+            if ($editing_addon) {
+                $active_tab = 'editor';
+                // Read code
+                $upload_dir = wp_upload_dir();
+                $addon_file = $upload_dir['basedir'] . '/chatbot-addons/class-chatbot-' . $edit_id . '-addon.php';
+                if (file_exists($addon_file)) {
+                    $editor_code = file_get_contents($addon_file);
+                } else {
+                    $builtin_file = CHATBOT_PLUGIN_PATH . 'includes/addons/class-chatbot-' . $edit_id . '-addon.php';
+                    if (file_exists($builtin_file)) {
+                        $editor_code = file_get_contents($builtin_file);
+                    }
+                }
+            }
+        }
+
+        // If editor tab is active but no editing addon, load default template
+        if ($active_tab === 'editor' && !$editing_addon) {
+            $editor_code = $this->get_addon_editor_template();
+        }
+
+        // Render page
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php _e('Native Addons (Integrations) Manager', 'chatbot-plugin'); ?></h1>
+            <hr class="wp-header-end">
+
+            <?php if (!empty($action_message)): ?>
+                <div class="notice notice-<?php echo $action_success ? 'success' : 'error'; ?> is-dismissible">
+                    <p><?php echo esc_html($action_message); ?></p>
+                </div>
+            <?php endif; ?>
+
+            <nav class="nav-tab-wrapper" style="margin-top: 15px; margin-bottom: 20px;">
+                <a href="<?php echo admin_url('admin.php?page=chatbot-addons&tab=installed'); ?>" class="nav-tab <?php echo $active_tab === 'installed' ? 'nav-tab-active' : ''; ?>">
+                    <span class="dashicons dashicons-admin-plugins" style="margin-top: 3px; margin-right: 5px;"></span><?php _e('Installed Addons', 'chatbot-plugin'); ?>
+                </a>
+                <a href="<?php echo admin_url('admin.php?page=chatbot-addons&tab=editor'); ?>" class="nav-tab <?php echo $active_tab === 'editor' ? 'nav-tab-active' : ''; ?>">
+                    <span class="dashicons dashicons-editor-code" style="margin-top: 3px; margin-right: 5px;"></span><?php echo !empty($edit_id) ? __('Edit Addon', 'chatbot-plugin') : __('Create New Addon', 'chatbot-plugin'); ?>
+                </a>
+                <a href="<?php echo admin_url('admin.php?page=chatbot-addons&tab=agent'); ?>" class="nav-tab <?php echo $active_tab === 'agent' ? 'nav-tab-active' : ''; ?>">
+                    <span class="dashicons dashicons-translation" style="margin-top: 3px; margin-right: 5px;"></span><?php _e('AI Agent Integration (Skill)', 'chatbot-plugin'); ?>
+                </a>
+            </nav>
+
+            <div class="chatbot-addons-content-wrap">
+                <!-- Installed Addons Tab -->
+                <?php if ($active_tab === 'installed'): ?>
+                    <form method="post">
+                        <input type="hidden" name="chatbot_addons_action" value="save_global_settings">
+                        <?php wp_nonce_field('chatbot_addons_global_nonce'); ?>
+
+                        <div class="card" style="max-width: 100%; margin-top: 0; padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: none;">
+                            <h2 style="margin-top: 0;"><?php _e('Active Integrations', 'chatbot-plugin'); ?></h2>
+                            <p class="description"><?php _e('Configure global parameters for local chatbot integrations here. Enable them per chatbot inside the specific chatbot editing pages.', 'chatbot-plugin'); ?></p>
+                            
+                            <?php if (empty($all_addons)): ?>
+                                <p><?php _e('No native addons installed. Use the Create New Addon tab to write one, or connect an AI agent to publish one automatically.', 'chatbot-plugin'); ?></p>
+                            <?php else: ?>
+                                <table class="wp-list-table widefat fixed striped table-view-list" style="margin-top: 15px; margin-bottom: 25px; border: 1px solid #e2e4e7; border-radius: 4px;">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 180px; font-weight: 600; padding: 12px;"><?php _e('Name', 'chatbot-plugin'); ?></th>
+                                            <th style="width: 120px; font-weight: 600; padding: 12px;"><?php _e('Addon ID', 'chatbot-plugin'); ?></th>
+                                            <th style="font-weight: 600; padding: 12px;"><?php _e('Description', 'chatbot-plugin'); ?></th>
+                                            <th style="width: 120px; font-weight: 600; padding: 12px;"><?php _e('Source', 'chatbot-plugin'); ?></th>
+                                            <th style="width: 150px; font-weight: 600; padding: 12px; text-align: right;"><?php _e('Actions', 'chatbot-plugin'); ?></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ($all_addons as $id => $addon): 
+                                            $is_custom = file_exists(wp_upload_dir()['basedir'] . '/chatbot-addons/class-chatbot-' . $id . '-addon.php');
+                                            ?>
+                                            <tr>
+                                                <td style="padding: 12px; font-weight: bold; vertical-align: middle;">
+                                                    <span class="dashicons <?php echo esc_attr($addon->get_icon()); ?>" style="margin-right: 5px; color: #8A4FFF; vertical-align: text-bottom;"></span>
+                                                    <?php echo esc_html($addon->get_name()); ?>
+                                                </td>
+                                                <td style="padding: 12px; vertical-align: middle;"><code><?php echo esc_html($id); ?></code></td>
+                                                <td style="padding: 12px; vertical-align: middle;"><?php echo esc_html($addon->get_description()); ?></td>
+                                                <td style="padding: 12px; vertical-align: middle;">
+                                                    <span class="badge" style="background: <?php echo $is_custom ? '#e2ecff; color: #1e56b8' : '#e2f7e2; color: #1a7a1a'; ?>; padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">
+                                                        <?php echo $is_custom ? __('Custom', 'chatbot-plugin') : __('Core', 'chatbot-plugin'); ?>
+                                                    </span>
+                                                </td>
+                                                <td style="padding: 12px; text-align: right; vertical-align: middle;">
+                                                    <button type="button" class="button button-small toggle-addon-config" data-addon="<?php echo esc_attr($id); ?>" style="margin-right: 3px;">
+                                                        <?php _e('Configure', 'chatbot-plugin'); ?>
+                                                    </button>
+                                                    <a href="<?php echo admin_url('admin.php?page=chatbot-addons&edit_id=' . esc_attr($id)); ?>" class="button button-small">
+                                                        <?php _e('Edit Code', 'chatbot-plugin'); ?>
+                                                    </a>
+                                                    <?php if ($is_custom): ?>
+                                                        <?php
+                                                        $has_core_version = file_exists(CHATBOT_PLUGIN_PATH . 'includes/addons/class-chatbot-' . $id . '-addon.php');
+                                                        $delete_confirm = $has_core_version 
+                                                            ? __('Are you sure you want to delete this custom override? This will restore the default core addon code.', 'chatbot-plugin')
+                                                            : __('Are you sure you want to delete this custom addon? This action cannot be undone.', 'chatbot-plugin');
+                                                        ?>
+                                                        <a href="<?php echo wp_nonce_url(admin_url('admin.php?page=chatbot-addons&action=delete&addon_id=' . esc_attr($id)), 'chatbot_delete_addon_' . $id); ?>" class="button button-small delete-addon-btn" onclick="return confirm('<?php echo esc_js($delete_confirm); ?>');" style="color: #c62828;">
+                                                            <?php echo $has_core_version ? __('Revert to Core', 'chatbot-plugin') : __('Delete', 'chatbot-plugin'); ?>
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </td>
+                                            </tr>
+                                            <!-- Inline Config Fields Panel -->
+                                            <tr id="config-panel-<?php echo esc_attr($id); ?>" class="addon-config-panel-row" style="display: none; background: #fafafa;">
+                                                <td colspan="5" style="padding: 20px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+                                                    <h3 style="margin-top: 0; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 8px;">
+                                                        <?php printf(__('Settings: %s', 'chatbot-plugin'), esc_html($addon->get_name())); ?>
+                                                    </h3>
+                                                    <?php
+                                                    // Load active settings if any
+                                                    $addon->set_settings($manager->get_addon_global_settings($id));
+                                                    $addon->render_settings_fields($id);
+                                                    ?>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+
+                                <button type="submit" class="button button-primary">
+                                    <?php _e('Save Global Settings', 'chatbot-plugin'); ?>
+                                </button>
+                            <?php endif; ?>
+                        </div>
+                    </form>
+
+                    <script type="text/javascript">
+                    jQuery(document).ready(function($) {
+                        $('.toggle-addon-config').on('click', function() {
+                            var id = $(this).data('addon');
+                            $('#config-panel-' + id).toggle();
+                        });
+                    });
+                    </script>
+
+                <!-- Create/Edit Addon Tab -->
+                <?php elseif ($active_tab === 'editor'): ?>
+                    <form method="post">
+                        <input type="hidden" name="chatbot_addons_action" value="save_addon_code">
+                        <?php wp_nonce_field('chatbot_addons_code_nonce'); ?>
+
+                        <div class="card" style="max-width: 100%; margin-top: 0; padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: none;">
+                            <h2 style="margin-top: 0;"><?php echo !empty($edit_id) ? __('Edit Addon Code', 'chatbot-plugin') : __('Write New Addon Code', 'chatbot-plugin'); ?></h2>
+                            <p class="description"><?php _e('Write raw PHP classes that extend the Chatbot_Addon class. Code validation runs automatically when saving to prevent ParseErrors.', 'chatbot-plugin'); ?></p>
+
+                            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px; margin-top: 20px;">
+                                <div>
+                                    <div style="margin-bottom: 15px;">
+                                        <label for="addon_id" style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('Addon ID (Slug)', 'chatbot-plugin'); ?></label>
+                                        <input type="text" name="addon_id" id="addon_id" class="regular-text" style="width: 100%;" value="<?php echo esc_attr($edit_id); ?>" <?php echo !empty($edit_id) ? 'readonly' : ''; ?> placeholder="my-custom-integration" required>
+                                        <p class="description"><?php _e('Lowercase, numbers, and dashes only. Matches the file name and defines the class name.', 'chatbot-plugin'); ?></p>
+                                    </div>
+                                    <div style="margin-bottom: 15px;">
+                                        <label for="addon_name" style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('Addon Display Name', 'chatbot-plugin'); ?></label>
+                                        <input type="text" name="addon_name" id="addon_name" class="regular-text" style="width: 100%;" value="<?php echo esc_attr($editing_addon ? $editing_addon->get_name() : ''); ?>" placeholder="My Custom Integration">
+                                    </div>
+                                    <div style="margin-bottom: 15px;">
+                                        <label for="addon_description" style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('Addon Description', 'chatbot-plugin'); ?></label>
+                                        <textarea name="addon_description" id="addon_description" class="large-text" rows="3" style="width: 100%;" placeholder="Provide description..."><?php echo esc_textarea($editing_addon ? $editing_addon->get_description() : ''); ?></textarea>
+                                    </div>
+                                    <div style="margin-top: 25px;">
+                                        <button type="submit" class="button button-primary">
+                                            <?php _e('Save and Validate Addon', 'chatbot-plugin'); ?>
+                                        </button>
+                                        <a href="<?php echo admin_url('admin.php?page=chatbot-addons&tab=installed'); ?>" class="button">
+                                            <?php _e('Cancel', 'chatbot-plugin'); ?>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label for="addon_code" style="display: block; margin-bottom: 5px; font-weight: 500;"><?php _e('PHP Source Code', 'chatbot-plugin'); ?></label>
+                                    <textarea name="addon_code" id="addon_code" rows="22" style="width: 100%; font-family: monospace, Courier, monospace; font-size: 13px; line-height: 1.5; padding: 10px; background: #1e1e1e; color: #d4d4d4; border: 1px solid #444; border-radius: 4px; resize: vertical;" placeholder="<?php _e('Paste or write PHP code here...', 'chatbot-plugin'); ?>"><?php echo esc_textarea($editor_code); ?></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+
+                <!-- AI Agent Integration Tab -->
+                <?php elseif ($active_tab === 'agent'): ?>
+                    <div class="card" style="max-width: 100%; margin-top: 0; padding: 20px; background: #fff; border: 1px solid #c3c4c7; box-shadow: none;">
+                        <h2 style="margin-top: 0;"><?php _e('Automated AI Agent Upload Configuration', 'chatbot-plugin'); ?></h2>
+                        <p class="description"><?php _e('Give this configuration and the skill below to any AI coding assistant (like Claude, Gemini, or ChatGPT). The agent can automatically code, upload, edit, or fix addons for you directly from its workspace!', 'chatbot-plugin'); ?></p>
+
+                        <div style="background: #fcf8e3; border-left: 4px solid #f0ad4e; padding: 15px; margin-top: 15px; margin-bottom: 25px; border-radius: 4px;">
+                            <strong><?php _e('Security Warning:', 'chatbot-plugin'); ?></strong>
+                            <span style="color: #66512c;"><?php _e('Anyone with this API Key can upload and execute PHP code on your server. Do not share it publicly. Regenerate the key immediately if it is compromised.', 'chatbot-plugin'); ?></span>
+                        </div>
+
+                        <table class="form-table">
+                            <tbody>
+                                <tr>
+                                    <th scope="row"><strong><?php _e('REST API Target Endpoint', 'chatbot-plugin'); ?></strong></th>
+                                    <td>
+                                        <code style="font-size: 13px; padding: 5px 8px; background: #f0f0f0; border-radius: 4px;"><?php echo esc_url(site_url('wp-json/chatbot-plugin/v1/addons/update')); ?></code>
+                                        <button type="button" class="button button-small copy-btn" data-copy="<?php echo esc_url(site_url('wp-json/chatbot-plugin/v1/addons/update')); ?>" style="margin-left: 10px;"><?php _e('Copy URL', 'chatbot-plugin'); ?></button>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th scope="row"><strong><?php _e('Developer API Key', 'chatbot-plugin'); ?></strong></th>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 10px;">
+                                            <input type="password" id="agent_api_key_field" class="regular-text" style="font-family: monospace; font-size: 13px;" value="<?php echo esc_attr($api_key); ?>" readonly>
+                                            <button type="button" class="button button-small" onclick="var f=document.getElementById('agent_api_key_field');f.type=f.type==='password'?'text':'password';"><?php _e('Show/Hide', 'chatbot-plugin'); ?></button>
+                                            <button type="button" class="button button-small copy-btn" data-copy="<?php echo esc_attr($api_key); ?>"><?php _e('Copy Key', 'chatbot-plugin'); ?></button>
+                                            <form method="post" style="display: inline;" onsubmit="return confirm('<?php _e('Are you sure you want to regenerate the API key? Any AI agents using the old key will lose access.', 'chatbot-plugin'); ?>');">
+                                                <input type="hidden" name="chatbot_addons_action" value="regenerate_api_key">
+                                                <?php wp_nonce_field('chatbot_addons_key_nonce'); ?>
+                                                <button type="submit" class="button button-small button-link-delete" style="color: #c62828; text-decoration: none;"><?php _e('Regenerate Key', 'chatbot-plugin'); ?></button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <h3 style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;"><?php _e('AI Agent Skill Guide (Markdown)', 'chatbot-plugin'); ?></h3>
+                        <p class="description" style="margin-bottom: 15px;"><?php _e('Copy the text below and provide it to your AI agent so it knows how to connect and deploy new addons successfully.', 'chatbot-plugin'); ?></p>
+
+                        <textarea id="ai_skill_guide_textarea" rows="12" style="width: 100%; font-family: monospace; font-size: 12px; background: #fafafa; padding: 12px; border: 1px solid #ddd; border-radius: 4px;" readonly><?php echo esc_textarea($this->get_addon_agent_skill_markdown($api_key)); ?></textarea>
+                        <p style="margin-top: 10px;">
+                            <button type="button" class="button button-primary copy-btn" data-copy-target="ai_skill_guide_textarea"><?php _e('Copy AI Skill Guide', 'chatbot-plugin'); ?></button>
+                        </p>
+                    </div>
+
+                    <script type="text/javascript">
+                    jQuery(document).ready(function($) {
+                        $('.copy-btn').on('click', function() {
+                            var textToCopy = '';
+                            var targetId = $(this).data('copy-target');
+                            if (targetId) {
+                                textToCopy = $('#' + targetId).val();
+                            } else {
+                                textToCopy = $(this).data('copy');
+                            }
+
+                            var $temp = $('<textarea>');
+                            $('body').append($temp);
+                            $temp.val(textToCopy).select();
+                            document.execCommand('copy');
+                            $temp.remove();
+
+                            var originalText = $(this).text();
+                            var $btn = $(this);
+                            $btn.text('Copied!');
+                            setTimeout(function() {
+                                $btn.text(originalText);
+                            }, 2000);
+                        });
+                    });
+                    </script>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php
+    }
+
+    /**
+     * Get default class template for editor
+     */
+    private function get_addon_editor_template() {
+        return "<?php\n" .
+               "/**\n" .
+               " * Chatbot Custom Addon Template\n" .
+               " */\n" .
+               "class Chatbot_Custom_Addon extends Chatbot_Addon {\n" .
+               "\n" .
+               "    /**\n" .
+               "     * Constructor\n" .
+               "     */\n" .
+               "    public function __construct() {\n" .
+               "        \$this->id = 'custom-addon';\n" .
+               "        \$this->name = 'Custom Addon';\n" .
+               "        \$this->description = 'Exposes custom tools for AI function calling.';\n" .
+               "        \$this->icon = 'dashicons-admin-plugins';\n" .
+               "    }\n" .
+               "\n" .
+               "    /**\n" .
+               "     * Define tool schemas for AI model function calling\n" .
+               "     */\n" .
+               "    public function get_tool_definitions() {\n" .
+               "        return array(\n" .
+               "            array(\n" .
+               "                'type' => 'function',\n" .
+               "                'function' => array(\n" .
+               "                    'name' => 'custom_function',\n" .
+               "                    'description' => 'A description of when the AI should call this function.',\n" .
+               "                    'parameters' => array(\n" .
+               "                        'type' => 'object',\n" .
+               "                        'properties' => array(\n" .
+               "                            'param1' => array(\n" .
+               "                                'type' => 'string',\n" .
+               "                                'description' => 'Parameter description.'\n" .
+               "                            )\n" .
+               "                        ),\n" .
+               "                        'required' => array('param1')\n" .
+               "                    )\n" .
+               "                )\n" .
+               "            )\n" .
+               "        );\n" .
+               "    }\n" .
+               "\n" .
+               "    /**\n" .
+               "     * Execute tool calls triggered by the AI\n" .
+               "     */\n" .
+               "    public function execute_tool(\$tool_name, array \$args, array \$context = array()) {\n" .
+               "        if (\$tool_name === 'custom_function') {\n" .
+               "            \$param1 = sanitize_text_field(\$args['param1'] ?? '');\n" .
+               "            return array(\n" .
+               "                'success' => true,\n" .
+               "                'result' => 'Executed custom function with param: ' . \$param1\n" .
+               "            );\n" .
+               "        }\n" .
+               "        return new WP_Error('unknown_tool', 'Tool not found');\n" .
+               "    }\n" .
+               "\n" .
+               "    /**\n" .
+               "     * Render settings fields in the WordPress admin panel\n" .
+               "     */\n" .
+               "    public function render_settings_fields(\$chatbot_id) {\n" .
+               "        \$custom_param = \$this->settings['custom_param'] ?? '';\n" .
+               "        ?>\n" .
+               "        <div style=\"margin-bottom: 15px;\">\n" .
+               "            <label style=\"display: block; margin-bottom: 5px; font-weight: 500;\">\n" .
+               "                <?php _e('Custom Parameter', 'chatbot-plugin'); ?>\n" .
+               "            </label>\n" .
+               "            <input type=\"text\" name=\"chatbot_addon_custom_addon[custom_param]\" class=\"regular-text\" value=\"<?php echo esc_attr(\$custom_param); ?>\">\n" .
+               "        </div>\n" .
+               "        <?php\n" .
+               "    }\n" .
+               "\n" .
+               "    /**\n" .
+               "     * Sanitize settings inputs\n" .
+               "     */\n" .
+               "    public function sanitize_settings(array \$input) {\n" .
+               "        return array(\n" .
+               "            'custom_param' => sanitize_text_field(\$input['custom_param'] ?? ''),\n" .
+               "        );\n" .
+               "    }\n" .
+               "}\n";
+    }
+
+    /**
+     * Get the developer skill guide markdown content
+     */
+    private function get_addon_agent_skill_markdown($api_key) {
+        $endpoint = site_url('wp-json/chatbot-plugin/v1/addons/update');
+        return "# AI Agent Skill: Creating & Updating Chatbot Addons\n" .
+               "\n" .
+               "This guide explains how to deploy custom capabilities to this WordPress chatbot as local PHP addons.\n" .
+               "\n" .
+               "## 1. Class Structure Requirements\n" .
+               "Your addon must be a valid PHP class structure that:\n" .
+               "1. Extends the base class `Chatbot_Addon`.\n" .
+               "2. Matches the filename class style. If the addon ID is `my-weather`, the file name must be `class-chatbot-my-weather-addon.php` and the class name must be `Chatbot_My_Weather_Addon`.\n" .
+               "\n" .
+               "### Example Code Blueprint:\n" .
+               "```php\n" .
+               "<?php\n" .
+               "class Chatbot_My_Weather_Addon extends Chatbot_Addon {\n" .
+               "    public function __construct() {\n" .
+               "        \$this->id = 'my-weather';\n" .
+               "        \$this->name = 'Local Weather Report';\n" .
+               "        \$this->description = 'Queries real-time weather forecasts for a city.';\n" .
+               "        \$this->icon = 'dashicons-cloud';\n" .
+               "    }\n" .
+               "\n" .
+               "    public function get_tool_definitions() {\n" .
+               "        return [\n" .
+               "            [\n" .
+               "                'type' => 'function',\n" .
+               "                'function' => [\n" .
+               "                    'name' => 'get_current_weather',\n" .
+               "                    'description' => 'Retrieves the temperature and sky conditions of a city.',\n" .
+               "                    'parameters' => [\n" .
+               "                        'type' => 'object',\n" .
+               "                        'properties' => [\n" .
+               "                            'city' => [\n" .
+               "                                'type' => 'string',\n" .
+               "                                'description' => 'The city to search (e.g., Paris, New York).'\n" .
+               "                            ]\n" .
+               "                        ],\n" .
+               "                        'required' => ['city']\n" .
+               "                    ]\n" .
+               "                ]\n" .
+               "            ]\n" .
+               "        ];\n" .
+               "    }\n" .
+               "\n" .
+               "    public function execute_tool(\$tool_name, array \$args, array \$context = []) {\n" .
+               "        if (\$tool_name === 'get_current_weather') {\n" .
+               "            \$city = sanitize_text_field(\$args['city'] ?? '');\n" .
+               "            // perform your custom logic, database query, or remote curl requests here\n" .
+               "            return [\n" .
+               "                'city' => \$city,\n" .
+               "                'temperature' => '22°C',\n" .
+               "                'condition' => 'Partly Cloudy'\n" .
+               "            ];\n" .
+               "        }\n" .
+               "        return new WP_Error('unknown_tool', 'Weather tool not found.');\n" .
+               "    }\n" .
+               "}\n" .
+               "```\n" .
+               "\n" .
+               "## 2. Deploy via API\n" .
+               "Post the payload containing the addon settings and code to the REST target endpoint.\n" .
+               "\n" .
+               "### Connection Parameters:\n" .
+               "* **Target URL**: `{$endpoint}`\n" .
+               "* **HTTP Header**: `X-Chatbot-Addon-API-Key: {$api_key}`\n" .
+               "\n" .
+               "### JSON Payload Schema:\n" .
+               "```json\n" .
+               "{\n" .
+               "    \"addon_id\": \"my-weather\",\n" .
+               "    \"code\": \"<?php\\nclass Chatbot_My_Weather_Addon extends Chatbot_Addon { ... }\"\n" .
+               "}\n" .
+               "```\n" .
+               "\n" .
+               "### Execution Safeguards:\n" .
+               "The server will validate the PHP code using class compilation tests before finalizing the deploy. If there are syntax errors, the upload will fail with a 400 error description.\n";
     }
 }
 

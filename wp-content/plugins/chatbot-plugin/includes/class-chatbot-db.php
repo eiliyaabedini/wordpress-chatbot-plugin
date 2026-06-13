@@ -660,7 +660,7 @@ class Chatbot_DB {
      * @param string $telegram_bot_token Telegram bot token for this configuration
      * @return int|false The configuration ID or false on failure
      */
-    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '', $greeting = '') {
+    public function add_configuration($name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '', $greeting = '', $addon_settings = '') {
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_configurations';
@@ -697,12 +697,13 @@ class Chatbot_DB {
             'persona' => sanitize_textarea_field($persona),
             'knowledge_sources' => $knowledge_sources, // JSON string, no sanitization needed for valid JSON
             'telegram_bot_token' => sanitize_text_field($telegram_bot_token),
+            'addon_settings' => $addon_settings, // JSON string
             'greeting' => sanitize_textarea_field($greeting),
             'created_at' => current_time('mysql'),
             'updated_at' => current_time('mysql')
         );
 
-        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
+        $formats = array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s');
         
         // Make sure the table exists
         // We can't parameterize table names in WordPress, but we can reduce risk
@@ -770,7 +771,7 @@ class Chatbot_DB {
      * @param string $n8n_settings JSON string of n8n integration settings
      * @return bool Whether the update was successful
      */
-    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '', $n8n_settings = '', $greeting = '') {
+    public function update_configuration($id, $name, $system_prompt, $knowledge = '', $persona = '', $knowledge_sources = '', $telegram_bot_token = '', $n8n_settings = '', $greeting = '', $addon_settings = '') {
         global $wpdb;
 
         $table = $wpdb->prefix . 'chatbot_configurations';
@@ -798,7 +799,8 @@ class Chatbot_DB {
             'persona_length' => strlen($persona),
             'knowledge_sources' => $knowledge_sources,
             'has_telegram_token' => !empty($telegram_bot_token),
-            'has_n8n_settings' => !empty($n8n_settings)
+            'has_n8n_settings' => !empty($n8n_settings),
+            'has_addon_settings' => !empty($addon_settings)
         ));
 
         $result = $wpdb->update(
@@ -811,11 +813,12 @@ class Chatbot_DB {
                 'knowledge_sources' => $knowledge_sources, // JSON string
                 'telegram_bot_token' => sanitize_text_field($telegram_bot_token),
                 'n8n_settings' => $n8n_settings, // JSON string
+                'addon_settings' => $addon_settings, // JSON string
                 'greeting' => sanitize_textarea_field($greeting),
                 'updated_at' => current_time('mysql')
             ),
             array('id' => $id),
-            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'),
+            array('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s'),
             array('%d')
         );
 

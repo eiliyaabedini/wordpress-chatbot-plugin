@@ -139,6 +139,10 @@ require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-aipass-proxy.php';
 // Load n8n gateway BEFORE AI class so it can use it for function calling
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-n8n-gateway.php';
 
+// Load native addon integration framework
+require_once CHATBOT_PLUGIN_PATH . 'includes/addons/class-chatbot-addon.php';
+require_once CHATBOT_PLUGIN_PATH . 'includes/addons/class-chatbot-addon-manager.php';
+
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-handler.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-db.php';
 require_once CHATBOT_PLUGIN_PATH . 'includes/class-chatbot-admin.php';
@@ -404,6 +408,7 @@ function create_chatbot_database_tables() {
         knowledge_sources text,
         telegram_bot_token varchar(100) DEFAULT NULL,
         n8n_settings text DEFAULT NULL,
+        addon_settings text DEFAULT NULL,
         embed_token varchar(64) DEFAULT NULL,
         embed_enabled tinyint(1) DEFAULT 0,
         greeting text DEFAULT NULL,
@@ -735,6 +740,28 @@ function update_chatbot_database_tables() {
         $wpdb->query($alter_query);
 
         chatbot_log('INFO', 'update_tables', 'Added n8n_settings column to configurations table');
+    }
+
+    // Check for addon_settings column in configurations table (for native integrations per chatbot)
+    $check_addon_settings_column = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s AND COLUMN_NAME = %s",
+            DB_NAME,
+            $table_configurations,
+            'addon_settings'
+        )
+    );
+
+    if (empty($check_addon_settings_column)) {
+        chatbot_log('INFO', 'update_tables', 'Adding addon_settings column to configurations table');
+
+        $alter_query = sprintf(
+            "ALTER TABLE `%s` ADD COLUMN `addon_settings` text DEFAULT NULL AFTER `n8n_settings`",
+            $wpdb->prefix . 'chatbot_configurations'
+        );
+        $wpdb->query($alter_query);
+
+        chatbot_log('INFO', 'update_tables', 'Added addon_settings column to configurations table');
     }
 
     // Check for embed_token column (for external website embedding)

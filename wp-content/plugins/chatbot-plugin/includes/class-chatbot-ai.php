@@ -388,21 +388,46 @@ class Chatbot_AI {
 
         // Check if n8n gateway is configured for function calling
         $n8n_gateway = null;
-        $tools = null;
+        $tools = array();
 
         if (class_exists('Chatbot_N8N_Gateway') && $config !== null) {
-            $n8n_gateway = Chatbot_N8N_Gateway::get_instance();
-            if ($n8n_gateway->is_configured_for_chatbot($config)) {
-                $tools = $n8n_gateway->build_function_definitions_for_chatbot($config);
-                chatbot_log('INFO', 'generate_response', 'n8n gateway configured with ' . count($tools) . ' actions');
+            $n8n_instance = Chatbot_N8N_Gateway::get_instance();
+            if ($n8n_instance->is_configured_for_chatbot($config)) {
+                $n8n_gateway = $n8n_instance;
+                $n8n_tools = $n8n_gateway->build_function_definitions_for_chatbot($config);
+                if (is_array($n8n_tools)) {
+                    $tools = array_merge($tools, $n8n_tools);
+                }
+                chatbot_log('INFO', 'generate_response', 'n8n gateway configured with ' . count($n8n_tools) . ' actions');
             }
+        }
+
+        // Check for active native addons
+        $active_addons = array();
+        if (class_exists('Chatbot_Addon_Manager') && $config !== null) {
+            $addon_manager = Chatbot_Addon_Manager::get_instance();
+            $active_addons = $addon_manager->get_active_addons_for_chatbot($config->id);
+            foreach ($active_addons as $addon) {
+                $addon_tools = $addon->get_tool_definitions();
+                if (is_array($addon_tools)) {
+                    $tools = array_merge($tools, $addon_tools);
+                }
+            }
+            if (!empty($active_addons)) {
+                chatbot_log('INFO', 'generate_response', 'Native Addons configured: ' . implode(', ', array_keys($active_addons)));
+            }
+        }
+
+        // If tools are empty, set to null
+        if (empty($tools)) {
+            $tools = null;
         }
 
         chatbot_log('INFO', 'generate_response', 'Generating AI response', array(
             'aipass_connected' => $this->is_configured() ? 'Yes' : 'No',
             'model' => $this->model,
             'conversation_id' => $conversation_id,
-            'n8n_enabled' => !empty($tools) ? 'Yes' : 'No'
+            'has_tools' => !empty($tools) ? 'Yes' : 'No'
         ));
 
         // Check if AIPass is connected
@@ -454,18 +479,45 @@ class Chatbot_AI {
                     'tool_calls' => $result['tool_calls']
                 );
 
-                // Execute each tool call via n8n gateway
+                // Execute each tool call
                 foreach ($result['tool_calls'] as $tool_call) {
                     $function_name = $tool_call['function']['name'];
                     $function_args = json_decode($tool_call['function']['arguments'], true);
+                    if (!is_array($function_args)) {
+                        $function_args = array();
+                    }
                     $tool_call_id = $tool_call['id'];
 
-                    chatbot_log('INFO', 'generate_response', "Executing n8n action: {$function_name}");
+                    $action_result = null;
+                    $is_error = false;
 
-                    // Execute via n8n
-                    $action_result = $n8n_gateway->execute_action_for_chatbot($config, $function_name, $function_args, array(
-                        'conversation_id' => $conversation_id
-                    ));
+                    // 1. Check if it is a native addon tool
+                    $is_native_addon_tool = false;
+                    foreach ($active_addons as $addon) {
+                        $addon_tools = $addon->get_tool_definitions();
+                        foreach ($addon_tools as $t) {
+                            if ($t['function']['name'] === $function_name) {
+                                $is_native_addon_tool = true;
+                                chatbot_log('INFO', 'generate_response', "Executing native addon tool: {$function_name}");
+                                $action_result = $addon->execute_tool($function_name, $function_args, array(
+                                    'conversation_id' => $conversation_id
+                                ));
+                                break 2;
+                            }
+                        }
+                    }
+
+                    // 2. Fallback to n8n if not native
+                    if (!$is_native_addon_tool && $n8n_gateway) {
+                        chatbot_log('INFO', 'generate_response', "Executing n8n action: {$function_name}");
+                        $action_result = $n8n_gateway->execute_action_for_chatbot($config, $function_name, $function_args, array(
+                            'conversation_id' => $conversation_id
+                        ));
+                    }
+
+                    if ($action_result === null) {
+                        $action_result = new WP_Error('unknown_tool', 'The tool requested is not configured or available.');
+                    }
 
                     $is_error = is_wp_error($action_result);
                     $result_content = $is_error

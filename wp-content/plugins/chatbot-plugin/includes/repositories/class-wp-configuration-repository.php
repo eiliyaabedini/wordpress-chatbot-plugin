@@ -79,6 +79,13 @@ class Chatbot_WP_Configuration_Repository implements Chatbot_Configuration_Repos
             $formats[] = '%s';
         }
 
+        if (isset($data['addon_settings'])) {
+            $insert_data['addon_settings'] = is_string($data['addon_settings'])
+                ? $data['addon_settings']
+                : wp_json_encode($data['addon_settings']);
+            $formats[] = '%s';
+        }
+
         if (isset($data['telegram_bot_token'])) {
             $insert_data['telegram_bot_token'] = sanitize_text_field($data['telegram_bot_token']);
             $formats[] = '%s';
@@ -160,6 +167,13 @@ class Chatbot_WP_Configuration_Repository implements Chatbot_Configuration_Repos
             $update_data['n8n_settings'] = is_string($data['n8n_settings'])
                 ? $data['n8n_settings']
                 : wp_json_encode($data['n8n_settings']);
+            $formats[] = '%s';
+        }
+
+        if (isset($data['addon_settings'])) {
+            $update_data['addon_settings'] = is_string($data['addon_settings'])
+                ? $data['addon_settings']
+                : wp_json_encode($data['addon_settings']);
             $formats[] = '%s';
         }
 
