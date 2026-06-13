@@ -191,6 +191,11 @@ class Chatbot_Addon_Manager {
 
         $active_addons = array();
         foreach ($this->addons as $id => $addon) {
+            // Check if globally active first
+            if (!$this->is_addon_globally_active($id)) {
+                continue;
+            }
+
             $is_enabled = isset($addon_status[$id]['enabled']) ? (bool) $addon_status[$id]['enabled'] : false;
             if ($is_enabled) {
                 // Fetch global configurations for this addon and set it
@@ -201,6 +206,75 @@ class Chatbot_Addon_Manager {
         }
 
         return $active_addons;
+    }
+    /**
+     * Validate addon code and extract addon ID/slug from the class name.
+     *
+     * @param string $code The PHP code to validate
+     * @param string $error_message Output parameter for error message if validation fails
+     * @param string $addon_id Output parameter for the extracted addon ID
+     * @return bool True if validation succeeds, false otherwise
+     */
+    public function validate_addon_code($code, &$error_message, &$addon_id) {
+        // Parse class name: Chatbot_[Name]_Addon
+        if (!preg_match('/\bclass\s+(Chatbot_([A-Za-z0-9_]+)_Addon)\b/i', $code, $matches)) {
+            $error_message = __("Class validation failed. The code must define a class named like 'Chatbot_[Name]_Addon' (e.g. Chatbot_My_Custom_Addon).", 'chatbot-plugin');
+            return false;
+        }
+
+        $class_name = $matches[1];
+        $inner_name = $matches[2];
+        $addon_id = strtolower(str_replace('_', '-', $inner_name));
+
+        // Validate slug/ID format
+        if (!preg_match('/^[a-z0-9-_]+$/', $addon_id)) {
+            $error_message = __("Invalid addon ID generated from class name. The class name must only contain alphanumeric characters and underscores.", 'chatbot-plugin');
+            return false;
+        }
+
+        // Validate inheritance from Chatbot_Addon
+        if (!preg_match('/\bclass\s+' . preg_quote($class_name, '/') . '\s+([^\{]*\s+)?extends\s+Chatbot_Addon\b/i', $code)) {
+            $error_message = sprintf(__("Class validation failed. The class '%s' must extend the 'Chatbot_Addon' base class.", 'chatbot-plugin'), $class_name);
+            return false;
+        }
+
+        // Perform basic syntax check: write to temporary file
+        $temp_filename = $this->custom_addons_dir . 'temp-check-' . time() . '-' . rand(1000, 9999) . '.php';
+        if (file_put_contents($temp_filename, $code) === false) {
+            $error_message = __("Failed to write to temporary file for syntax check.", 'chatbot-plugin');
+            return false;
+        }
+
+        $is_syntax_valid = false;
+        if (function_exists('exec')) {
+            $output = array();
+            $return_var = 1;
+            exec('php -l ' . escapeshellarg($temp_filename), $output, $return_var);
+            if ($return_var === 0) {
+                $is_syntax_valid = true;
+            } else {
+                $error_message = implode("\n", $output);
+            }
+        } else {
+            // Fallback: only include to check syntax if class does not exist yet to prevent fatal redeclaration error
+            if (class_exists($class_name)) {
+                $is_syntax_valid = true;
+            } else {
+                try {
+                    include $temp_filename;
+                    $is_syntax_valid = true;
+                } catch (Throwable $e) {
+                    $error_message = $e->getMessage();
+                }
+            }
+        }
+
+        // Delete temp file immediately
+        if (file_exists($temp_filename)) {
+            unlink($temp_filename);
+        }
+
+        return $is_syntax_valid;
     }
 
     /**
@@ -233,77 +307,29 @@ class Chatbot_Addon_Manager {
         $addon_id = $request->get_param('addon_id');
         $code = $request->get_param('code');
 
-        if (empty($addon_id) || empty($code)) {
-            return new WP_REST_Response(array('success' => false, 'message' => 'Missing parameter: addon_id and code are required'), 400);
+        if (empty($code)) {
+            return new WP_REST_Response(array('success' => false, 'message' => 'Missing parameter: code is required'), 400);
         }
 
-        // Validate addon_id format (lowercase alphanumeric and dash/underscore)
-        if (!preg_match('/^[a-z0-9-_]+$/', $addon_id)) {
-            return new WP_REST_Response(array('success' => false, 'message' => 'Invalid addon_id format. Lowercase alphanumeric and hyphens/underscores only.'), 400);
-        }
-
-        // Validate and format class name
-        $class_name = str_replace('-', ' ', $addon_id);
-        $class_name = ucwords($class_name);
-        $class_name = str_replace(' ', '_', $class_name);
-        $class_name = 'Chatbot_' . $class_name . '_Addon';
-
-        // Perform basic syntax check: write to temporary file
-        $temp_filename = $this->custom_addons_dir . 'temp-check-' . time() . '.php';
-        file_put_contents($temp_filename, $code);
-
-        $is_syntax_valid = false;
+        // Validate and extract using centralized validation helper
         $error_message = '';
-
-        if (function_exists('exec')) {
-            $output = array();
-            $return_var = 1;
-            exec('php -l ' . escapeshellarg($temp_filename), $output, $return_var);
-            if ($return_var === 0) {
-                $is_syntax_valid = true;
-            } else {
-                $error_message = implode("\n", $output);
-            }
-        } else {
-            // Fallback: only include to check syntax if class does not exist yet to prevent fatal redeclaration error
-            if (class_exists($class_name)) {
-                $is_syntax_valid = true;
-            } else {
-                try {
-                    include $temp_filename;
-                    $is_syntax_valid = true;
-                } catch (Throwable $e) {
-                    $error_message = $e->getMessage();
-                }
-            }
-        }
-
-        // Delete temp file immediately
-        if (file_exists($temp_filename)) {
-            unlink($temp_filename);
-        }
-
-        if (!$is_syntax_valid) {
+        $extracted_addon_id = '';
+        if (!$this->validate_addon_code($code, $error_message, $extracted_addon_id)) {
             return new WP_REST_Response(array(
                 'success' => false,
-                'message' => 'Compilation error in uploaded PHP code: ' . $error_message
+                'message' => 'Validation error: ' . $error_message
             ), 400);
         }
 
-        // Class existence and base class checks using safe static analysis
-        if (!preg_match('/\bclass\s+' . preg_quote($class_name, '/') . '\b/i', $code)) {
-            return new WP_REST_Response(array(
-                'success' => false, 
-                'message' => "Class validation failed. The code must define a class named '{$class_name}'"
-            ), 400);
-        }
-
-        if (!preg_match('/\bclass\s+' . preg_quote($class_name, '/') . '\s+([^\{]*\s+)?extends\s+Chatbot_Addon\b/i', $code)) {
+        // Verify that the addon_id parameter, if provided, matches the class name
+        if (!empty($addon_id) && $addon_id !== $extracted_addon_id) {
             return new WP_REST_Response(array(
                 'success' => false,
-                'message' => "Class validation failed. The class '{$class_name}' must extend the 'Chatbot_Addon' base class"
+                'message' => sprintf("Mismatch between class name and addon ID. The class defines addon ID '%s', but the request specified '%s'.", $extracted_addon_id, $addon_id)
             ), 400);
         }
+
+        $addon_id = $extracted_addon_id;
 
         // Save file securely to the uploads folder
         $final_filename = $this->custom_addons_dir . 'class-chatbot-' . $addon_id . '-addon.php';
@@ -322,6 +348,24 @@ class Chatbot_Addon_Manager {
             'success' => true,
             'message' => "Addon '{$addon_id}' has been uploaded and validated successfully!"
         ), 200);
+    }
+
+    /**
+     * Check if an addon is globally active/enabled.
+     */
+    public function is_addon_globally_active($id) {
+        $status = get_option('chatbot_addons_status', array());
+        // By default, addons are active (unless explicitly set to 'inactive')
+        return !isset($status[$id]) || $status[$id] !== 'inactive';
+    }
+
+    /**
+     * Set global status for an addon.
+     */
+    public function set_addon_globally_active($id, $active) {
+        $status = get_option('chatbot_addons_status', array());
+        $status[$id] = $active ? 'active' : 'inactive';
+        return update_option('chatbot_addons_status', $status);
     }
 }
 

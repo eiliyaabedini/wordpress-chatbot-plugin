@@ -25,12 +25,20 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
         
         // Register Custom Post Type on init
         add_action('init', array($this, 'register_post_type'));
+
+        // Register Calendar View submenu under Chatbot main menu
+        if (is_admin()) {
+            add_action('admin_menu', array($this, 'register_calendar_menu'));
+        }
     }
 
     /**
      * Register the Custom Post Type for bookings
      */
     public function register_post_type() {
+        if (!class_exists('Chatbot_Addon_Manager') || !Chatbot_Addon_Manager::get_instance()->is_addon_globally_active($this->id)) {
+            return;
+        }
         $labels = array(
             'name'                  => _x('Chat Bookings', 'Post Type General Name', 'chatbot-plugin'),
             'singular_name'         => _x('Chat Booking', 'Post Type Singular Name', 'chatbot-plugin'),
@@ -309,6 +317,596 @@ class Chatbot_Local_Calendar_Addon extends Chatbot_Addon {
             'working_hours_start' => sanitize_text_field($input['working_hours_start'] ?? '09:00'),
             'working_hours_end'   => sanitize_text_field($input['working_hours_end'] ?? '17:00'),
         );
+    }
+
+    /**
+     * Register Calendar View submenu under Chatbot main menu
+     */
+    public function register_calendar_menu() {
+        if (!class_exists('Chatbot_Addon_Manager') || !Chatbot_Addon_Manager::get_instance()->is_addon_globally_active($this->id)) {
+            return;
+        }
+        add_submenu_page(
+            'chatbot-plugin',
+            __('Calendar View', 'chatbot-plugin'),
+            __('Calendar View', 'chatbot-plugin'),
+            'manage_options',
+            'chatbot-booking-calendar',
+            array($this, 'render_calendar_page')
+        );
+    }
+
+    /**
+     * Render the interactive bookings calendar dashboard
+     */
+    public function render_calendar_page() {
+        if (!current_user_can('manage_options')) {
+            wp_die(__('You do not have sufficient permissions to access this page.', 'chatbot-plugin'));
+        }
+
+        // Fetch all bookings
+        $bookings = get_posts(array(
+            'post_type'      => 'chatbot_booking',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+        ));
+
+        // Group bookings by date
+        $bookings_by_date = array();
+        foreach ($bookings as $b) {
+            $date = get_post_meta($b->ID, '_booking_date', true);
+            if (!empty($date)) {
+                $bookings_by_date[$date][] = array(
+                    'id'          => $b->ID,
+                    'title'       => $b->post_title,
+                    'start_time'  => get_post_meta($b->ID, '_booking_time', true),
+                    'duration'    => (int) get_post_meta($b->ID, '_booking_duration', true),
+                    'email'       => get_post_meta($b->ID, '_booking_email', true),
+                    'description' => get_post_meta($b->ID, '_booking_description', true),
+                    'edit_url'    => get_edit_post_link($b->ID, 'raw'),
+                );
+            }
+        }
+
+        // Sort chronologically by start time on each day
+        foreach ($bookings_by_date as $date => &$list) {
+            usort($list, function($a, $b) {
+                return strcmp($a['start_time'], $b['start_time']);
+            });
+        }
+        unset($list);
+
+        $bookings_json = wp_json_encode($bookings_by_date);
+        ?>
+        <div class="wrap">
+            <h1 class="wp-heading-inline"><?php _e('Bookings Calendar Dashboard', 'chatbot-plugin'); ?></h1>
+            <hr class="wp-header-end">
+
+            <div class="chatbot-calendar-container">
+                <!-- Calendar Card -->
+                <div class="chatbot-calendar-card">
+                    <div class="calendar-header">
+                        <h2 class="calendar-title" id="calendar-title-text">Month Year</h2>
+                        <div class="calendar-controls">
+                            <button class="calendar-btn calendar-btn-nav" id="btn-prev-month" title="<?php esc_attr_e('Previous Month', 'chatbot-plugin'); ?>">&lsaquo;</button>
+                            <button class="calendar-btn" id="btn-today"><?php _e('Today', 'chatbot-plugin'); ?></button>
+                            <button class="calendar-btn calendar-btn-nav" id="btn-next-month" title="<?php esc_attr_e('Next Month', 'chatbot-plugin'); ?>">&rsaquo;</button>
+                        </div>
+                    </div>
+
+                    <div class="calendar-grid" id="calendar-grid-container">
+                        <!-- Days and Cells generated dynamically by JS -->
+                    </div>
+                </div>
+
+                <!-- Side details drawer -->
+                <div class="calendar-details-card" id="calendar-details-card">
+                    <div class="details-header">
+                        <h2 class="details-title" id="details-date-title"><?php _e('Select a Date', 'chatbot-plugin'); ?></h2>
+                        <p class="details-subtitle" id="details-date-subtitle"><?php _e('Click a day cell to view appointments.', 'chatbot-plugin'); ?></p>
+                    </div>
+                    <div id="details-bookings-list">
+                        <p style="color: #646970; font-style: italic; text-align: center; padding: 20px 0;">
+                            <?php _e('No day selected.', 'chatbot-plugin'); ?>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <style type="text/css">
+            .chatbot-calendar-container {
+                display: grid;
+                grid-template-columns: 1fr;
+                gap: 20px;
+                margin-top: 15px;
+                margin-right: 20px;
+            }
+            @media (min-width: 1100px) {
+                .chatbot-calendar-container {
+                    grid-template-columns: 3fr 1fr;
+                }
+            }
+            .chatbot-calendar-card {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            }
+            .calendar-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            .calendar-title {
+                font-size: 20px;
+                font-weight: 700;
+                color: #1d2327;
+                margin: 0;
+            }
+            .calendar-controls {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+            .calendar-btn {
+                background: #fff;
+                border: 1px solid #8c8f94;
+                border-radius: 4px;
+                padding: 6px 12px;
+                font-size: 13px;
+                cursor: pointer;
+                font-weight: 500;
+                transition: all 0.2s ease;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                height: 32px;
+                box-sizing: border-box;
+            }
+            .calendar-btn:hover {
+                border-color: #8A4FFF;
+                color: #8A4FFF;
+                background: #fcf9ff;
+            }
+            .calendar-btn-nav {
+                width: 32px;
+                height: 32px;
+                padding: 0;
+                font-size: 20px;
+                border-radius: 50%;
+                line-height: 28px;
+            }
+            .calendar-grid {
+                display: grid;
+                grid-template-columns: repeat(7, 1fr);
+                border-left: 1px solid #e3e4e6;
+                border-top: 1px solid #e3e4e6;
+            }
+            .calendar-day-header {
+                background: #f6f7f7;
+                padding: 10px;
+                text-align: center;
+                font-weight: 600;
+                color: #50575e;
+                border-right: 1px solid #e3e4e6;
+                border-bottom: 1px solid #e3e4e6;
+                font-size: 12px;
+                text-transform: uppercase;
+            }
+            .calendar-day-cell {
+                min-height: 110px;
+                padding: 6px;
+                background: #fff;
+                border-right: 1px solid #e3e4e6;
+                border-bottom: 1px solid #e3e4e6;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                cursor: pointer;
+                transition: background 0.15s ease;
+                box-sizing: border-box;
+            }
+            .calendar-day-cell:hover {
+                background: #fcf9ff;
+            }
+            .calendar-day-cell.other-month {
+                background: #fafafa;
+                color: #a7aaad;
+            }
+            .calendar-day-cell.other-month:hover {
+                background: #f6f7f7;
+            }
+            .calendar-day-cell.today {
+                background: #f6f2ff;
+            }
+            .calendar-day-cell.today .day-number {
+                background: #8A4FFF;
+                color: #fff;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+            .calendar-day-cell.active-selected {
+                background: #f0f6fc;
+                border-color: #0969da;
+            }
+            .day-number-container {
+                display: flex;
+                justify-content: flex-end;
+                margin-bottom: 4px;
+            }
+            .day-number {
+                font-size: 13px;
+                font-weight: 600;
+                color: #2c3338;
+            }
+            .event-list {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                overflow: hidden;
+            }
+            .event-tag {
+                font-size: 11px;
+                background: #f0ebff;
+                color: #5c26d6;
+                padding: 3px 6px;
+                border-radius: 4px;
+                white-space: nowrap;
+                text-overflow: ellipsis;
+                overflow: hidden;
+                font-weight: 500;
+                border-left: 3px solid #8A4FFF;
+                transition: transform 0.1s ease;
+            }
+            .event-tag:hover {
+                transform: translateX(2px);
+            }
+            .event-more-tag {
+                font-size: 10px;
+                color: #646970;
+                padding-left: 5px;
+                font-weight: 600;
+                margin-top: 2px;
+            }
+            .calendar-details-card {
+                background: #fff;
+                border: 1px solid #c3c4c7;
+                border-radius: 8px;
+                padding: 20px;
+                height: fit-content;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+            }
+            .details-header {
+                border-bottom: 1px solid #f0f0f1;
+                padding-bottom: 12px;
+                margin-bottom: 15px;
+            }
+            .details-title {
+                font-size: 16px;
+                font-weight: 700;
+                color: #1d2327;
+                margin: 0;
+            }
+            .details-subtitle {
+                font-size: 12px;
+                color: #646970;
+                margin: 4px 0 0 0;
+            }
+            .booking-item-card {
+                border: 1px solid #e3e4e6;
+                border-radius: 6px;
+                padding: 12px;
+                margin-bottom: 10px;
+                background: #fafafa;
+                transition: all 0.2s ease;
+            }
+            .booking-item-card:hover {
+                border-color: #8A4FFF;
+                background: #fff;
+                box-shadow: 0 2px 4px rgba(138, 79, 255, 0.08);
+            }
+            .booking-item-time {
+                font-size: 12px;
+                font-weight: 700;
+                color: #8A4FFF;
+                margin-bottom: 4px;
+            }
+            .booking-item-title {
+                font-size: 14px;
+                font-weight: 600;
+                color: #1d2327;
+                margin: 0 0 6px 0;
+            }
+            .booking-item-meta {
+                font-size: 12px;
+                color: #50575e;
+                margin-bottom: 4px;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
+            .booking-item-description {
+                font-size: 12px;
+                color: #646970;
+                font-style: italic;
+                margin: 6px 0;
+                padding-top: 6px;
+                border-top: 1px dashed #e3e4e6;
+            }
+            .booking-item-actions {
+                margin-top: 8px;
+                text-align: right;
+            }
+        </style>
+
+        <script type="text/javascript">
+            document.addEventListener('DOMContentLoaded', function() {
+                const bookingsData = <?php echo $bookings_json; ?>;
+                
+                let today = new Date();
+                let currentYear = today.getFullYear();
+                let currentMonth = today.getMonth(); // 0-indexed
+                
+                const monthNames = [
+                    "<?php _e('January', 'chatbot-plugin'); ?>",
+                    "<?php _e('February', 'chatbot-plugin'); ?>",
+                    "<?php _e('March', 'chatbot-plugin'); ?>",
+                    "<?php _e('April', 'chatbot-plugin'); ?>",
+                    "<?php _e('May', 'chatbot-plugin'); ?>",
+                    "<?php _e('June', 'chatbot-plugin'); ?>",
+                    "<?php _e('July', 'chatbot-plugin'); ?>",
+                    "<?php _e('August', 'chatbot-plugin'); ?>",
+                    "<?php _e('September', 'chatbot-plugin'); ?>",
+                    "<?php _e('October', 'chatbot-plugin'); ?>",
+                    "<?php _e('November', 'chatbot-plugin'); ?>",
+                    "<?php _e('December', 'chatbot-plugin'); ?>"
+                ];
+
+                const dayNames = [
+                    "<?php _e('Mon', 'chatbot-plugin'); ?>",
+                    "<?php _e('Tue', 'chatbot-plugin'); ?>",
+                    "<?php _e('Wed', 'chatbot-plugin'); ?>",
+                    "<?php _e('Thu', 'chatbot-plugin'); ?>",
+                    "<?php _e('Fri', 'chatbot-plugin'); ?>",
+                    "<?php _e('Sat', 'chatbot-plugin'); ?>",
+                    "<?php _e('Sun', 'chatbot-plugin'); ?>"
+                ];
+
+                const gridContainer = document.getElementById('calendar-grid-container');
+                const titleText = document.getElementById('calendar-title-text');
+                const detailsDateTitle = document.getElementById('details-date-title');
+                const detailsDateSubtitle = document.getElementById('details-date-subtitle');
+                const detailsBookingsList = document.getElementById('details-bookings-list');
+
+                function renderCalendar(year, month) {
+                    gridContainer.innerHTML = '';
+                    titleText.textContent = `${monthNames[month]} ${year}`;
+
+                    // Render day headers (Mon-Sun)
+                    dayNames.forEach(name => {
+                        const header = document.createElement('div');
+                        header.className = 'calendar-day-header';
+                        header.textContent = name;
+                        gridContainer.appendChild(header);
+                    });
+
+                    // First day of active month
+                    let firstDay = new Date(year, month, 1);
+                    // getDay() is 0 for Sunday, 1 for Monday... convert to Mon=0, Sun=6
+                    let startWeekday = firstDay.getDay() - 1;
+                    if (startWeekday < 0) startWeekday = 6;
+
+                    // Days in active month
+                    let daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                    // Days in previous month
+                    let prevMonthDays = new Date(year, month, 0).getDate();
+
+                    // 1. Render overflow days from previous month
+                    for (let i = startWeekday - 1; i >= 0; i--) {
+                        let dayNum = prevMonthDays - i;
+                        let prevDate = new Date(year, month - 1, dayNum);
+                        createDayCell(prevDate.getFullYear(), prevDate.getMonth(), dayNum, true);
+                    }
+
+                    // 2. Render active month days
+                    for (let dayNum = 1; dayNum <= daysInMonth; dayNum++) {
+                        createDayCell(year, month, dayNum, false);
+                    }
+
+                    // 3. Render overflow days from next month
+                    let totalCells = startWeekday + daysInMonth;
+                    let remainingCells = (7 - (totalCells % 7)) % 7;
+                    for (let dayNum = 1; dayNum <= remainingCells; dayNum++) {
+                        let nextDate = new Date(year, month + 1, dayNum);
+                        createDayCell(nextDate.getFullYear(), nextDate.getMonth(), dayNum, true);
+                    }
+                }
+
+                function createDayCell(year, month, dayNum, isOtherMonth) {
+                    const cell = document.createElement('div');
+                    cell.className = 'calendar-day-cell';
+                    if (isOtherMonth) {
+                        cell.className += ' other-month';
+                    }
+
+                    // Highlight Today
+                    if (year === today.getFullYear() && month === today.getMonth() && dayNum === today.getDate() && !isOtherMonth) {
+                        cell.className += ' today';
+                    }
+
+                    // Format Date key: YYYY-MM-DD
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+                    cell.dataset.date = dateStr;
+
+                    // Day Number display
+                    const numContainer = document.createElement('div');
+                    numContainer.className = 'day-number-container';
+                    const numSpan = document.createElement('div');
+                    numSpan.className = 'day-number';
+                    numSpan.textContent = dayNum;
+                    numContainer.appendChild(numSpan);
+                    cell.appendChild(numContainer);
+
+                    // Add bookings if present
+                    if (bookingsData[dateStr] && bookingsData[dateStr].length > 0) {
+                        const eventList = document.createElement('div');
+                        eventList.className = 'event-list';
+                        
+                        const list = bookingsData[dateStr];
+                        const displayCount = 3;
+                        
+                        list.slice(0, displayCount).forEach(b => {
+                            const tag = document.createElement('div');
+                            tag.className = 'event-tag';
+                            tag.textContent = `${b.start_time} ${b.title}`;
+                            eventList.appendChild(tag);
+                        });
+
+                        if (list.length > displayCount) {
+                            const moreTag = document.createElement('div');
+                            moreTag.className = 'event-more-tag';
+                            moreTag.textContent = `+${list.length - displayCount} <?php _e('more', 'chatbot-plugin'); ?>`;
+                            eventList.appendChild(moreTag);
+                        }
+
+                        cell.appendChild(eventList);
+                    }
+
+                    // Click handler
+                    cell.addEventListener('click', function() {
+                        document.querySelectorAll('.calendar-day-cell').forEach(c => c.classList.remove('active-selected'));
+                        cell.classList.add('active-selected');
+                        showDayDetails(dateStr, year, month, dayNum);
+                    });
+
+                    gridContainer.appendChild(cell);
+                }
+
+                function showDayDetails(dateStr, year, month, dayNum) {
+                    // Formatted Human Date
+                    const formattedDate = new Date(year, month, dayNum).toLocaleDateString(undefined, {
+                        weekday: 'long',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+
+                    detailsDateTitle.textContent = formattedDate;
+                    detailsBookingsList.innerHTML = '';
+
+                    const dayBookings = bookingsData[dateStr] || [];
+                    detailsDateSubtitle.textContent = `${dayBookings.length} ${dayBookings.length === 1 ? "<?php _e('appointment', 'chatbot-plugin'); ?>" : "<?php _e('appointments', 'chatbot-plugin'); ?>"}`;
+
+                    if (dayBookings.length === 0) {
+                        detailsBookingsList.innerHTML = `
+                            <p style="color: #646970; font-style: italic; text-align: center; padding: 20px 0;">
+                                <?php _e('No bookings scheduled for this date.', 'chatbot-plugin'); ?>
+                            </p>
+                        `;
+                        return;
+                    }
+
+                    dayBookings.forEach(b => {
+                        // Calculate end time
+                        const startParts = b.start_time.split(':');
+                        const startMin = parseInt(startParts[0]) * 60 + parseInt(startParts[1]);
+                        const endMin = startMin + b.duration;
+                        const endHours = String(Math.floor(endMin / 60)).padStart(2, '0');
+                        const endMins = String(endMin % 60).padStart(2, '0');
+                        const endTime = `${endHours}:${endMins}`;
+
+                        const card = document.createElement('div');
+                        card.className = 'booking-item-card';
+
+                        let descriptionHtml = '';
+                        if (b.description && b.description.trim() !== '') {
+                            descriptionHtml = `<div class="booking-item-description">${escapeHtml(b.description)}</div>`;
+                        }
+
+                        card.innerHTML = `
+                            <div class="booking-item-time">
+                                <span class="dashicons dashicons-clock" style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle; margin-right: 2px;"></span>
+                                ${b.start_time} - ${endTime} (${b.duration}m)
+                            </div>
+                            <h3 class="booking-item-title">${escapeHtml(b.title)}</h3>
+                            <div class="booking-item-meta">
+                                <span class="dashicons dashicons-email" style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle;"></span>
+                                <a href="mailto:${encodeURIComponent(b.email)}">${escapeHtml(b.email)}</a>
+                            </div>
+                            ${descriptionHtml}
+                            <div class="booking-item-actions">
+                                <a href="${b.edit_url}" class="button button-small" target="_blank">
+                                    <span class="dashicons dashicons-edit" style="font-size: 14px; width: 14px; height: 14px; margin-top: 3px;"></span>
+                                    <?php _e('Edit', 'chatbot-plugin'); ?>
+                                </a>
+                            </div>
+                        `;
+
+                        detailsBookingsList.appendChild(card);
+                    });
+                }
+
+                function escapeHtml(str) {
+                    return str
+                        .replace(/&/g, "&amp;")
+                        .replace(/</g, "&lt;")
+                        .replace(/>/g, "&gt;")
+                        .replace(/"/g, "&quot;")
+                        .replace(/'/g, "&#039;");
+                }
+
+                // Month Nav Event Listeners
+                document.getElementById('btn-prev-month').addEventListener('click', function() {
+                    currentMonth--;
+                    if (currentMonth < 0) {
+                        currentMonth = 11;
+                        currentYear--;
+                    }
+                    renderCalendar(currentYear, currentMonth);
+                });
+
+                document.getElementById('btn-next-month').addEventListener('click', function() {
+                    currentMonth++;
+                    if (currentMonth > 11) {
+                        currentMonth = 0;
+                        currentYear++;
+                    }
+                    renderCalendar(currentYear, currentMonth);
+                });
+
+                document.getElementById('btn-today').addEventListener('click', function() {
+                    currentYear = today.getFullYear();
+                    currentMonth = today.getMonth();
+                    renderCalendar(currentYear, currentMonth);
+                    
+                    // Automatically click today's cell if it exists in grid
+                    const todayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                    const todayCell = document.querySelector(`.calendar-day-cell[data-date="${todayStr}"]`);
+                    if (todayCell) {
+                        todayCell.click();
+                    }
+                });
+
+                // Initial render
+                renderCalendar(currentYear, currentMonth);
+
+                // Auto-select today
+                const todayStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+                const todayCell = document.querySelector(`.calendar-day-cell[data-date="${todayStr}"]`);
+                if (todayCell) {
+                    todayCell.click();
+                }
+            });
+        </script>
+        <?php
     }
 
     /**
