@@ -1003,7 +1003,7 @@ class Chatbot_AIPass {
 
     /**
      * Refresh the access token using the refresh token
-     * Uses a mutex pattern via transients to prevent concurrent refresh attempts
+     * Uses an atomic MySQL named lock (GET_LOCK) for single-flight refresh across concurrent workers
      *
      * @return array Result with success status and error message if failed
      */
@@ -1017,52 +1017,52 @@ class Chatbot_AIPass {
             );
         }
 
-        // Mutex: Check if another process is already refreshing the token
-        $lock_key = 'chatbot_aipass_refresh_lock';
-        $lock_timeout = 30; // Lock expires after 30 seconds (failsafe)
-        $max_wait_attempts = 10; // Max times to check if refresh completed
-        $wait_interval = 500000; // 0.5 seconds in microseconds
-        $refresh_token_used = $this->refresh_token;
+        global $wpdb;
 
-        // Try to acquire lock
-        $existing_lock = get_transient($lock_key);
+        // Single-flight mutex via a MySQL named lock. Unlike WordPress transients (check-then-set,
+        // not atomic), GET_LOCK is atomic across concurrent PHP workers, so only ONE worker calls
+        // the token endpoint per rotation — eliminating the refresh-token rotation race that made
+        // stragglers send an already-rotated token and get 400 invalid_grant. Namespaced by DB name
+        // so installs sharing a MySQL server don't collide; auto-released if the connection drops.
+        $lock_name  = substr(DB_NAME . '_chatbot_aipass_refresh', 0, 64);
+        $lock_wait  = 10; // seconds to wait for an in-progress refresh
+        $got_lock   = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $lock_name, $lock_wait));
+        $have_lock  = ($got_lock !== null && (int) $got_lock === 1);
+        $lock_error = ($got_lock === null);
 
-        if ($existing_lock !== false) {
-            // Another process is refreshing - wait for it to complete
-            chatbot_log('DEBUG', 'refresh_access_token', 'Another refresh in progress, waiting...');
-
-            for ($i = 0; $i < $max_wait_attempts; $i++) {
-                usleep($wait_interval); // Wait 0.5 seconds
-
-                // Check if lock was released
-                if (get_transient($lock_key) === false) {
-                    // Lock released - reload configuration to get new token
-                    $this->refresh_configuration();
-
-                    // Verify the token was actually refreshed
-                    if (!empty($this->access_token) && $this->token_expiry > time() + 300) {
-                        chatbot_log('INFO', 'refresh_access_token', 'Token was refreshed by another process');
-                        return array('success' => true);
-                    }
-                    break; // Lock released but token not valid, proceed with our own refresh
-                }
+        // Release the named lock (no-op if we never acquired it).
+        $release_lock = function () use ($wpdb, $lock_name, $have_lock) {
+            if ($have_lock) {
+                $wpdb->query($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $lock_name));
             }
+        };
 
-            // If we're still here, either lock is stuck or refresh failed
-            // Check if token is now valid (another process might have succeeded)
+        if ($have_lock || $lock_error) {
+            // We hold the single-flight lock (or locking is unavailable, so we degrade to no lock).
+            // Another worker may have refreshed while we waited — re-read before calling the server.
             $this->refresh_configuration();
             if (!empty($this->access_token) && $this->token_expiry > time() + 300) {
-                chatbot_log('INFO', 'refresh_access_token', 'Token valid after waiting');
+                $release_lock();
+                chatbot_log('INFO', 'refresh_access_token', 'Token already refreshed by another process; skipping');
                 return array('success' => true);
             }
-
-            chatbot_log('WARN', 'refresh_access_token', 'Lock timeout or failed refresh, proceeding with own refresh');
-            $refresh_token_used = $this->refresh_token;
+            if ($lock_error) {
+                chatbot_log('WARN', 'refresh_access_token', 'Named lock unavailable; proceeding without single-flight lock');
+            }
+        } else {
+            // Another worker holds the lock and we timed out waiting. Re-read; use the new token if
+            // present, otherwise back off rather than sending a possibly-stale refresh token.
+            $this->refresh_configuration();
+            if (!empty($this->access_token) && $this->token_expiry > time() + 300) {
+                chatbot_log('INFO', 'refresh_access_token', 'Token refreshed by another process (lock contended)');
+                return array('success' => true);
+            }
+            chatbot_log('WARN', 'refresh_access_token', 'Timed out waiting for in-progress refresh; backing off');
+            return array('success' => false, 'error' => 'Refresh already in progress');
         }
 
-        // Acquire the lock
-        set_transient($lock_key, time(), $lock_timeout);
-        chatbot_log('INFO', 'refresh_access_token', 'Acquired refresh lock, refreshing access token');
+        $refresh_token_used = $this->refresh_token;
+        chatbot_log('INFO', 'refresh_access_token', 'Refreshing access token');
 
         // Prepare request body for token refresh
         $request_body = array(
@@ -1088,7 +1088,8 @@ class Chatbot_AIPass {
 
         if (is_wp_error($response)) {
             chatbot_log('ERROR', 'refresh_access_token', 'WP Error: ' . $response->get_error_message());
-            delete_transient($lock_key); // Release lock on error
+            $this->record_refresh_failure(0, 'Connection error: ' . $response->get_error_message());
+            $release_lock();
             return array(
                 'success' => false,
                 'error' => 'Connection error: ' . $response->get_error_message()
@@ -1117,30 +1118,24 @@ class Chatbot_AIPass {
                     $error_msg = $response_body['error'];
                 }
             }
-            chatbot_log('ERROR', 'refresh_access_token', 'Token refresh failed: ' . $error_msg);
+            chatbot_log('ERROR', 'refresh_access_token', 'Token refresh failed: ' . $error_msg, array('status_code' => $response_code));
 
-            // If refresh token is invalid or expired, clear all tokens
-            if ($response_code === 401 || $response_code === 400) {
-                $stored_refresh_token = get_option('chatbot_aipass_refresh_token', '');
-                if (!empty($stored_refresh_token) && $stored_refresh_token !== $refresh_token_used) {
-                    delete_transient($lock_key);
-                    $this->refresh_configuration();
-                    if (!empty($this->access_token) && $this->token_expiry > time() + 300) {
-                        chatbot_log('INFO', 'refresh_access_token', 'Refresh token was rotated by another process; keeping current tokens');
-                        return array('success' => true);
-                    }
-                }
-
-                chatbot_log('WARN', 'refresh_access_token', 'Refresh token invalid, clearing all tokens');
-                update_option('chatbot_aipass_access_token', '');
-                update_option('chatbot_aipass_refresh_token', '');
-                update_option('chatbot_aipass_token_expiry', 0);
-                $this->access_token = '';
-                $this->refresh_token = '';
-                $this->token_expiry = 0;
+            // Do NOT wipe tokens on a transient/racy failure. With refresh-token rotation a
+            // concurrent worker may have already stored a fresh token, or the server briefly
+            // returned 4xx; blanking tokens here would destroy a recoverable connection and force a
+            // manual reconnect. Re-read first and keep any valid token; otherwise just report the
+            // failure (is_connected() applies a cooldown). Reconnect happens via the SDK; manual
+            // disconnect() remains the only path that clears tokens.
+            $this->refresh_configuration();
+            if (!empty($this->access_token) && $this->token_expiry > time() + 300) {
+                chatbot_log('INFO', 'refresh_access_token', 'A valid token is already stored (rotated by another process); keeping it');
+                $this->clear_refresh_failure();
+                $release_lock();
+                return array('success' => true);
             }
 
-            delete_transient($lock_key); // Release lock on error
+            $this->record_refresh_failure($response_code, $error_msg);
+            $release_lock();
             return array(
                 'success' => false,
                 'error' => $error_msg
@@ -1149,7 +1144,8 @@ class Chatbot_AIPass {
 
         if (!isset($response_body['access_token'])) {
             chatbot_log('ERROR', 'refresh_access_token', 'Invalid response format - no access token');
-            delete_transient($lock_key); // Release lock on error
+            $this->record_refresh_failure($response_code, 'Invalid response format');
+            $release_lock();
             return array(
                 'success' => false,
                 'error' => 'Invalid response format'
@@ -1195,10 +1191,35 @@ class Chatbot_AIPass {
             'new_expiry' => date('Y-m-d H:i:s', $new_expiry)
         ));
 
-        delete_transient($lock_key); // Release lock on success
+        $this->clear_refresh_failure();
+        $release_lock(); // Release lock on success
         return array(
             'success' => true
         );
+    }
+
+    /**
+     * Persist the most recent token-refresh failure so it survives in diagnostics even after the
+     * debug log rotates. Cleared on the next successful refresh.
+     *
+     * @param int    $http_code HTTP status from the token endpoint (0 for a connection error).
+     * @param string $error     Error description (truncated).
+     */
+    private function record_refresh_failure($http_code, $error) {
+        update_option('chatbot_aipass_last_refresh_failure', wp_json_encode(array(
+            'time_utc' => gmdate('Y-m-d H:i:s') . ' UTC',
+            'http'     => (int) $http_code,
+            'error'    => is_string($error) ? substr($error, 0, 300) : '',
+        )), false);
+    }
+
+    /**
+     * Clear the stored refresh-failure breadcrumb after a successful refresh.
+     */
+    private function clear_refresh_failure() {
+        if (get_option('chatbot_aipass_last_refresh_failure', '') !== '') {
+            delete_option('chatbot_aipass_last_refresh_failure');
+        }
     }
 
     /**

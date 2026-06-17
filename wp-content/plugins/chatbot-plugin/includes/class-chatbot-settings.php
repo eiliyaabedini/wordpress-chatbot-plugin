@@ -578,6 +578,7 @@ class Chatbot_Settings {
             __('Token expiry', 'chatbot-plugin') => $summary['token_expiry'] ?? __('Not set', 'chatbot-plugin'),
             __('Refresh cooldown active', 'chatbot-plugin') => $summary['refresh_cooldown_active'] ?? __('No', 'chatbot-plugin'),
             __('Refresh lock active', 'chatbot-plugin') => !empty($summary['refresh_lock_active']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
+            __('Last refresh failure', 'chatbot-plugin') => $summary['last_refresh_failure'] ?? __('None', 'chatbot-plugin'),
             __('Selected model', 'chatbot-plugin') => $summary['selected_model'] ?? '',
             __('Log file writable', 'chatbot-plugin') => !empty($summary['log_file_writable']) ? __('Yes', 'chatbot-plugin') : __('No', 'chatbot-plugin'),
         );

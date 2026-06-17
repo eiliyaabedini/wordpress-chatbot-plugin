@@ -3,7 +3,7 @@
  * Plugin Name: AIPass Chat
  * Plugin URI: https://aipass.one
  * Description: AI-powered chatbot for WordPress. Connect to 161+ AI models including GPT-4 and Gemini via AIPass.
- * Version: 1.8.20
+ * Version: 1.9.0
  * Author: Eiliya Abedini
  * Author URI: https://iact.ir
  * License: GPL-2.0+
@@ -125,7 +125,7 @@ add_action('rest_api_init', function() {
 // =============================================================================
 
 // Define plugin constants
-define('CHATBOT_PLUGIN_VERSION', '1.8.20');
+define('CHATBOT_PLUGIN_VERSION', '1.9.0');
 define('CHATBOT_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('CHATBOT_PLUGIN_URL', plugin_dir_url(__FILE__));
 define('CHATBOT_DEFAULT_MODEL', 'gemini/gemini-2.5-flash-lite'); // Default AI model for all API calls
@@ -375,6 +375,11 @@ function chatbot_get_diagnostic_summary() {
         ? human_time_diff(time(), $cooldown_until) . ' remaining'
         : 'No';
 
+    global $wpdb;
+    $refresh_lock_name = substr(DB_NAME . '_chatbot_aipass_refresh', 0, 64);
+    $refresh_lock_active = ($wpdb->get_var($wpdb->prepare('SELECT IS_USED_LOCK(%s)', $refresh_lock_name)) !== null);
+    $last_refresh_failure = get_option('chatbot_aipass_last_refresh_failure', '');
+
     $log_file = chatbot_get_log_file_path();
 
     return array(
@@ -387,7 +392,8 @@ function chatbot_get_diagnostic_summary() {
         'refresh_token_stored' => get_option('chatbot_aipass_refresh_token', '') !== '',
         'token_expiry' => $token_expiry_display,
         'refresh_cooldown_active' => $cooldown_display,
-        'refresh_lock_active' => get_transient('chatbot_aipass_refresh_lock') !== false,
+        'refresh_lock_active' => $refresh_lock_active,
+        'last_refresh_failure' => $last_refresh_failure !== '' ? $last_refresh_failure : 'None',
         'selected_model' => get_option('chatbot_ai_model', defined('CHATBOT_DEFAULT_MODEL') ? CHATBOT_DEFAULT_MODEL : ''),
         'log_file_writable' => (!empty($log_file) && is_writable(dirname($log_file))),
     );
